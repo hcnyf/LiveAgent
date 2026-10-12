@@ -310,13 +310,22 @@ Rust 改动（批①的 T1.1/T1.3、批③的 T3.3、批⑤的 T5.2）额外跑 
 | 工具链 | `rustc 1.99.0 (b940084d7)` / `stable-x86_64-pc-windows-msvc` |
 | `RUSTUP_HOME` | `D:\rust\rustup`（已 `setx` 持久化） |
 | `CARGO_HOME` | `D:\rust\cargo`（已 `setx` 持久化） |
-| MSVC BuildTools | `D:\VSBuildTools`（`link.exe` / `cl.exe` 在 `VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64`） |
+| MSVC BuildTools | `D:\BuildTools`（`link.exe` / `cl.exe` 在 `VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64`） |
 | Windows SDK | `C:\Program Files (x86)\Windows Kits\10`（**固定在此，安装器无参数可改**） |
 
-**两条踩过的坑（重装时务必记住）**
+**三条踩过的坑（重装时务必记住）**
 
 1. **`--installPath` 只在没有已注册 VS 实例时生效**。若机器上已有 `Microsoft.VisualStudio.Product.BuildTools` 实例，安装器会**静默沿用原路径并忽略 `--installPath`**。要搬家必须先完整卸载（`winget uninstall --id Microsoft.VisualStudio.2022.BuildTools -e --silent`），确认 `vswhere -products * -property installationPath` 为空后再装。
 2. **`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`（编译器本体）是 VCTools 工作负载的 *recommended* 组件，不是必需组件**。不带 `--includeRecommended` 时，安装器只装外壳（`VC.CoreBuildTools` / `VC.Redist.14.Latest` / `VC.CoreIde` / `NativeDesktop.Core`），**并会把 `VC.Tools.x86.x64` 从缓存中移除**——表现为"报成功但找不到 `link.exe`"。
+
+3. **绝不能删除 `C:\ProgramData\Microsoft\VisualStudio\Packages` 整个目录。** VS 2017+ 把**实例注册状态**放在 `Packages\_Instances\`（以及 `_bootstrapper\`），`vswhere` 和 rustc 的 MSVC 链接器发现都读它。删掉之后的现象极具误导性：
+   - 工具链文件**完好无损**（`link.exe` / `cl.exe` 都在）
+   - `vswhere` 返回**空**，注册表 `Setup\Instances` 也不存在
+   - **`cargo check` 依然通过**（它不链接），但 `cargo build` / `cargo test` 报 `linker link.exe not found`
+   - 更糟的是**无法原地恢复**：重装时目标目录非空会被直接拒绝（`Visual Studio 无法安装到非空目录"..."`），而该目录的 ACL 又阻止非提权删除（`Remove-Item` 对每个文件报"对路径的访问被拒绝"），形成死锁。本机最终是**改装到新路径 `D:\BuildTools`** 才解决的。
+   - **正确做法：`Packages` 下只有下载负载可删，`_Instances` / `_bootstrapper` 必须保留。**
+
+
 
 ### 项目额外前置（**不在 `mise.toml` 中，但 `cargo check` 必需**）
 
@@ -342,13 +351,22 @@ $env:CARGO_TARGET_DIR="D:\rust\target\liveagent"
 
 ### 磁盘现状
 
-| 位置 | 占用 |
-|---|---|
-| `D:\VSBuildTools` | 3431 MB |
-| `D:\rust`（rustup + cargo + target） | 5306 MB |
-| libclang（`D:\Python\...\clang`） | 80 MB |
-| Windows SDK（C，**不可搬**） | 1716 MB |
-| `C:\ProgramData\Microsoft\VisualStudio`（安装器包缓存，**可清理回收**） | 1269 MB |
+| 位置 | 占用 | 说明 |
+|---|---|---|
+| `D:\BuildTools` | 3431 MB | **当前生效的 BuildTools**（已注册） |
+| `D:\VSBuildTools` | 3431 MB | **孤儿目录**：注册丢失后无法原地恢复，被 ACL 锁住，只能提权删除 |
+| `D:\rust`（rustup + cargo + target） | 5306 MB+ | 含 `target\liveagent` 的构建缓存 |
+| libclang（`D:\Python\...\clang`） | 80 MB | |
+| Windows SDK（C） | 1716 MB | **不可搬**，安装器无参数可改 |
+| `C:\ProgramData\Microsoft\VisualStudio\Packages` | 1220 MB | **含 `_Instances` 注册，不可删**（见坑 3） |
 
-C 盘可用 **9.6 GB**，D 盘可用 **212.5 GB**。
+C 盘可用 **9.7 GB**，D 盘可用 **208.5 GB**。
+
+**待清理的孤儿目录**（需要**管理员**终端；`D:\VSBuildTools` 与 `ProgramData` 下的 VS 目录都被安装器设了受限 ACL，非提权删不掉）：
+
+```powershell
+Remove-Item -Path "D:\VSBuildTools" -Recurse -Force
+```
+
+> 注意：**不要再删 `C:\ProgramData\Microsoft\VisualStudio\Packages`**（见坑 3）。若要回收它的空间，只删其中的下载负载子目录，保留 `_Instances` 与 `_bootstrapper`。
 
