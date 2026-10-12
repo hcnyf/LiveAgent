@@ -6,6 +6,17 @@ import type { SidebarShortcuts } from "./sidebarShortcuts";
 
 export type ProviderId = "codex" | "claude_code" | "gemini" | "xai" | "deepseek";
 
+/**
+ * 供应商用途分类。
+ *
+ * - `chat`：对话模型供应商，进入模型选择器、失败转移、用量查询等一切对话路径。
+ * - `image`：生图模型供应商，**必须排除**在这些路径之外（过滤点见
+ *   `buildModelOptions`、失败转移归一化、`CronPromptRunner`、记忆整理等）。
+ *
+ * 缺省视为 `chat`（旧存档零迁移）。
+ */
+export type ProviderKind = "chat" | "image";
+
 export type ExecutionMode = "text" | "tools" | "agent-dev";
 
 export type CodexRequestFormat = "openai-completions" | "openai-responses";
@@ -619,6 +630,12 @@ export type CustomProvider = {
   id: string;
   name: string;
   type: ProviderId;
+  /**
+   * 用途分类；缺省视为 `chat`。**可选而非必填**是有意的：设为必填会连锁触发
+   * 多处字面量构造（内置供应商、CCS/Cherry 导入、ProviderModal 保存 payload）
+   * 的 TS 报错；而 `normalizeCustomProvider` 恒会补齐该字段，运行时有值。
+   */
+  kind?: ProviderKind;
   baseUrl: string;
   /** 将 baseUrl 作为最终请求地址，本地反代不再追加协议端点路径。 */
   isFullUrl: boolean;

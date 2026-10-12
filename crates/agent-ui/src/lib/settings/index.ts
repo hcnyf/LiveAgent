@@ -87,6 +87,7 @@ import type {
   PromptCacheHintMode,
   ProviderFailoverSettings,
   ProviderId,
+  ProviderKind,
   ProviderModelConfig,
   ProviderRetryPolicy,
   ReasoningLevel,
@@ -1066,6 +1067,15 @@ function normalizeProviderId(input: unknown): ProviderId {
   }
 }
 
+/**
+ * 用途分类归一化：只认显式的 "image"，其余（含缺失、非法值）一律 "chat"。
+ * 取向与 type 的默认值不同是刻意的——旧存档没有该字段，必须零迁移地落回对话供应商，
+ * 绝不能因为值非法而把某个供应商误判成生图（那会让它从所有对话路径里消失）。
+ */
+function normalizeProviderKind(input: unknown): ProviderKind {
+  return input === "image" ? "image" : "chat";
+}
+
 function normalizeProviderName(id: string, input: unknown): string {
   const name = typeof input === "string" && input.trim() ? input.trim() : "未命名供应商";
   if (id === "builtin-claude_code" && name === "Claude Code") return "Anthropic";
@@ -1237,6 +1247,9 @@ export function normalizeCustomProvider(input: unknown): CustomProvider {
     id,
     name: normalizeProviderName(id, obj.name),
     type,
+    // 本函数是**字段白名单式重建**：不在返回值里显式写回，`kind` 会在第一次
+    // load/save 往返后被静默丢弃（现象是"功能时好时坏"）。改动此字段时务必同步这里。
+    kind: normalizeProviderKind(obj.kind),
     baseUrl: codexRouting
       ? codexRouting.baseUrl
       : normalizeBaseUrl(typeof obj.baseUrl === "string" ? obj.baseUrl : ""),

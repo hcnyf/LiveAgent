@@ -2870,6 +2870,22 @@ test("custom provider useSystemProxy defaults to false and keeps explicit true",
   }
 });
 
+test("custom provider kind survives normalization and defaults to chat", () => {
+  // normalizeCustomProvider 是**字段白名单式重建**：不显式写回 kind，它就会在第一次
+  // load/save 往返后被静默丢弃，现象是"生图供应商时好时坏"。此断言锁住那个写回。
+  assert.equal(settings.normalizeCustomProvider({ id: "p-1" }).kind, "chat");
+  assert.equal(settings.normalizeCustomProvider({ id: "p-1", kind: "image" }).kind, "image");
+  // 非法值必须落回 chat：绝不能因为值非法就把对话供应商误判成生图——那会让它从
+  // 所有对话路径（模型选择器、失败转移、定时任务）里静默消失。
+  assert.equal(settings.normalizeCustomProvider({ id: "p-1", kind: "IMAGE" }).kind, "chat");
+  assert.equal(settings.normalizeCustomProvider({ id: "p-1", kind: 1 }).kind, "chat");
+  assert.equal(settings.normalizeCustomProvider({ id: "p-1", kind: null }).kind, "chat");
+  assert.equal(settings.normalizeCustomProvider({ id: "p-1", kind: ["image"] }).kind, "chat");
+  // 往返稳定：归一化结果再喂回去仍保留 image。
+  const once = settings.normalizeCustomProvider({ id: "p-1", kind: "image" });
+  assert.equal(settings.normalizeCustomProvider(once).kind, "image");
+});
+
 test("system proxy password is redacted for web storage and gateway sync", () => {
   const base = settings.normalizeSettings({
     system: {

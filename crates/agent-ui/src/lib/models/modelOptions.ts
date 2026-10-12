@@ -25,6 +25,8 @@ export type ModelOptionsSettings<TProviderType extends string = string> = {
     id: string;
     name: string;
     type: TProviderType;
+    /** 用途分类。`"image"` 的供应商不产生对话模型选项；缺省视为 `chat`。 */
+    kind?: string;
     activeModels: readonly string[];
     models?: readonly {
       id: string;
@@ -108,6 +110,9 @@ export function buildModelOptions<TProviderType extends string>(
 ): SharedModelOption<TProviderType>[] {
   const modelOptions: SharedModelOption<TProviderType>[] = [];
   for (const provider of settings.customProviders) {
+    // 生图供应商绝不进入对话模型列表。这是 agent-gui 与 agent-gateway/web 共用的
+    // 消费点：漏掉会让生图模型出现在所有模型选择器里，并污染按 providerType 的分组排序。
+    if (provider.kind === "image") continue;
     for (const model of provider.activeModels) {
       const configured = provider.models?.find((item) => item.id === model);
       const catalog = findCatalogModelAcrossProviders(model);

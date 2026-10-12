@@ -2351,6 +2351,33 @@ After`,
   );
 });
 
+test("buildModelOptions excludes image providers and treats a missing kind as chat", () => {
+  // 生图供应商必须排除在对话模型列表之外：buildModelOptions 是 agent-gui 与
+  // agent-gateway/web 共用的消费点，漏掉会让生图模型出现在所有模型选择器里。
+  assert.deepEqual(
+    chatHelpers
+      .buildModelOptions({
+        customProviders: [
+          { id: "chat", name: "Chat", type: "codex", activeModels: ["a"] },
+          { id: "img", name: "Image", type: "codex", kind: "image", activeModels: ["gpt-image-1"] },
+        ],
+        selectedModel: null,
+      })
+      .map((option) => option.value),
+    ["chat::a"],
+  );
+  // 缺省 kind 视为 chat：旧存档必须零迁移地继续出现在列表里。
+  assert.deepEqual(
+    chatHelpers
+      .buildModelOptions({
+        customProviders: [{ id: "legacy", name: "L", type: "codex", activeModels: ["a"] }],
+        selectedModel: null,
+      })
+      .map((option) => option.value),
+    ["legacy::a"],
+  );
+});
+
 test("chat page helpers keep model options stable and normalize status/title edge cases", () => {
   const appSettings = {
     customProviders: [
