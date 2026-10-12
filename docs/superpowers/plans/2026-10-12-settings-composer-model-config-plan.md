@@ -299,3 +299,56 @@ Rust 改动（批①的 T1.1/T1.3、批③的 T3.3、批⑤的 T5.2）额外跑 
 - `redact_provider_credential`（`crates/agent-gui/src-tauri/src/commands/config/settings/providers.rs:40-56`）**确为透传未知字段**，只摘 `apiKey` 与 `usageQuery` 密钥 ✅（本次新增 `kind` 不触发 Rust 迁移）
 - 备份的 `providers` 域**确为整域搬运** ✅ —— 但注意 A-2 第 5 条的 `sanitize_provider_summary` 是**另一个**白名单，不能据此推断所有 Rust 侧处理都透传
 
+---
+
+## 附录 B：本机环境前置（2026-10-12 实测）
+
+### Rust 工具链
+
+| 项 | 值 |
+|---|---|
+| 工具链 | `rustc 1.99.0 (b940084d7)` / `stable-x86_64-pc-windows-msvc` |
+| `RUSTUP_HOME` | `D:\rust\rustup`（已 `setx` 持久化） |
+| `CARGO_HOME` | `D:\rust\cargo`（已 `setx` 持久化） |
+| MSVC BuildTools | `D:\VSBuildTools`（`link.exe` / `cl.exe` 在 `VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64`） |
+| Windows SDK | `C:\Program Files (x86)\Windows Kits\10`（**固定在此，安装器无参数可改**） |
+
+**两条踩过的坑（重装时务必记住）**
+
+1. **`--installPath` 只在没有已注册 VS 实例时生效**。若机器上已有 `Microsoft.VisualStudio.Product.BuildTools` 实例，安装器会**静默沿用原路径并忽略 `--installPath`**。要搬家必须先完整卸载（`winget uninstall --id Microsoft.VisualStudio.2022.BuildTools -e --silent`），确认 `vswhere -products * -property installationPath` 为空后再装。
+2. **`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`（编译器本体）是 VCTools 工作负载的 *recommended* 组件，不是必需组件**。不带 `--includeRecommended` 时，安装器只装外壳（`VC.CoreBuildTools` / `VC.Redist.14.Latest` / `VC.CoreIde` / `NativeDesktop.Core`），**并会把 `VC.Tools.x86.x64` 从缓存中移除**——表现为"报成功但找不到 `link.exe`"。
+
+### 项目额外前置（**不在 `mise.toml` 中，但 `cargo check` 必需**）
+
+| 前置 | 为什么需要 | 本机做法 |
+|---|---|---|
+| **libclang** | `rquickjs-sys` 的 build script 用 bindgen，需要 `libclang.dll` | `pip install libclang`，`LIBCLANG_PATH` = `<site-packages>\clang\native`（已 `setx` 持久化）。注意该包提供的模块名是 **`clang`**，`import libclang` 必然失败——不需要导入，路径对即可 |
+| **protoc** | `crates/agent-gui/src-tauri/build.rs:44` 编译 gateway proto | `mise.toml` 钉 34.0；本机用 winget `Google.Protobuf` **36.0**，`PROTOC` 指向完整路径（已 `setx` 持久化）。**与 mise.toml 存在版本偏差，需知悉** |
+| `LIVEAGENT_APP_VERSION` | `build.rs` 读取（有回退） | 显式设为 `1.3.0-dev.0` |
+
+### 必须注意：`CARGO_TARGET_DIR` 未持久化
+
+Tauri 的 `target/` 是数 GB 级，而 C 盘只剩约 9.6 GB。因此 **`CARGO_TARGET_DIR` 有意不 `setx` 持久化**（持久化会影响机器上所有 Rust 项目），每条 cargo 命令都要显式带上：
+
+```
+$env:CARGO_TARGET_DIR="D:\rust\target\liveagent"
+```
+
+### 实测基线
+
+`cargo check --manifest-path crates/agent-gui/src-tauri/Cargo.toml --tests` **通过**（51.09s），**3 条既有警告**：`src/runtime/shell_runner.rs:1203/1204` 未使用 import ×2、`src/runtime/managed_process.rs:482` 从未使用的关联函数 ×1。**判定标准：不新增警告。**
+
+（`docs/worklog/live-transcript-jitter.md:185` 记录 2026-08 时为 5 条同类警告；与当前 HEAD 的 3 条不同，**以当前 HEAD 实测为准**。）
+
+### 磁盘现状
+
+| 位置 | 占用 |
+|---|---|
+| `D:\VSBuildTools` | 3431 MB |
+| `D:\rust`（rustup + cargo + target） | 5306 MB |
+| libclang（`D:\Python\...\clang`） | 80 MB |
+| Windows SDK（C，**不可搬**） | 1716 MB |
+| `C:\ProgramData\Microsoft\VisualStudio`（安装器包缓存，**可清理回收**） | 1269 MB |
+
+C 盘可用 **9.6 GB**，D 盘可用 **212.5 GB**。
+
