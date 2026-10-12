@@ -148,6 +148,12 @@ async function executeCronPromptRun(
   if (!provider) {
     throw new Error(`Auto Prompt provider is missing or has been removed: ${request.providerId}`);
   }
+  // 生图供应商不能承接对话请求。这里是**非 UI 入口**——CronTaskManager 工具、远程与
+  // 备份导入写入的 selectedModel 都不经过供应商对话框，所以必须在这里显式拦住，
+  // 否则会真向生图端点发一次对话请求。
+  if (provider.kind === "image") {
+    throw new Error(`Auto Prompt provider is not a chat provider: ${request.providerId}`);
+  }
 
   const providerLabel = provider.name.trim() || provider.id;
   if (!provider.baseUrl.trim()) {

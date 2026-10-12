@@ -164,6 +164,9 @@ export function buildModelFailoverPlan(
     // entries, but re-check here so a stale persisted queue can never route
     // a Claude request to a Codex provider (or vice versa).
     if (provider.type !== primary.providerId) continue;
+    // 同一 vendor 可以同时有对话与生图供应商，type 判定不足以排除生图：失败转移
+    // 只换 provider 保 model，生图端点永远不是对话端点。
+    if (provider.kind === "image") continue;
     if (!provider.baseUrl.trim() || !provider.apiKey.trim()) continue;
     fallbacks.push({
       selectedModel: { customProviderId: provider.id, model: primary.model },

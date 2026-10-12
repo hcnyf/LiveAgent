@@ -1864,6 +1864,9 @@ fn sanitize_provider_summary(provider: &Value) -> Result<Value, String> {
         "id",
         "name",
         "type",
+        // 必须随摘要下发：WebUI 侧同样靠 kind 把生图供应商挡在对话模型列表之外
+        // （见 agent-ui 的 buildModelOptions）。漏掉会让生图模型在 Web 端漏进模型选择器。
+        "kind",
         "models",
         "activeModels",
         "requestFormat",
@@ -1951,6 +1954,7 @@ mod tests {
                 "id": "provider-a",
                 "name": "A",
                 "type": "codex",
+                "kind": "image",
                 "baseUrl": "https://api.example.com",
                 "apiKey": "secret-key",
                 "models": [],
@@ -1962,6 +1966,9 @@ mod tests {
         .expect("sanitize provider summaries");
 
         assert_eq!(result[0]["id"], "provider-a");
+        // kind 必须随摘要下发：WebUI 侧靠它把生图供应商挡在对话模型列表之外。
+        // 这个键集是硬白名单，漏掉不会报错、只会静默改变 Web 端行为。
+        assert_eq!(result[0]["kind"], "image");
         assert_eq!(result[0]["promptCacheHintMode"], "openrouter-session");
         assert_eq!(result[0]["nativeWebSearchEnabled"], false);
         assert_eq!(result[0]["apiKey"], Value::Null);

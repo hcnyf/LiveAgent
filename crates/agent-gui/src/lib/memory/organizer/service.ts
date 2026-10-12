@@ -125,6 +125,11 @@ function resolveOrganizerProvider(run: MemoryOrganizeRun, settings: AppSettings)
   if (!provider) {
     throw new Error(`记忆整理模型供应商不存在：${customProviderId}`);
   }
+  // 记忆整理是真发对话请求的路径，且其模型可经非 UI 入口写入（工具/远程/备份导入），
+  // 所以必须在这里拦住生图供应商，而不是依赖选择器把它藏起来。
+  if (provider.kind === "image") {
+    throw new Error(`记忆整理模型不能是生图供应商：${provider.name || provider.id}`);
+  }
   if (!provider.baseUrl.trim()) {
     throw new Error(`记忆整理模型供应商 Base URL 为空：${provider.name || provider.id}`);
   }

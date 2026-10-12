@@ -114,6 +114,38 @@ test("failover credential readiness accepts GUI keys and WebUI redacted-key mark
   );
 });
 
+test("failover queue excludes image providers even on the same vendor", () => {
+  // image 与 chat 可以是**同一 vendor**（此处都用 claude_code），所以既有的
+  // type 过滤挡不住生图供应商——必须另判 kind，否则生图端点会被当成对话失败转移目标。
+  const providers = [
+    ...PROVIDERS,
+    {
+      id: "provider-image",
+      name: "Image",
+      type: "claude_code",
+      kind: "image",
+      baseUrl: "https://img.example.com",
+      apiKey: "key-img",
+      models: [{ id: "model-1", contextWindow: 200000, maxOutputToken: 8192 }],
+      activeModels: ["model-1"],
+      reasoning: "high",
+      promptCachingEnabled: false,
+      nativeWebSearchEnabled: false,
+      useSystemProxy: false,
+    },
+  ];
+  const normalized = settings.normalizeModelFailoverSettings(
+    {
+      claude_code: {
+        enabled: true,
+        queue: ["provider-a", "provider-image"],
+      },
+    },
+    providers,
+  );
+  assert.deepEqual(normalized.claude_code.queue, ["provider-a"]);
+});
+
 test("queue entries are validated against same-vendor providers, deduped, and capped", () => {
   const normalized = settings.normalizeModelFailoverSettings(
     {

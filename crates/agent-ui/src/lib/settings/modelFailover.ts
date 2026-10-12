@@ -68,7 +68,9 @@ export function normalizeProviderFailoverSettings(
             : "";
       if (!providerId) continue;
       const provider = customProviders.find((item) => item.id === providerId);
-      if (!provider || provider.type !== providerType) continue;
+      // type 过滤挡不住生图供应商：image 与 chat 可以是**同一 vendor**（都用 codex /
+      // gemini），所以必须另判 kind，否则生图 provider 会被合法留在对话失败转移队列里。
+      if (!provider || provider.type !== providerType || provider.kind === "image") continue;
       if (seen.has(providerId)) continue;
       seen.add(providerId);
       queue.push(providerId);
