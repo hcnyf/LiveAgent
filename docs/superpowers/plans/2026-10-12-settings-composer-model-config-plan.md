@@ -93,10 +93,12 @@
 
 ### T2.2 底部工具条 40px → 32px
 
-- **文件**：`ChatComposerBar.tsx:1750`（`min-h-9` → `min-h-8`）、`crates/agent-ui/src/lib/chat/composerControlStyles.ts:4`（`h-8` → `h-6`）、`crates/agent-ui/src/components/chat/ContextUsageRing.tsx`（`size-8` → `size-6`，含 svg）、`context-usage.test.mjs:132`
-- **做什么**：只动这三个点。`py-1` 不动（8 + 24 = 32px，正好等于 `min-h-8`）
-- **验收**：工具条实测 32px；三个控件随共享常量一起收
-- **坑**：**24px 是 WCAG 2.5.8 下限，不得再压**
+- **文件**：`ChatComposerBar.tsx:1750-1751`（`min-h-9` → `min-h-8`；删除 `py-1`）、`crates/agent-gui/test/chat/context-usage.test.mjs:132`
+- **做什么**：**只动 deck 自身，不缩任何子控件**（`composerControlStyles.ts` 的 `h-8`、`ContextUsageRing.tsx` 的 `size-8` 保持不动）。算术：`py-1` 8px + 子控件 32px = 40px → 0 + 32 = 32px，恰等于 `min-h-8`
+- **验收**：工具条实测 32px；子控件仍 32px；用量环内的百分比文字不变形
+- **坑（重要，与原 spec 初稿不同）**：初稿要求缩子控件（共享常量 `h-8`→`h-6`、环 `size-8`→`size-6`），**已否掉**——环内 `text-tiny` 的 `"100%"` 约 24–27px 宽，而 24px 环的净内径仅 16.75px，且环无 `overflow-hidden`，文字会压过描边并溢出到相邻控件（`gap-2` = 8px）。算式见 spec ②-2。**不要照初稿回改。**
+- **代价**：deck 控件与卡片下缘齐平，形成"横向 12px、纵向 0px"的不对称留白
+- **需补断言**：`composer-control-deck` 无纵向 `py-*`、共享触发器仍为 `h-8`（否则该偏离无自动化保护）
 - **验证**：`pnpm test:gui`
 
 ### T2.3 当前选中模型置顶行
@@ -251,9 +253,49 @@ Rust 改动（批①的 T1.1/T1.3、批③的 T3.3、批⑤的 T5.2）额外跑 
 - **乙・按子系统分支并行**：①与②并行、③④串行、⑤独立分支。最快，但三处同时改动 `agent-ui` 共享层，合并冲突与交叉回归风险上升。
 - **丙・逐批实现 + 子代理审查**：我逐批实现，每批完成后派一个只读子代理做独立审查（重点查 spec 的验收标准是否真的满足，而不是查代码风格）。速度居中，多一道独立校验。
 
-## 附录 A：生图消费点清单（P1 产出后填写）
+## 附录 A：生图消费点清单（P1 已产出）
 
-| 消费点 | 文件 | 是否排除 `kind === "image"` | 理由 |
+排查范围：`crates/agent-ui`（共享 UI）、`crates/agent-gui`（前端 + `src-tauri` Rust）、`crates/agent-gateway`（Go 网关 + `web/` 前端）。结论：**必改 3 + 强建议 6 + 防御性 7 + 待口径确认 6 + 已确认无需改动 40 余处**。
+
+### A-1 必改（3）
+
+| 消费点 | 文件:行 | 是否排除 image | 改动落点 |
 |---|---|---|---|
-| 对话模型选择器 | `crates/agent-ui/src/lib/models/modelOptions.ts:105-129` | 是（已确认必改） | 生图模型不应出现在对话模型列表 |
-| _待填_ | | | |
+| `CustomProvider` 类型 | `crates/agent-ui/src/lib/settings/types.ts:618-645` | 新增字段 | 在 `usageQuery` 附近加 `kind?: "chat" \| "image"`。**建议可选而非必填**：必填会连锁触发多处 TS 报错（见 A-3） |
+| **`normalizeCustomProvider`** | `crates/agent-ui/src/lib/settings/index.ts:1212-1277` | **必改（关键陷阱）** | `:1236` 的 return 对象内加 `kind: obj.kind === "image" ? "image" : "chat"` |
+| `buildModelOptions` | `crates/agent-ui/src/lib/models/modelOptions.ts:110-129` | 是 | `:110` 加 `if (provider.kind === "image") continue;`；同时 `:23-41` 的 `ModelOptionsSettings` 加 `kind?: string` |
+
+> **最高风险项（不是那 3 条"必改"里的类型定义，而是第 2 条）**：`normalizeCustomProvider` 是**字段白名单**——它逐字段重建对象，未知字段一律丢弃。`load → normalizeSettings → normalizeCustomProvider`、`updateCustomProviders`、`save` 全走它。**只加类型不修这个函数，`kind` 会在第一次读写后被静默抹回默认值**，表现为"功能时好时坏"。这是本批最容易踩、也最难查的坑。
+
+### A-2 强建议改（6）—— 不改会真出问题
+
+| 消费点 | 文件:行 | 理由 | 落点 |
+|---|---|---|---|
+| `normalizeProviderFailoverSettings` | `crates/agent-ui/src/lib/settings/modelFailover.ts:70-71` | 注释说"按 vendor 过滤"，但 image/chat 可以是**同一 vendor**（如 codex / gemini）⇒ 生图 provider 的 id 会被合法保留进 failover 队列 | 加 `provider.kind !== "image"` |
+| `buildModelFailoverPlan` | `crates/agent-gui/src/pages/chat/runtime/providerRuntimeConfig.ts:156-166` | 失败转移只换 provider 保 model，生图 provider 永远不是对话端点 | `:159-166` 加同一条件 |
+| `CronPromptRunner.executeCronPromptRun` | `crates/agent-gui/src/components/cron/CronPromptRunner.tsx:147-158` | **非 UI 入口**（CronTaskManager 工具 / 远程 / 备份导入写 `selectedModel` 不经对话框）⇒ 漏掉会真向生图端点发对话请求 | `:147-150` 加类别校验并报错 |
+| `resolveOrganizerProvider` | `crates/agent-gui/src/lib/memory/organizer/service.ts:114-135` | 记忆整理**真发请求** | `:124-134` |
+| `sanitize_provider_summary`（Rust） | `crates/agent-gui/src-tauri/src/commands/config/settings/`（网关同步侧） | Rust 侧同样存在**白名单式**字段处理，需核实 `kind` 是否被保留 | 加白名单项（核实后定） |
+| `ProviderModal` 保存 payload | `crates/agent-ui/src/pages/settings/ProviderModal.tsx:717-757` | 保存时**逐字段构造** `Omit<CustomProvider,"id">`；编辑路径经 `ProvidersSection.tsx:1050` 的 `{...provider, ...data}` 会保住 kind，但**新建时产生不出 kind** | 加类别控件（属 spec ③-1） |
+
+### A-3 防御性改（7）—— 按 `customProviderId` 找 provider 的对话运行路径
+
+`normalizeSelectedModelForProviders`（`index.ts:1715-1720`）、`resolvePromptClarifyModel`（`index.ts:2244-2247`）、`resolveEffectiveChatModelSelection`（`modelSelection.ts:42-47` / `:69-81`）、`resolveMemorySummaryModelSelection`（`providerRuntimeConfig.ts:19-24`）、`resolveConversationTitleModelSelection`（`:43-46`）、`resolveCommitMessageModelSelection`（`:67-72`）、`resolvePromptClarifyModelSelection`（`:86-99`）。
+
+这些只校验 `provider.activeModels.includes(model)`，不校验类别，是"生图 provider 被写进 selectedModel"的系统边界。不改大概率无害（由 A-2 兜住），改了更稳。
+
+若把 `kind` 定为**必填**，还会额外连带：`getBuiltinCustomProviders`（`index.ts:258-340`，5 个内置项各加 `kind: "chat"`）、`providerFromCcs`（`providerSettings.tsx:120-147`）、`providerFromCherry`（`:180-207`）。
+
+### A-4 已确认无需改动（40 余处，抽样）
+
+`modelPicker.tsx`（只吃 `options` prop）、`groupModelOptionsByProvider` / `sortModelOptionGroups`（输入已过滤）、`ComposerModelControls`（只吃 prop）、`CronSection` / `MemoryPanel` / WebUI `useGatewayChatConfiguration`（均经 `buildModelOptions` 自动生效）、`chatPageHelpers`（纯 re-export）、`MemorySettingsDrawer` / `CronTaskViewModal`（只展示字符串）、`CronTaskModal.getCronReasoningLevels`（入参已过滤）。
+
+### A-5 待产品/口径确认（6）
+
+设置页分栏形态、用量查询是否含生图、仪表盘统计口径、备份的 provider id 指纹是否纳入 `kind`、Cherry/CCS 导入是否产生 image kind、以及 A-3 是否本轮全做。
+
+### A-6 对两处既有结论的核实
+
+- `redact_provider_credential`（`crates/agent-gui/src-tauri/src/commands/config/settings/providers.rs:40-56`）**确为透传未知字段**，只摘 `apiKey` 与 `usageQuery` 密钥 ✅（本次新增 `kind` 不触发 Rust 迁移）
+- 备份的 `providers` 域**确为整域搬运** ✅ —— 但注意 A-2 第 5 条的 `sanitize_provider_summary` 是**另一个**白名单，不能据此推断所有 Rust 侧处理都透传
+

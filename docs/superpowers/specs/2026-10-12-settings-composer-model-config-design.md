@@ -157,32 +157,45 @@
 
 统一改为 `rounded-2xl`（18px）。
 
-连带影响：
+连带影响（**覆盖层的圆角必须重算**——它们的值是按"卡片圆角 − inset"算出来的，不是随手取的）：
 
-1. **源码断言锁死**：`crates/agent-gui/test/chat/context-usage.test.mjs:122-134` 用正则匹配
-   `composer-glass-card[^\n]+rounded-4xl` 与 `composer-input-surface[^\n]+rounded-4xl`，两条同步改。
-2. **毛玻璃裙边几何安全**：`ConversationStatsBar.tsx:392` 的 `-top-8`(32px) 上探在 `-z-10`、位于卡片之下，圆角变小只会多盖、不会露缺口，无需联动改。
-3. **修既有错误注释**：`ConversationStatsBar.tsx:388` 声称"上探 2rem = 卡片 `rounded-4xl` 的半径"，但 2rem=32px 而 `--radius-4xl`=26px，本就不相等。改后不再声称相等。
-4. **不碰 `tokens.css` 的 `--radius` 链**，避免波及全局组件。
-5. 工具条内的控件用 `rounded-full`（药丸），与本次无关。
+1. **三个拖放覆盖层**（原为 `rounded-3xl` = 22px = 卡片 26px − `inset-1` 的 4px）：`ChatComposerBar.tsx` 的 `inset-0` 工作区路径拖放层（`:1370`）改为 `rounded-2xl`（18px）；两个 `inset-1` 覆盖层（`:1384` 会话拖放引用、`:1404` 会话通知）改为 `rounded-xl`（14px = 18 − 4）。
+2. **第四个覆盖层（设计阶段漏列，实现审查时发现）**：`crates/agent-ui/src/components/chat/FileDropOverlay.tsx:20` 在 `variant === "composer"` 下是 `absolute inset-0` + `rounded-3xl`，由 `ChatComposerBar.tsx` 渲染在卡片内部。卡片降到 18px 后，22px 会在角上留下约 1.5px 露出卡片底色的月牙区，改为 `rounded-2xl`。
+3. **源码断言锁死**：`crates/agent-gui/test/chat/context-usage.test.mjs:122-134` 用正则匹配 `composer-glass-card[^\n]+rounded-4xl` 与 `composer-input-surface[^\n]+rounded-4xl`，两条同步改。
+4. **毛玻璃裙边几何安全**：`ConversationStatsBar.tsx:392` 的 `-top-8`(32px) 上探在 `-z-10`、位于卡片之下，圆角变小只会多盖、不会露缺口，无需联动改。
+5. **修既有错误注释（两处，不在同一文件）**：`ConversationStatsBar.tsx:386-389` 与 `crates/agent-gui/test/chat/conversation-stats-bar.test.mjs:316-318` 都声称"上探 2rem = 卡片 `rounded-4xl` 的半径"，但 2rem=32px 而 `--radius-4xl`=26px，本就不相等。两处均改为"上探量有意大于卡片圆角半径，留富余"。
+6. **不碰 `tokens.css` 的 `--radius` 链**，避免波及全局组件。
+7. 工具条内的控件用 `rounded-full`（药丸），与本次无关。
 
 ### ②-2 底部工具条减 8px
 
 `composer-control-deck`（`ChatComposerBar.tsx:1750`）现状为 `min-h-9` + `py-1` + 子控件 `h-8`。
 
-**关键认知：实际高度是 40px 而非 36px**——`min-h-9` 被内容撑破（8 + 32 = 40）。因此只调 `min-h-9` 毫无效果。
+**关键认知：实际高度是 40px 而非 36px**——`min-h-9` 被内容撑破（`py-1` 8px + 子控件 32px = 40px）。因此只调 `min-h-9` 毫无效果。
+
+**采纳方案（相对本节初稿有修正）**：只动 deck 自身，**不缩任何子控件**。
 
 | 改动点 | 现值 → 新值 |
 |---|---|
-| `ChatComposerBar.tsx:1750` 的 `min-h-9` | → `min-h-8`（32px，成为收口值） |
-| `crates/agent-ui/src/lib/chat/composerControlStyles.ts:4` 的 `h-8` | → `h-6`（24px） |
-| `crates/agent-ui/src/components/chat/ContextUsageRing.tsx` 的 `size-8` | → `size-6`（含 svg，共 4–5 处） |
+| `ChatComposerBar.tsx:1750` 的 `min-h-9` | → `min-h-8`（32px，收口值） |
+| `ChatComposerBar.tsx:1751` 的 `py-1` | → 删除（`py-1` 8 + 子控件 32 → 0 + 32 = 32px，恰等于 `min-h-8`） |
 
-只动三个点的原因：该共享常量同时供 `CommandSafetyModeSelector.tsx:105`、`ComposerModelControls.tsx:244`、`GitBranchSelector.tsx:1045/1506` 使用，一处改动三个控件同收。结果为 `py-1`(8) + `h-6`(24) = 32px = `min-h-8`，净减 8px。`py-1` 不动。
+`lib/chat/composerControlStyles.ts` 的 `h-8` 与 `components/chat/ContextUsageRing.tsx` 的 `size-8` **保持不动**。
 
-**硬边界**：24px 恰为 WCAG 2.5.8 目标尺寸最小值（24×24 CSS px），本方案已贴底，**不得继续下压控件高度**。
+**为什么否掉了初稿的"缩子控件"方案**：初稿要求把共享常量的 `h-8`→`h-6`、用量环 `size-8`→`size-6`。但用量环内是 `text-tiny` 的百分比文字：
 
-测试：`context-usage.test.mjs:132` 锁 `min-h-9`，同步改。
+- `--text-tiny` = 0.625rem = 10px，且 `base.css:41` 用 `--zone-font-scale` 重声明它（字号随可访问性缩放变大，而 `size-*`/`h-*` 走 `--spacing`、不随之缩放）。
+- 环的 `viewBox="0 0 24 24"` 配 `size-8`(32px) ⇒ 缩放 4/3，故 `strokeWidth="2.25"`（**viewBox 单位**）实际渲染为 3px。
+- 环内**净内径** = `2×(9.5 − 2.25/2)` = 16.75 单位 ⇒ 32px 环约 **22.3px**、24px 环约 **16.75px**。
+- `"100%"` 在 10px tabular-nums 下约 24–27px 宽 ⇒ 24px 环下文字必然压过描边；更糟的是 `Meter` 与环容器都**没有 `overflow-hidden`**，文字不会被裁，而会溢出到相邻控件（deck `gap-2` = 8px）。
+
+**一处数值修正**：初稿曾按 `尺寸 − 2×2.25` 得出 27.5px / 19.5px，那是把 viewBox 单位当成了 px，**数值错误**；按上述正确算法为 22.3px / 16.75px。修正后结论方向不变（24px 方案更不可取）。另需如实记录：32px 环的 22.3px 净内径相对 24–27px 的文字是**偏紧**的，即当前尺寸下文字本就贴近环线——属既有状态，本次不动，真伪需真实渲染确认。
+
+**代价（须知晓）**：去掉 `py-1` 后 deck 内控件与卡片下缘齐平，形成"横向 12px、纵向 0px"的不对称留白。deck 的 `bg-muted` 与卡片同色，去掉的是空白而非可见色带；deck 无 `absolute` 子节点、无 `overflow-hidden`，无功能副作用。
+
+**比初稿脆的一点**：deck 现由"子控件恰 32px"填满，而 `min-h-8` 只是**下限**——任何 deck 子控件长高（>32px）都会把 deck 顶回 36px+；初稿（24px 子控件 + 8px padding）有 8px 余量。**因此需要断言锁住"deck 无纵向 padding"与"共享触发器仍为 h-8"**，否则下一个人照初稿回改会把环缩到 24px 并重新引入压线问题。
+
+测试：`context-usage.test.mjs:132` 锁 `min-h-9` → 改为 `min-h-8`，并新增上述两条不变式断言。
 
 ### ②-3 当前选中模型置顶（列表内置顶一行）
 
@@ -193,7 +206,7 @@
 - **搜索／筛选豁免**：置顶行渲染在 `filteredGroups` 计算**之外**（`:502-629` 的 IIFE 中，作为兄弟节点排在 groups 之前）。必须重构 `:518-523` 的 `if (!filteredGroups.length) return <p>无结果</p>` 提前返回为"先渲染置顶行，再渲染 groups 或空态"。
 - **层序**：置顶行 `sticky top-0 z-20 bg-popover`（须压住 `z-10` 的组头，且底色实心）。
 - **键盘导航**：弹出层上下键按 `button[data-model-option], button[data-model-group]` 顺序走（`:272-286`）。置顶行加 `data-model-option=""`，成为第一站——下行键先落在"当前模型"、回车即确认关闭。优于排除在顺序外（否则 Tab 能到而方向键到不了）。
-- **当前模型不在列表内时**（供应商被删／模型下架）：置顶行依据 `currentModelLabel` 渲染，不依赖列表成员。
+- **当前模型不在列表内时**（供应商被删／模型下架）：置顶行的存在性由 `selectedValue` 决定（它源自 `activeSelectedModel`，不依赖 `modelOptions` 成员），标签回落 `currentModelLabel`、图标回落 `Layers`。**此时该行仍显示但不可点选**——`onSelectModel` 若拿到已停用的模型会触发下游 `resolveEffectiveChatModelSelection` 的失效选择校验；同时**不带 `data-model-option`**，避免方向键停在一个按了没反应的死站。
 - **高度补偿**：置顶行约占 32px `ScrollArea`（`h-70`=280px）可视区，是否上调一档以补偿由 PR 的 before/after 截图定，不预先写死。
 
 ---
