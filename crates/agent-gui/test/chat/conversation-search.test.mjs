@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
 test("conversation mention search uses complete indexed history, deduplicates, and ranks cwd", async () => {
@@ -176,7 +177,7 @@ test("global history API invokes the dedicated chat history command", async () =
 
 test("Gateway shim forwards global history search without a workdir scope", async () => {
   const calls = [];
-  const gatewayRoot = new URL("../../../agent-gateway/web", import.meta.url).pathname;
+  const gatewayRoot = fileURLToPath(new URL("../../../agent-gateway/web", import.meta.url));
   const { invoke } = createTsModuleLoader({
     rootDir: gatewayRoot,
     mocks: {

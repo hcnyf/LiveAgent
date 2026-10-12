@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
-const core = createTsModuleLoader().loadModule(new URL("../../../virtual-core/src/index.ts", import.meta.url).pathname);
+// Windows: 必须用 fileURLToPath，`.pathname` 会给出 `/C:/...`（前导斜杠），
+// 被 path.isAbsolute 判为绝对路径后抛 "Cannot resolve module path"。
+const core = createTsModuleLoader().loadModule(
+  fileURLToPath(new URL("../../../virtual-core/src/index.ts", import.meta.url)),
+);
 let realVirtualizer;
 
 import { createDomTestEnv } from "../helpers/dom-test-env.mjs";
