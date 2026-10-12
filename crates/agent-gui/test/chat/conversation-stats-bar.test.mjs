@@ -314,8 +314,9 @@ test("approvalBar 可见时状态栏让位（ChatComposerBar 插槽互斥）", (
 
 test("读数下是全宽毛玻璃裙边：盖住整行并上探填掉卡片圆角外的缺口", async () => {
   // 验证反馈：正文滚进输入区下方时，读数与底下的文字重叠到难以辨认，卡片
-  // 圆角外侧的弧形缺口也会漏出正文。裙边与卡片同宽，-top-8（= rounded-4xl
-  // 半径 2rem）藏到卡片身后，-z-10 保证压在卡片之下、正文之上。
+  // 圆角外侧的弧形缺口也会漏出正文。裙边与卡片同宽，上探 2rem(32px) 藏到卡片
+  // 身后——该上探量有意大于卡片圆角半径（卡片现为 rounded-2xl = 18px），留出
+  // 富余；-z-10 保证压在卡片之下、正文之上。
   const { container, unmount } = await render(sampleStats());
   const skirt = container.querySelector('[role="status"] > div[aria-hidden="true"]');
   assert.ok(skirt, "读数下应有一层毛玻璃裙边");

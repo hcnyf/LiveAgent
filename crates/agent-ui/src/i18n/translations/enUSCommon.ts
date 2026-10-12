@@ -598,6 +598,7 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.branchFailed": "Failed to create branch",
   "chat.branchUnavailable": "Legacy history lacks stable message ids; cannot branch",
   "chat.selectModel": "Select Model",
+  "chat.currentModel": "Current Model",
   "chat.searchModel": "Search models...",
   "chat.noModelFound": "No matching models found",
   "chat.sortProvidersByType": "Sort providers by type",

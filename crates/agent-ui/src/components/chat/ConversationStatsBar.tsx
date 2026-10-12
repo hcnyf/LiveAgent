@@ -385,8 +385,10 @@ export function ConversationStatsBar(props: {
     <div role="status" aria-live="off" aria-label={fullText} className="relative h-5 w-full">
       {/* 毛玻璃裙边：读数浮在会滚动的正文上方，正文滚进输入区下面时会和底下的
           文字重叠到难以辨认，输入卡片圆角外侧的弧形缺口也会漏出正文。裙边与
-          卡片同宽，上探 2rem（= 卡片 rounded-4xl 的半径）藏到卡片身后，把弧形
-          缺口一并盖住；-z-10 让它压在卡片之下、正文之上。空态占位分支不带这层。 */}
+          卡片同宽，上探 2rem（32px）藏到卡片身后，把弧形缺口一并盖住；-z-10
+          让它压在卡片之下、正文之上。上探量有意大于卡片圆角半径（卡片
+          rounded-2xl = 18px），留出富余：卡片圆角再调小时不必同步改这里。
+          空态占位分支不带这层。 */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 -top-8 bottom-0 -z-10 bg-background/70 backdrop-blur-md"

@@ -1357,7 +1357,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: ChatComposer
             // 常驻 flex-col：FLIP 动画把卡片钳在中间高度时，flex-1 的编辑器
             // 区吸收多余空间，工具栏才能始终贴住卡片底边。
             "composer-glass-card @container relative flex flex-col overflow-hidden",
-            "rounded-4xl border border-border/65 bg-muted transition-colors focus-within:border-border",
+            "rounded-2xl border border-border/65 bg-muted transition-colors focus-within:border-border",
             surface === "desktop" && "z-10",
             isComposerExpanded && "min-h-0 flex-1",
           )}
@@ -1367,7 +1367,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: ChatComposer
               aria-hidden
               className={cn(
                 "pointer-events-none absolute inset-0 z-40 flex items-center justify-center",
-                "rounded-3xl border-2 border-dashed bg-background/90 text-sm font-medium backdrop-blur-sm",
+                "rounded-2xl border-2 border-dashed bg-background/90 text-sm font-medium backdrop-blur-sm",
                 workspacePathDropState === "accept"
                   ? "border-sky-500/70 text-sky-600 dark:text-sky-300"
                   : "border-destructive/60 text-destructive",
@@ -1381,7 +1381,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: ChatComposer
             <div
               className={cn(
                 "pointer-events-none absolute inset-1 z-50 flex items-center justify-center",
-                "rounded-3xl border border-dashed border-primary/45 bg-background/88 px-6",
+                "rounded-xl border border-dashed border-primary/45 bg-background/88 px-6",
                 "text-center shadow-inner backdrop-blur-sm",
               )}
             >
@@ -1401,7 +1401,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: ChatComposer
             <div
               className={cn(
                 "pointer-events-none absolute inset-1 z-50 flex items-center justify-center",
-                "rounded-3xl border border-dashed border-amber-500/45 bg-background/90 px-6",
+                "rounded-xl border border-dashed border-amber-500/45 bg-background/90 px-6",
                 "text-center shadow-inner backdrop-blur-sm",
               )}
             >
@@ -1417,7 +1417,7 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: ChatComposer
           ) : null}
           <div
             className={cn(
-              "composer-input-surface relative z-10 flex flex-col overflow-hidden rounded-4xl bg-background",
+              "composer-input-surface relative z-10 flex flex-col overflow-hidden rounded-2xl bg-background",
               isComposerExpanded && "min-h-0 flex-1",
             )}
           >
@@ -1747,8 +1747,8 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: ChatComposer
 
           <div
             className={cn(
-              "composer-control-deck relative z-0 flex min-h-9 shrink-0 items-center justify-between",
-              "gap-2 bg-muted px-3 py-1",
+              "composer-control-deck relative z-0 flex min-h-8 shrink-0 items-center justify-between",
+              "gap-2 bg-muted px-3",
             )}
           >
             <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">

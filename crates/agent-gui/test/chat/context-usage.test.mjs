@@ -32,6 +32,10 @@ const contextUsageRingSource = readFileSync(
   new URL("../../../agent-ui/src/components/chat/ContextUsageRing.tsx", import.meta.url),
   "utf8",
 );
+const composerControlStylesSource = readFileSync(
+  new URL("../../../agent-ui/src/lib/chat/composerControlStyles.ts", import.meta.url),
+  "utf8",
+);
 
 const {
   CONTEXT_USAGE_WARN_RATIO,
@@ -123,16 +127,29 @@ test("composer uses the opaque Tessera surface and a compact idle height", () =>
   const classSource = normalizeClassGroups(chatComposerBarSource);
   assert.match(
     classSource,
-    /composer-glass-card[^\n]+rounded-4xl[^\n]+border-border\/65 bg-muted/,
+    /composer-glass-card[^\n]+rounded-2xl[^\n]+border-border\/65 bg-muted/,
   );
   assert.match(
     classSource,
-    /composer-input-surface[^\n]+rounded-4xl bg-background/,
+    /composer-input-surface[^\n]+rounded-2xl bg-background/,
   );
-  assert.match(classSource, /composer-control-deck[^\n]+min-h-9[^\n]+bg-muted/);
+  assert.match(classSource, /composer-control-deck[^\n]+min-h-8[^\n]+bg-muted/);
   assert.doesNotMatch(classSource, /composer-input-surface[^\n]+bg-white\/76/);
   assert.doesNotMatch(classSource, /composer-glass-card[^\n]+bg-black\/\[0\.035\]/);
   assert.match(mentionComposerSource, /mention-composer min-h-10 max-h-160px/);
+});
+
+test("composer toolbar height shrinks the deck itself, never its controls", () => {
+  const classSource = normalizeClassGroups(chatComposerBarSource);
+  // deck 靠自身收口到 32px：min-h-8 且不得再有纵向 padding——py-1(8px) 会让它回到 40px，
+  // 那是本次改动前的实际高度，也正是"只调 min-h-9 无效"的原因。
+  assert.match(classSource, /composer-control-deck[^\n]+min-h-8[^\n]+bg-muted/);
+  assert.doesNotMatch(classSource, /composer-control-deck[^\n]+py-/);
+  // 子控件必须保持 32px：缩到 24px 会让用量环内的百分比读数（text-tiny 10px 下的
+  // "100%" 约 24–27px 宽）压过描边并溢出——24px 环的净内径仅约 16.75px，而环与
+  // Meter 都没有 overflow-hidden，不会被裁。这两条断言锁定"缩 deck 不缩控件"的取舍。
+  assert.match(composerControlStylesSource, /composer-model-trigger[^\n]+h-8/);
+  assert.match(contextUsageRingSource, /inset-0 size-8/);
 });
 
 test("composer expand toggle appears only after the editor overflows", () => {

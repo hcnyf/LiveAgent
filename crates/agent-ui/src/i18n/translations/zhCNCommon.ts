@@ -552,6 +552,7 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.branchFailed": "创建分支失败",
   "chat.branchUnavailable": "旧历史缺少稳定消息标识，无法创建分支",
   "chat.selectModel": "选择模型",
+  "chat.currentModel": "当前模型",
   "chat.searchModel": "搜索模型...",
   "chat.noModelFound": "未找到匹配的模型",
   "chat.sortProvidersByType": "按供应商类型排序",

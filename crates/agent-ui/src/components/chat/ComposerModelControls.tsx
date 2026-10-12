@@ -515,117 +515,184 @@ export const ComposerModelControls = memo(function ComposerModelControls(
                         ),
                       }))
                       .filter((group) => group.opts.length > 0);
-                    if (!filteredGroups.length)
-                      return (
-                        <p className="px-3 py-6 text-center text-muted-foreground">
-                          {t("chat.noModelFound")}
-                        </p>
-                      );
-                    return filteredGroups.map((group) => (
-                      <div key={group.id} className="group/provider space-y-0.5 pb-1.5 last:pb-0">
-                        <div className="sticky top-0 z-10 flex h-6 items-center justify-between gap-2 bg-popover px-2.5 text-tiny font-medium uppercase tracking-wide text-muted-foreground">
-                          <button
-                            type="button"
-                            data-model-group=""
-                            aria-expanded={!collapsedProviders.has(group.id)}
-                            aria-controls={`${executionModeRadioName}-models-${group.id}`}
-                            className="flex min-w-0 flex-1 items-center gap-1.5 rounded text-left hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            onClick={() => {
-                              setCollapsedProviders((previous) => {
-                                const next = new Set(previous);
-                                if (next.has(group.id)) next.delete(group.id);
-                                else next.add(group.id);
-                                return next;
-                              });
-                            }}
-                          >
-                            <ChevronRight
-                              aria-hidden="true"
+                    // 置顶行的身份取自 selectedValue（不依赖 modelOptions 成员）：供应商被删
+                    // 或模型被停用后这一行仍要显示，只是不再可点选——否则会用已停用的模型
+                    // 调 onSelectModel，触发下游的失效选择校验。
+                    const pinnedValue = selectedOption?.value ?? selectedValue;
+                    const pinnedLabel = selectedOption?.label ?? currentModelLabel;
+                    const pinnedSelection = selectedOption
+                      ? parseModelValue(selectedOption.value)
+                      : undefined;
+                    return (
+                      <>
+                        {pinnedValue ? (
+                          <div className="sticky top-0 z-20 bg-popover pb-1.5">
+                            <div className="px-2.5 pb-1 text-tiny font-medium uppercase tracking-wide text-muted-foreground">
+                              {t("chat.currentModel")}
+                            </div>
+                            <button
+                              type="button"
+                              {...(pinnedSelection ? { "data-model-option": "" } : {})}
+                              aria-pressed={true}
+                              disabled={!pinnedSelection}
+                              onClick={() => {
+                                if (!pinnedSelection) return;
+                                onSelectModel(pinnedSelection);
+                                setIsModelPickerOpen(false);
+                              }}
                               className={cn(
-                                "size-3 shrink-0",
-                                !collapsedProviders.has(group.id) && "rotate-90",
+                                "flex h-8 w-full items-center justify-between gap-2 rounded-lg px-2.5",
+                                "bg-settings-active text-left font-medium text-foreground",
+                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                               )}
-                            />
-                            <span className="min-w-0 truncate">{group.name}</span>
-                            <span className="ml-auto tabular-nums">{group.opts.length}</span>
-                          </button>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="-mr-1 size-5 shrink-0 opacity-0 transition-opacity group-hover/provider:opacity-100 focus-visible:opacity-100"
-                            aria-label={`${t("settings.editProvider")}: ${group.name}`}
-                            onClick={() => {
-                              setIsModelPickerOpen(false);
-                              onOpenSettings("providers", group.id);
-                            }}
-                          >
-                            <SquarePen className="size-3" />
-                          </Button>
-                        </div>
-                        <div
-                          id={`${executionModeRadioName}-models-${group.id}`}
-                          className="space-y-0.5"
-                        >
-                          {!collapsedProviders.has(group.id) &&
-                            group.opts.map((option) => {
-                              const isSelected = option.value === selectedValue;
-                              return (
+                            >
+                              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                                {selectedOption ? (
+                                  <ProviderBrandIcon
+                                    type={selectedOption.providerType}
+                                    className="opacity-90"
+                                  />
+                                ) : (
+                                  <Layers className="size-4 shrink-0" />
+                                )}
+                                <span
+                                  className="min-w-0 truncate"
+                                  title={selectedOption?.model ?? pinnedLabel}
+                                >
+                                  {pinnedLabel}
+                                </span>
+                              </span>
+                              {selectedOption ? (
+                                <span className="min-w-0 truncate text-tiny font-normal text-muted-foreground">
+                                  {selectedOption.providerName}
+                                </span>
+                              ) : null}
+                              <span className="size-3.5 shrink-0">
+                                <Check className="size-3.5" />
+                              </span>
+                            </button>
+                            <div className="mt-1.5 border-b border-border/40" />
+                          </div>
+                        ) : null}
+                        {filteredGroups.length === 0 ? (
+                          <p className="px-3 py-6 text-center text-muted-foreground">
+                            {t("chat.noModelFound")}
+                          </p>
+                        ) : (
+                          filteredGroups.map((group) => (
+                            <div
+                              key={group.id}
+                              className="group/provider space-y-0.5 pb-1.5 last:pb-0"
+                            >
+                              <div className="sticky top-0 z-10 flex h-6 items-center justify-between gap-2 bg-popover px-2.5 text-tiny font-medium uppercase tracking-wide text-muted-foreground">
                                 <button
                                   type="button"
-                                  key={option.value}
-                                  data-model-option=""
-                                  aria-pressed={isSelected}
+                                  data-model-group=""
+                                  aria-expanded={!collapsedProviders.has(group.id)}
+                                  aria-controls={`${executionModeRadioName}-models-${group.id}`}
+                                  className="flex min-w-0 flex-1 items-center gap-1.5 rounded text-left hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                   onClick={() => {
-                                    const parsed = parseModelValue(option.value);
-                                    if (!parsed) return;
-                                    onSelectModel(parsed);
-                                    setIsModelPickerOpen(false);
+                                    setCollapsedProviders((previous) => {
+                                      const next = new Set(previous);
+                                      if (next.has(group.id)) next.delete(group.id);
+                                      else next.add(group.id);
+                                      return next;
+                                    });
                                   }}
-                                  className={cn(
-                                    "flex h-8 w-full items-center justify-between gap-2 rounded-lg px-2.5",
-                                    "text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                                    isSelected
-                                      ? "bg-settings-active font-medium text-foreground hover:bg-settings-active"
-                                      : "text-foreground/90 hover:bg-settings-tile-hover hover:text-foreground",
-                                  )}
                                 >
-                                  <span className="min-w-0 flex-1 truncate" title={option.model}>
-                                    {option.label}
-                                  </span>
-                                  <span
+                                  <ChevronRight
+                                    aria-hidden="true"
                                     className={cn(
-                                      "flex shrink-0 items-center gap-1 text-tiny font-normal text-muted-foreground",
-                                      isSelected && "dark:text-foreground/75",
+                                      "size-3 shrink-0",
+                                      !collapsedProviders.has(group.id) && "rotate-90",
                                     )}
-                                  >
-                                    {option.reasoning && (
-                                      <span className="rounded bg-muted/60 px-1 py-px">
-                                        {t("settings.modelBadgeReasoning")}
-                                      </span>
-                                    )}
-                                    {option.vision && (
-                                      <span className="rounded bg-muted/60 px-1 py-px">
-                                        {t("settings.modelBadgeVision")}
-                                      </span>
-                                    )}
-                                    {option.contextWindow && (
-                                      <span>
-                                        {new Intl.NumberFormat("en", {
-                                          notation: "compact",
-                                          maximumFractionDigits: 1,
-                                        }).format(option.contextWindow)}
-                                      </span>
-                                    )}
-                                  </span>
-                                  <span className="size-3.5 shrink-0">
-                                    {isSelected && <Check className="size-3.5" />}
-                                  </span>
+                                  />
+                                  <span className="min-w-0 truncate">{group.name}</span>
+                                  <span className="ml-auto tabular-nums">{group.opts.length}</span>
                                 </button>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    ));
+                                <Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  className="-mr-1 size-5 shrink-0 opacity-0 transition-opacity group-hover/provider:opacity-100 focus-visible:opacity-100"
+                                  aria-label={`${t("settings.editProvider")}: ${group.name}`}
+                                  onClick={() => {
+                                    setIsModelPickerOpen(false);
+                                    onOpenSettings("providers", group.id);
+                                  }}
+                                >
+                                  <SquarePen className="size-3" />
+                                </Button>
+                              </div>
+                              <div
+                                id={`${executionModeRadioName}-models-${group.id}`}
+                                className="space-y-0.5"
+                              >
+                                {!collapsedProviders.has(group.id) &&
+                                  group.opts.map((option) => {
+                                    const isSelected = option.value === selectedValue;
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={option.value}
+                                        data-model-option=""
+                                        aria-pressed={isSelected}
+                                        onClick={() => {
+                                          const parsed = parseModelValue(option.value);
+                                          if (!parsed) return;
+                                          onSelectModel(parsed);
+                                          setIsModelPickerOpen(false);
+                                        }}
+                                        className={cn(
+                                          "flex h-8 w-full items-center justify-between gap-2 rounded-lg px-2.5",
+                                          "text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                                          isSelected
+                                            ? "bg-settings-active font-medium text-foreground hover:bg-settings-active"
+                                            : "text-foreground/90 hover:bg-settings-tile-hover hover:text-foreground",
+                                        )}
+                                      >
+                                        <span
+                                          className="min-w-0 flex-1 truncate"
+                                          title={option.model}
+                                        >
+                                          {option.label}
+                                        </span>
+                                        <span
+                                          className={cn(
+                                            "flex shrink-0 items-center gap-1 text-tiny font-normal text-muted-foreground",
+                                            isSelected && "dark:text-foreground/75",
+                                          )}
+                                        >
+                                          {option.reasoning && (
+                                            <span className="rounded bg-muted/60 px-1 py-px">
+                                              {t("settings.modelBadgeReasoning")}
+                                            </span>
+                                          )}
+                                          {option.vision && (
+                                            <span className="rounded bg-muted/60 px-1 py-px">
+                                              {t("settings.modelBadgeVision")}
+                                            </span>
+                                          )}
+                                          {option.contextWindow && (
+                                            <span>
+                                              {new Intl.NumberFormat("en", {
+                                                notation: "compact",
+                                                maximumFractionDigits: 1,
+                                              }).format(option.contextWindow)}
+                                            </span>
+                                          )}
+                                        </span>
+                                        <span className="size-3.5 shrink-0">
+                                          {isSelected && <Check className="size-3.5" />}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </>
+                    );
                   })()}
                 </ScrollArea>
               </>
