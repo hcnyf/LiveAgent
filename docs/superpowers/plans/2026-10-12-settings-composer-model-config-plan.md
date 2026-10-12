@@ -225,6 +225,28 @@ pnpm check:fast
 
 Rust 改动（批①的 T1.1/T1.3、批③的 T3.3、批⑤的 T5.2）额外跑 `cargo test` 与 clippy；具体命令以 `Makefile` 与 `docs/operations/development.md` 为准。
 
+### ⚠️ 本机 `pnpm test:gui` 曾是**被截断**的门禁（2026-10-12 已修）
+
+`scripts/run-node-tests.mjs:109-115` 按 Windows 命令行长度上限把 391 个测试文件**分批**执行，但**第一个失败的批次会中止整个运行**：
+
+```js
+for (const batch of splitTestFilesIntoBatches(files)) {
+  const exitCode = await runTestBatch(batch);
+  if (exitCode !== 0) return exitCode;   // ← 后续批次全部不执行
+}
+```
+
+叠加 6 个测试文件在 Windows 上用 `.pathname` 而非 `fileURLToPath`（得到 `/C:/...`，被 `path.isAbsolute` 判为绝对路径后抛 `Cannot resolve module path`），当时的表象是：
+
+| | 测试数 | 结果 |
+|---|---|---|
+| 修复前 | 671 | 669 通过 / **2 失败** —— 但其实只有 ~20% 的套件执行过，排在失败批次之后的**全部未跑** |
+| **修复后（真实全量）** | **3420** | **3420 通过 / 0 失败** |
+
+修复：`crates/agent-gui/test/` 下 `chat/{floor-nav-scroll,standard-overlays,conversation-search}`、`settings/{style-token-contract,popup-transition-properties,style-theme}` 六个文件改用 `fileURLToPath`（提交 `40d34601`）。这批修复属**范围外但必要**——没有它，本节所有验收结论都只建立在一个被截断的切片上。
+
+**由此作废的判定标准**：先前用的"不新增失败"（因为存在 2 个"既有失败"）不再适用。修复后套件是全量执行的，门禁应为 **`test:gui` 全绿**。当前实测：`test:gui` **3420/3420**、`test:webui` **734/734**。
+
 **会因本次改动而需要同步更新的既有测试**（spec 已列，避免惊吓）：
 
 - `crates/agent-gui/test/chat/context-usage.test.mjs`（圆角、`min-h-9`）
