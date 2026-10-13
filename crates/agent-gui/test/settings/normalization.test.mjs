@@ -2806,6 +2806,7 @@ test("system proxy config normalizes defaults, ports, and password flags", () =>
   const defaults = settings.getDefaultSettings().system.systemProxy;
   assert.deepEqual(defaults, {
     enabled: false,
+    mode: "manual",
     type: "http",
     host: "",
     port: 0,
@@ -2815,6 +2816,8 @@ test("system proxy config normalizes defaults, ports, and password flags", () =>
 
   const missing = settings.normalizeSystemSettings({}).systemProxy;
   assert.equal(missing.enabled, false);
+  // 旧存档缺 mode → manual（零迁移）；只有显式 "system" 才跟随系统。
+  assert.equal(missing.mode, "manual");
   assert.equal(missing.type, "http");
   assert.equal(missing.port, 0);
   assert.equal(missing.passwordConfigured, false);
@@ -2829,6 +2832,7 @@ test("system proxy config normalizes defaults, ports, and password flags", () =>
   });
   assert.deepEqual(normalized, {
     enabled: true,
+    mode: "manual",
     type: "socks5",
     host: "10.0.0.1",
     port: 1080,
@@ -2836,6 +2840,16 @@ test("system proxy config normalizes defaults, ports, and password flags", () =>
     password: "secret",
     passwordConfigured: true,
   });
+
+  // 跟随系统：mode 原样保留，手动字段不再参与语义（Rust 侧同样跳过校验）。
+  assert.equal(
+    settings.normalizeSystemProxyConfig({ enabled: true, mode: "system" }).mode,
+    "system",
+  );
+  assert.equal(
+    settings.normalizeSystemProxyConfig({ enabled: true, mode: "wat" }).mode,
+    "manual",
+  );
 
   assert.equal(settings.normalizeSystemProxyConfig({ port: 0 }).port, 0);
   assert.equal(settings.normalizeSystemProxyConfig({ port: 65536 }).port, 0);

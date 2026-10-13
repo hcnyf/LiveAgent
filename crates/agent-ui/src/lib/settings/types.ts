@@ -296,10 +296,15 @@ export const DEFAULT_RETRY_ERROR_SETTINGS: RetryErrorSettings = {
 
 export type SystemProxyType = "socks5" | "http";
 
+/** 应用代理来源：manual = 手填 host/port（默认，旧存档缺字段即此值）；system = 跟随 OS 代理设置。 */
+export type SystemProxyMode = "manual" | "system";
+
 // 系统级出站代理：注入本地 shell 命令 env，并供勾选了 useSystemProxy 的
 // 供应商模型请求走代理（代理连接由桌面 Rust 侧完成，凭据不进前端请求）。
 export type SystemProxyConfig = {
   enabled: boolean;
+  /** 手填地址还是跟随系统（system 模式下 host/port 等字段不参与校验与请求）。 */
+  mode: SystemProxyMode;
   type: SystemProxyType;
   host: string;
   port: number;

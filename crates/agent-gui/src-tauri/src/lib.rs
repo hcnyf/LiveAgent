@@ -158,6 +158,7 @@ macro_rules! app_invoke_handler {
             commands::memory::memory_wipe_all,
             // Settings
             commands::settings::settings_load_all,
+            commands::settings::system_proxy_os_status,
             commands::settings::settings_save_providers,
             commands::settings::settings_list_ccswitch_providers,
             commands::settings::settings_list_cherry_studio_providers,

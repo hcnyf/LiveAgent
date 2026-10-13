@@ -1182,6 +1182,7 @@ mod tests {
     fn default_system_proxy_json() -> Value {
         json!({
             "enabled": false,
+            "mode": "manual",
             "type": "http",
             "host": "",
             "port": 0,

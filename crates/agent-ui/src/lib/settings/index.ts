@@ -1566,6 +1566,7 @@ function normalizeSshProjectHostAssociations(
 export function getDefaultSystemProxyConfig(): SystemProxyConfig {
   return {
     enabled: false,
+    mode: "manual",
     type: "http",
     host: "",
     port: 0,
@@ -1593,6 +1594,8 @@ export function normalizeSystemProxyConfig(input: unknown): SystemProxyConfig {
   const password = typeof obj.password === "string" ? obj.password : "";
   return {
     enabled: obj.enabled === true,
+    // 旧存档缺 mode → manual（零迁移）；只有显式 mode="system" 才跟随 OS 代理。
+    mode: obj.mode === "system" ? "system" : "manual",
     type: obj.type === "socks5" ? "socks5" : "http",
     host: typeof obj.host === "string" ? obj.host.trim() : "",
     port: Number.isInteger(port) && port > 0 && port <= 65535 ? port : 0,

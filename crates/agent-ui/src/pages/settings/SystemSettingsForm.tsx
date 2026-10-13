@@ -13,6 +13,7 @@ import {
   isValidSystemProxyHost,
   resolveDefaultTimeZone,
   type SystemProxyConfig,
+  type SystemProxyMode,
   type SystemProxyType,
   THEME_OPTIONS,
   type Theme,
@@ -20,6 +21,7 @@ import {
   updateSystem,
 } from "@liveagent/app/lib/settings";
 import type { SettingsSectionProps } from "@liveagent/app/pages/settings/types";
+import { invoke } from "@liveagent/app/shims/tauriCore";
 import { Settings2 } from "@liveagent/ui/components/IconSet";
 import { FormField, FormFieldLabel } from "@liveagent/ui/components/settings/FormField";
 import {
@@ -59,9 +61,44 @@ import {
 } from "@liveagent/ui/pages/settings/shared";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { isGatewayWebuiRuntime } from "../../lib/runtimeEnv";
 import { SidebarShortcutsSection } from "./SidebarShortcutsSection";
 
 const FONT_SCALE_OPTIONS = [0.9, 1, 1.1, 1.2] as const;
+
+/** 「跟随系统代理」时 Rust 侧读回的 OS 代理读数（桌面端专有）。 */
+type SystemProxyOsStatus = {
+  url: string | null;
+  noProxy: string | null;
+  pacUrl: string | null;
+  source: string;
+};
+
+/**
+ * 跟随系统代理时拉取一次 OS 读数（代理地址 / PAC 提示）。
+ * WebUI 的浏览器进程读不到宿主 OS 代理，手动模式下也没有意义，两种情况都不请求。
+ */
+function useSystemProxyOsStatus(mode: SystemProxyMode): SystemProxyOsStatus | null {
+  const [status, setStatus] = useState<SystemProxyOsStatus | null>(null);
+  useEffect(() => {
+    if (mode !== "system" || isGatewayWebuiRuntime()) {
+      setStatus(null);
+      return;
+    }
+    let cancelled = false;
+    void invoke<SystemProxyOsStatus>("system_proxy_os_status")
+      .then((next) => {
+        if (!cancelled) setStatus(next ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode]);
+  return status;
+}
 type FontFamilySettingKey = "interfaceFontFamily" | "chatFontFamily" | "codeFontFamily";
 
 const FONT_FAMILY_FIELDS: ReadonlyArray<{ key: FontFamilySettingKey; labelKey: string }> = [
@@ -315,10 +352,14 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
     Number.isInteger(effectiveProxyPort) &&
     effectiveProxyPort >= 1 &&
     effectiveProxyPort <= 65535;
-  const systemProxyInvalid = systemProxy.enabled && !proxyConfigValid;
+  const systemProxyInvalid =
+    systemProxy.enabled && systemProxy.mode === "manual" && !proxyConfigValid;
   // 配置无效且当前未启用时禁止开启开关（护栏 A）；已启用时始终允许关闭。
-  const proxyNeedsConfiguration = !systemProxy.enabled && !proxyConfigValid;
+  // 跟随系统模式不要求手填地址，因此不受这条护栏约束。
+  const proxyNeedsConfiguration =
+    !systemProxy.enabled && systemProxy.mode === "manual" && !proxyConfigValid;
   const [proxyDetailsOpen, setProxyDetailsOpen] = useState(false);
+  const systemProxyOsStatus = useSystemProxyOsStatus(systemProxy.mode);
 
   function handleProxyDialogOpenChange(open: boolean) {
     if (!open) {
@@ -469,11 +510,13 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
           <ProxySettingsRow
             title={t("settings.systemProxyEnable")}
             description={
-              systemProxy.enabled && proxyConfigValid
-                ? `${systemProxy.type === "socks5" ? "SOCKS5" : "HTTP"} · ${effectiveProxyHost}:${effectiveProxyPort}`
-                : systemProxy.enabled
-                  ? t("settings.systemProxyInvalid")
-                  : t("settings.systemProxyDisabled")
+              systemProxy.enabled
+                ? systemProxy.mode === "system"
+                  ? t("settings.systemProxySystemActive")
+                  : proxyConfigValid
+                    ? `${systemProxy.type === "socks5" ? "SOCKS5" : "HTTP"} · ${effectiveProxyHost}:${effectiveProxyPort}`
+                    : t("settings.systemProxyInvalid")
+                : t("settings.systemProxyDisabled")
             }
             actionLabel={t("settings.systemProxySettings")}
             expanded={proxyDetailsOpen}
@@ -521,119 +564,170 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
                   </p>
                 ) : null}
 
-                <div className="space-y-4">
-                  <FormField density="compact">
-                    <FormFieldLabel htmlFor="system-proxy-type" size="compact" className="block">
-                      {t("settings.systemProxyType")}
-                    </FormFieldLabel>
-                    <Select
-                      value={systemProxy.type}
-                      onValueChange={(value) =>
-                        patchSystemProxy({ type: value as SystemProxyType })
-                      }
-                    >
-                      <SettingsSelectTrigger
-                        id="system-proxy-type"
-                        className="flex h-9 w-full justify-between rounded-lg bg-settings-tile-hover px-3 shadow-none"
-                      >
-                        <SelectValue>
-                          {systemProxy.type === "socks5" ? "SOCKS5" : "HTTP"}
-                        </SelectValue>
-                      </SettingsSelectTrigger>
-                      <SettingsSelectContent>
-                        <SelectItem value="http">HTTP</SelectItem>
-                        <SelectItem value="socks5">SOCKS5</SelectItem>
-                      </SettingsSelectContent>
-                    </Select>
-                  </FormField>
-                  <FormField density="compact">
-                    <FormFieldLabel htmlFor="system-proxy-host" size="compact">
-                      {t("settings.systemProxyHost")}
-                    </FormFieldLabel>
-                    <Input
-                      variant="plain"
-                      id="system-proxy-host"
-                      className="rounded-lg"
-                      value={proxyHostDraft ?? systemProxy.host}
-                      placeholder="127.0.0.1"
-                      onChange={(event) => setProxyHostDraft(event.currentTarget.value)}
-                      onBlur={commitProxyHostDraft}
-                    />
-                  </FormField>
-                  <FormField density="compact">
-                    <FormFieldLabel htmlFor="system-proxy-port" size="compact">
-                      {t("settings.systemProxyPort")}
-                    </FormFieldLabel>
-                    <Input
-                      variant="plain"
-                      id="system-proxy-port"
-                      className="rounded-lg"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      max={65535}
-                      step={1}
-                      value={
-                        proxyPortDraft ?? (systemProxy.port > 0 ? String(systemProxy.port) : "")
-                      }
-                      placeholder={systemProxy.type === "socks5" ? "1080" : "7890"}
-                      onChange={(event) => setProxyPortDraft(event.currentTarget.value)}
-                      onBlur={() => commitProxyPortDraft()}
-                    />
-                  </FormField>
-                </div>
+                <SettingsToggleGroup
+                  value={[systemProxy.mode]}
+                  onValueChange={(values) => {
+                    const next = values[0];
+                    if (next === "manual" || next === "system") {
+                      patchSystemProxy({ mode: next as SystemProxyMode });
+                    }
+                  }}
+                  aria-label={t("settings.systemProxyMode")}
+                >
+                  <SettingsToggleGroupItem value="manual">
+                    {t("settings.systemProxyModeManual")}
+                  </SettingsToggleGroupItem>
+                  <SettingsToggleGroupItem value="system">
+                    {t("settings.systemProxyModeSystem")}
+                  </SettingsToggleGroupItem>
+                </SettingsToggleGroup>
 
-                <div className="mt-4 space-y-4">
-                  <FormField density="compact">
-                    <FormFieldLabel htmlFor="system-proxy-username" size="compact">
-                      {t("settings.systemProxyUsername")}
-                    </FormFieldLabel>
-                    <Input
-                      variant="plain"
-                      id="system-proxy-username"
-                      className="rounded-lg"
-                      value={proxyUsernameDraft ?? systemProxy.username}
-                      onChange={(event) => setProxyUsernameDraft(event.currentTarget.value)}
-                      onBlur={commitProxyUsernameDraft}
-                    />
-                  </FormField>
-                  <FormField density="compact">
-                    <FormFieldLabel htmlFor="system-proxy-password" size="compact">
-                      {t("settings.systemProxyPassword")}
-                    </FormFieldLabel>
-                    <Input
-                      variant="plain"
-                      id="system-proxy-password"
-                      className="rounded-lg"
-                      type="password"
-                      value={proxyPasswordDraft ?? systemProxy.password}
-                      onChange={(event) => setProxyPasswordDraft(event.currentTarget.value)}
-                      onBlur={commitProxyPasswordDraft}
-                    />
-                    {systemProxy.passwordConfigured &&
-                    !(proxyPasswordDraft ?? systemProxy.password).trim() ? (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{t("settings.systemProxyPasswordConfigured")}</span>
-                        <button
-                          type="button"
-                          className="underline-offset-2 hover:text-foreground hover:underline"
-                          onClick={() => {
-                            setProxyPasswordDraft(null);
-                            patchSystemProxy({ password: "", passwordConfigured: false });
-                          }}
-                        >
-                          {t("settings.systemProxyPasswordClear")}
-                        </button>
-                      </div>
+                {systemProxy.mode === "system" ? (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t("settings.systemProxySystemDesc")}
+                    </p>
+                    {systemProxyOsStatus?.pacUrl ? (
+                      <p className="text-xs leading-relaxed text-amber-500 dark:text-amber-400">
+                        {t("settings.systemProxyPacHint").replace(
+                          "{url}",
+                          systemProxyOsStatus.pacUrl,
+                        )}
+                      </p>
+                    ) : systemProxyOsStatus?.url ? (
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {t("settings.systemProxySystemDetected").replace(
+                          "{url}",
+                          systemProxyOsStatus.url,
+                        )}
+                      </p>
+                    ) : systemProxyOsStatus ? (
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {t("settings.systemProxySystemNone")}
+                      </p>
                     ) : null}
-                  </FormField>
-                </div>
-                <details className="mt-4 text-xs text-muted-foreground">
-                  <summary className="cursor-pointer rounded py-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    {t("settings.systemProxyScope")}
-                  </summary>
-                  <p className="mt-2 leading-relaxed">{t("settings.systemProxyDesc")}</p>
-                </details>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-4 space-y-4">
+                      <FormField density="compact">
+                        <FormFieldLabel
+                          htmlFor="system-proxy-type"
+                          size="compact"
+                          className="block"
+                        >
+                          {t("settings.systemProxyType")}
+                        </FormFieldLabel>
+                        <Select
+                          value={systemProxy.type}
+                          onValueChange={(value) =>
+                            patchSystemProxy({ type: value as SystemProxyType })
+                          }
+                        >
+                          <SettingsSelectTrigger
+                            id="system-proxy-type"
+                            className="flex h-9 w-full justify-between rounded-lg bg-settings-tile-hover px-3 shadow-none"
+                          >
+                            <SelectValue>
+                              {systemProxy.type === "socks5" ? "SOCKS5" : "HTTP"}
+                            </SelectValue>
+                          </SettingsSelectTrigger>
+                          <SettingsSelectContent>
+                            <SelectItem value="http">HTTP</SelectItem>
+                            <SelectItem value="socks5">SOCKS5</SelectItem>
+                          </SettingsSelectContent>
+                        </Select>
+                      </FormField>
+                      <FormField density="compact">
+                        <FormFieldLabel htmlFor="system-proxy-host" size="compact">
+                          {t("settings.systemProxyHost")}
+                        </FormFieldLabel>
+                        <Input
+                          variant="plain"
+                          id="system-proxy-host"
+                          className="rounded-lg"
+                          value={proxyHostDraft ?? systemProxy.host}
+                          placeholder="127.0.0.1"
+                          onChange={(event) => setProxyHostDraft(event.currentTarget.value)}
+                          onBlur={commitProxyHostDraft}
+                        />
+                      </FormField>
+                      <FormField density="compact">
+                        <FormFieldLabel htmlFor="system-proxy-port" size="compact">
+                          {t("settings.systemProxyPort")}
+                        </FormFieldLabel>
+                        <Input
+                          variant="plain"
+                          id="system-proxy-port"
+                          className="rounded-lg"
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          max={65535}
+                          step={1}
+                          value={
+                            proxyPortDraft ?? (systemProxy.port > 0 ? String(systemProxy.port) : "")
+                          }
+                          placeholder={systemProxy.type === "socks5" ? "1080" : "7890"}
+                          onChange={(event) => setProxyPortDraft(event.currentTarget.value)}
+                          onBlur={() => commitProxyPortDraft()}
+                        />
+                      </FormField>
+                    </div>
+
+                    <div className="mt-4 space-y-4">
+                      <FormField density="compact">
+                        <FormFieldLabel htmlFor="system-proxy-username" size="compact">
+                          {t("settings.systemProxyUsername")}
+                        </FormFieldLabel>
+                        <Input
+                          variant="plain"
+                          id="system-proxy-username"
+                          className="rounded-lg"
+                          value={proxyUsernameDraft ?? systemProxy.username}
+                          onChange={(event) => setProxyUsernameDraft(event.currentTarget.value)}
+                          onBlur={commitProxyUsernameDraft}
+                        />
+                      </FormField>
+                      <FormField density="compact">
+                        <FormFieldLabel htmlFor="system-proxy-password" size="compact">
+                          {t("settings.systemProxyPassword")}
+                        </FormFieldLabel>
+                        <Input
+                          variant="plain"
+                          id="system-proxy-password"
+                          className="rounded-lg"
+                          type="password"
+                          value={proxyPasswordDraft ?? systemProxy.password}
+                          onChange={(event) => setProxyPasswordDraft(event.currentTarget.value)}
+                          onBlur={commitProxyPasswordDraft}
+                        />
+                        {systemProxy.passwordConfigured &&
+                        !(proxyPasswordDraft ?? systemProxy.password).trim() ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{t("settings.systemProxyPasswordConfigured")}</span>
+                            <button
+                              type="button"
+                              className="underline-offset-2 hover:text-foreground hover:underline"
+                              onClick={() => {
+                                setProxyPasswordDraft(null);
+                                patchSystemProxy({ password: "", passwordConfigured: false });
+                              }}
+                            >
+                              {t("settings.systemProxyPasswordClear")}
+                            </button>
+                          </div>
+                        ) : null}
+                      </FormField>
+                    </div>
+                    <details className="mt-4 text-xs text-muted-foreground">
+                      <summary className="cursor-pointer rounded py-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {t("settings.systemProxyScope")}
+                      </summary>
+                      <p className="mt-2 leading-relaxed">{t("settings.systemProxyDesc")}</p>
+                    </details>
+                  </>
+                )}
               </DialogBody>
               <DialogFooter>
                 <Button onClick={() => handleProxyDialogOpenChange(false)}>

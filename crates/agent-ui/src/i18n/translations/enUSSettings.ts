@@ -243,6 +243,16 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
     "Choose the color theme for the application. Your preference will be saved automatically.",
   "settings.systemProxy": "App Proxy",
   "settings.systemProxyEnable": "Enable app proxy",
+  "settings.systemProxyMode": "Proxy source",
+  "settings.systemProxyModeManual": "Manual",
+  "settings.systemProxyModeSystem": "Follow system",
+  "settings.systemProxySystemActive": "Following the system proxy",
+  "settings.systemProxySystemDesc":
+    "Use the operating system proxy settings (Internet Options on Windows, GNOME proxy on Linux, process environment variables on macOS). The address and the bypass list both come from the system.",
+  "settings.systemProxySystemDetected": "Detected from the system: {url}",
+  "settings.systemProxySystemNone": "The system has no proxy configured; requests go direct.",
+  "settings.systemProxyPacHint":
+    "An auto-config script (PAC) is configured: {url}. This app does not parse PAC scripts and therefore goes direct in that case.",
   "settings.systemProxyInvalid":
     "The proxy is enabled. Enter a valid host and port; affected requests fail until the configuration is valid.",
   "settings.systemProxyEnableHint": "Enter a valid proxy host and port before enabling the proxy.",

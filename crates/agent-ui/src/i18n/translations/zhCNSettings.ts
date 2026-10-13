@@ -231,6 +231,16 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.appearanceDesc": "选择应用的颜色主题，偏好会自动保存。",
   "settings.systemProxy": "应用代理",
   "settings.systemProxyEnable": "启用应用代理",
+  "settings.systemProxyMode": "代理来源",
+  "settings.systemProxyModeManual": "手动填写",
+  "settings.systemProxyModeSystem": "跟随系统",
+  "settings.systemProxySystemActive": "跟随系统代理",
+  "settings.systemProxySystemDesc":
+    "使用操作系统当前的代理设置（Windows 读 Internet 选项，Linux 读 GNOME 代理，macOS 读进程环境变量）。地址与例外列表都由系统决定，无需手填。",
+  "settings.systemProxySystemDetected": "已从系统读到代理：{url}",
+  "settings.systemProxySystemNone": "系统当前未配置代理，将直连。",
+  "settings.systemProxyPacHint":
+    "检测到自动配置脚本（PAC）：{url}。本应用不解析 PAC 脚本，该情况下按直连处理。",
   "settings.systemProxyInvalid":
     "代理已启用，请填写有效的代理地址和端口；配置有效前相关请求将直接报错。",
   "settings.systemProxyEnableHint": "请先填写有效的代理地址和端口后再启用代理。",

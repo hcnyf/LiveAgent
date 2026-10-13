@@ -1,3 +1,10 @@
+/// 跟随系统代理的当前读数（设置页提示 + 诊断）：解析出的代理地址、生效的例外
+/// 列表，以及"检测到 PAC 脚本、按直连处理"的提示。走 Rust 侧 30s 缓存。
+#[tauri::command]
+pub async fn system_proxy_os_status() -> Result<crate::services::system_proxy::OsProxy, String> {
+    Ok(crate::services::system_proxy::os_proxy_status())
+}
+
 #[tauri::command]
 pub async fn settings_load_all() -> Result<SettingsLoadResponse, String> {
     tauri::async_runtime::spawn_blocking(|| {

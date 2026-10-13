@@ -867,6 +867,7 @@ fn ssh_effective_proxy_resolves_manual_config_and_direct_connections() {
 fn ssh_app_proxy_reuse_maps_system_proxy_config() {
     let socks = crate::services::system_proxy::SystemProxyConfig {
         enabled: true,
+        mode: "manual".to_string(),
         proxy_type: "socks5".to_string(),
         host: "10.0.0.1".to_string(),
         port: 1080,
@@ -882,6 +883,7 @@ fn ssh_app_proxy_reuse_maps_system_proxy_config() {
 
     let http_ipv6 = crate::services::system_proxy::SystemProxyConfig {
         enabled: true,
+        mode: "manual".to_string(),
         proxy_type: "http".to_string(),
         host: "[::1]".to_string(),
         port: 8080,

@@ -351,6 +351,11 @@ fn normalize_system_proxy_value(raw: Option<&Value>) -> Value {
             .unwrap_or(false);
     json!({
         "enabled": obj.get("enabled").and_then(Value::as_bool).unwrap_or(false),
+        // 跟随系统代理（默认 manual，旧存档缺字段即 manual → 零迁移）。
+        "mode": match obj.get("mode").and_then(Value::as_str) {
+            Some("system") => "system",
+            _ => "manual",
+        },
         "type": proxy_type,
         "host": host,
         "port": port,
