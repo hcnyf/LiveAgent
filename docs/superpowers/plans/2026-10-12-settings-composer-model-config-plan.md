@@ -62,7 +62,7 @@
 | T4.1 档位解析接口加覆盖参数 + 9 个调用点 | ✅ 已完成（`57261791`） |
 | T4.2 `defaultThinkingLevel` 接入解析链 | ✅ 本次完成（行为变更 R3） |
 | T4.3 `off` 由勾选决定 | ✅ 本次完成 |
-| 批① 窗口 + 设置壳 + 系统设置 | ⏳ 下一步 |
+| 批① 窗口 + 设置壳 + 系统设置 | ⏳ 进行中（T1.1 ✅ / T1.2 ✅ / T1.3 ⏳ / T1.4 ⏳） |
 | 批⑤ 生图运行时 | ⏳ 待做（⑤-3 依赖 P2） |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
@@ -72,7 +72,7 @@
 
 ## 批① 窗口 + 设置壳 + 系统设置
 
-### T1.1 窗口大小与位置记忆
+### T1.1 窗口大小与位置记忆 —— ✅ 已完成
 
 - **文件**：`crates/agent-gui/src-tauri/src/lib.rs`（`WINDOW_STATE_FLAGS` + setup 钩子）、新增 `crates/agent-gui/src-tauri/src/window_geometry.rs`
 - **做什么**：`POSITION` 并入 flags；新增可见性钳制——与任一显示器工作区重叠 ≥ 80×80px 才保留还原坐标，否则主显示器居中
@@ -80,12 +80,22 @@
 - **验证**：Rust 侧 `cargo test`
 - **坑**：只加 `POSITION` 不写钳制就是原注释警告的回归（拔屏后窗口不可见）
 
-### T1.2 设置页两元素对调
+**落地记录**：
+
+1. `POSITION` 已并入 `WINDOW_STATE_FLAGS`；插件自带的"与任一显示器有交集才 set_position"（1px 也算）先兜一层，`window_geometry` 再按 80×80 收紧。
+2. **顺序即正确性**：插件默认在 `on_window_ready` 里还原，而 `setup()` 跑在它之前——照原样加 `POSITION` 的话我们的钳制会读到一个尚未还原的坐标。因此给插件加了 `.skip_initial_state(MAIN_WINDOW_LABEL)`，改由 `clamp_restored_window_geometry()` 在 `setup()` 里显式"先还原、再钳制"（互斥锁与缓存都由插件自己的 `restore_state` 处理，不重复实现）。`skip_initial_state` 只跳过还原，保存链路照旧。
+3. **钳制判据**：`overlap_size` 两轴都 ≥ 80px 才算可见；命中任一显示器即原样保留；不可见则主显示器**工作区**居中（`work_area`，避开任务栏），窗口比显示器还大时退回显示器原点；显示器列表为空或拿不到主显示器时不下发坐标（交给系统）。最大化/全屏直接跳过（由系统摆放，改坐标会与还原的 `prev_*` 打架）。
+4. **单测 7 例**（计划的 4 例 + 边界补充）：完全落在显示器内、跨屏两轴都够、只在边缘探出 40px（不足 80）→ 居中、落在已拔掉的屏幕上 → 居中、显示器列表为空 → 不动、拿不到主显示器 → 不动、窗口比显示器大 → 退回原点。
+5. **验证**：`cargo test -p liveagent window_geometry` → 7 passed / 0 failed（EXIT=0）。
+
+### T1.2 设置页两元素对调 —— ✅ 已完成
 
 - **文件**：`crates/agent-ui/src/pages/settings/SettingsShell.tsx`
 - **做什么**：只互换"返回对话按钮"与"已保存指示器"，**搜索框留在顶部**；padding 按新位置改回（顶部 `pt-4`、底部 `pb-3`）；搜索框 `mt-2.5` 的参照物变了，间距要核
 - **验收**：桌面端左栏顶部＝已保存、底部＝返回对话；Web 端窄屏分支与标题行右侧已保存**零变化**
 - **验证**：`pnpm test:gui`（`test/settings/settings-escape-to-close.test.mjs:147` 用 `.settings-back-button` 定位，类名保留；若断言了位置则同步改）
+
+**落地记录**：顶部块（`px-3 pb-2 pt-4`）改为"已保存指示器 + 搜索框"（指示器在搜索之上，即原返回按钮的位置），底部新增返回对话块（`px-3 pb-3 pt-2`，保留 `.settings-back-button` 类名与 `aria-keyshortcuts`，Esc 行为不变）；导航列表的 `pb-6` 收成 `pb-3`（底部不再需要它让位）。Web 端两处零变化：窄屏首行返回按钮与标题行右侧指示器都未动，且桌面顶部块/底部块都带 `web:max-820:hidden`。新增 `test/settings/settings-shell-rail-order.test.mjs` 锁住"顶部=已保存+搜索、底部=返回对话"的源码顺序与 padding。
 
 ### T1.3 应用代理支持「使用系统代理」
 
@@ -385,6 +395,14 @@ for (const batch of splitTestFilesIntoBatches(files)) {
 ---
 
 ## 附录 B：本机环境前置（2026-10-12 实测）
+
+### 磁盘与 cargo 目标目录（2026-10-13 增补）
+
+C 盘一度 **0 字节可用**，`cargo test` 直接以 `rustc-LLVM ERROR: IO failure on output stream: no space on device` 失败。处置：
+
+- `CARGO_TARGET_DIR=D:\cargo-target`（`setx` 持久化，机器级用户变量）——所有 cargo 产物（含 `tauri build` 的安装包输出目录）落在 D 盘。
+- 工作区原 `target/`（10.5 GB，纯 debug）已清理，C 盘回到约 10 GB 可用。
+- 影响：打包产物路径随之变为 `D:\cargo-target\release\bundle\...`（此前是 `<repo>\target\release\bundle\...`）。
 
 ### Rust 工具链
 

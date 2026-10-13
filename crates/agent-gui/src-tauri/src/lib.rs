@@ -1,6 +1,7 @@
 mod commands;
 mod runtime;
 mod services;
+mod window_geometry;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -14,13 +15,16 @@ const MAIN_WINDOW_LABEL: &str = "main";
 /// 等待原生全屏退出完成的兜底时长;超时仍未收到通知就直接隐藏。
 #[cfg(target_os = "macos")]
 const FULLSCREEN_EXIT_HIDE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
-// Only size + maximized are persisted: POSITION would fight multi-monitor
-// layouts we don't manage, VISIBLE would re-show a tray-hidden window on
-// startup, and DECORATIONS would override the per-platform window chrome
-// (Windows runs undecorated with custom chrome).
+// Size, maximized and position are persisted; VISIBLE would re-show a tray-hidden
+// window on startup, and DECORATIONS would override the per-platform window chrome
+// (Windows runs undecorated with custom chrome). Restoring POSITION is safe because
+// the plugin only applies a saved origin that still intersects a live monitor, and
+// `window_geometry` re-checks the restored origin with a stricter 80×80px rule
+// (see `clamp_restored_window_geometry`).
 pub(crate) const WINDOW_STATE_FLAGS: tauri_plugin_window_state::StateFlags =
     tauri_plugin_window_state::StateFlags::SIZE
-        .union(tauri_plugin_window_state::StateFlags::MAXIMIZED);
+        .union(tauri_plugin_window_state::StateFlags::MAXIMIZED)
+        .union(tauri_plugin_window_state::StateFlags::POSITION);
 const TRAY_SHOW_MENU_ON_LEFT_CLICK: bool = !cfg!(target_os = "windows");
 const TERMINAL_EXIT_REQUESTED_EVENT: &str = "terminal:exit-requested";
 /// 统一的「前端动作」事件：托盘菜单与全局快捷键中需要前端语义的动作
@@ -379,6 +383,25 @@ macro_rules! app_invoke_handler {
             services::proxy::proxy_get_server_info,
         ]
     };
+}
+
+/// 主窗口几何：先按持久化状态还原，再把坐标钳回真正可见的区域。
+///
+/// 顺序即正确性——插件的自动还原（`on_window_ready`）已被 `skip_initial_state` 关掉，
+/// 改由这里显式调用，保证"还原 → 钳制"同步发生：拔掉外接屏后还原到屏外的坐标在
+/// 这里被改回主显示器居中（判据见 `window_geometry`，两轴重叠 ≥ 80×80px）。
+fn clamp_restored_window_geometry(app: &tauri::App) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return Ok(());
+    };
+    use tauri_plugin_window_state::WindowExt;
+    if let Err(error) = window.restore_state(WINDOW_STATE_FLAGS) {
+        eprintln!("failed to restore main window state: {error}");
+    }
+    if let Err(error) = window_geometry::clamp_window_to_visible_monitor(&window) {
+        eprintln!("failed to clamp main window geometry: {error}");
+    }
+    Ok(())
 }
 
 fn show_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
@@ -885,6 +908,9 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::new()
                 .with_state_flags(WINDOW_STATE_FLAGS)
+                // 主窗口的还原由我们自己驱动（见 clamp_restored_window_geometry）：
+                // 只有"还原 → 钳制"顺序确定，才能保证钳制看到的是还原后的坐标。
+                .skip_initial_state(MAIN_WINDOW_LABEL)
                 .build(),
         )
         .plugin(
@@ -943,6 +969,9 @@ pub fn run() {
             let hide_after_fullscreen_exit = Arc::clone(&hide_after_fullscreen_exit);
             move |app| {
                 commands::history_db::initialize_history_db()?;
+                // 窗口几何须在托盘/装饰配置之前定好：这两步都不改坐标，
+                // 但"先还原再钳制"越早越不容易闪出屏外位置。
+                clamp_restored_window_geometry(app)?;
                 configure_system_tray(app)?;
                 #[cfg(target_os = "windows")]
                 configure_windows_window_chrome(app)?;

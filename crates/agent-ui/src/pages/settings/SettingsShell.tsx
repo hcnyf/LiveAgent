@@ -163,27 +163,16 @@ export function SettingsShell<Context>(props: SettingsShellProps<Context>) {
             </div>
           ) : null}
           <div className="px-3 pb-2 pt-4 web:max-820:hidden">
-            <button
-              type="button"
-              onClick={onBack}
-              aria-keyshortcuts="Escape"
-              title={t("settings.backToChatHint")}
-              className={cn(
-                "settings-back-button flex w-full cursor-pointer items-center justify-start gap-1 rounded-md px-2 py-1.5 text-left",
-                "text-sm text-muted-foreground transition-colors duration-150 hover:bg-settings-tile-hover hover:text-foreground",
-              )}
-            >
-              <ArrowLeft className="size-3.5 shrink-0" />
-              <span>{t("settings.backToChat")}</span>
-              <kbd
-                className={cn(
-                  "ml-auto rounded border border-border/60 px-1.5 py-0.5",
-                  "font-sans text-tiny leading-none text-muted-foreground/70",
-                )}
+            {/* 桌面端左栏：顶部 = 已保存指示器 + 搜索（搜索框位置不变）。 */}
+            {showSaveIndicator ? (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground"
+                title={saveIndicator.title}
               >
-                Esc
-              </kbd>
-            </button>
+                <div className={cn("size-1.5 rounded-full", saveIndicator.dotClass)} />
+                {saveIndicator.text}
+              </div>
+            ) : null}
             <div className="relative mt-2.5">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/75" />
               <input
@@ -202,7 +191,7 @@ export function SettingsShell<Context>(props: SettingsShellProps<Context>) {
           </div>
           <nav
             className={cn(
-              "settings-nav flex-1 overflow-y-auto px-2.5 pb-6 pt-3.5",
+              "settings-nav flex-1 overflow-y-auto px-2.5 pb-3 pt-3.5",
               "web:max-820:flex web:max-820:flex-none web:max-820:flex-nowrap web:max-820:gap-1.5 web:max-820:overflow-x-auto web:max-820:overscroll-x-contain",
               "web:max-820:px-10px web:max-820:pb-10px web:max-820:pt-2 web:max-820:[scrollbar-width:none] web:max-820:[&::-webkit-scrollbar]:hidden web:max-640:px-8px",
             )}
@@ -266,15 +255,30 @@ export function SettingsShell<Context>(props: SettingsShellProps<Context>) {
               </div>
             ) : null}
           </nav>
-          {!web && showSaveIndicator ? (
-            <div className="px-3 py-3">
-              <div
-                className="flex items-center gap-1.5 px-2.5 text-xs text-muted-foreground"
-                title={saveIndicator.title}
+          {!web ? (
+            <div className="px-3 pb-3 pt-2 web:max-820:hidden">
+              {/* 桌面端左栏底部：返回对话（Esc）。 */}
+              <button
+                type="button"
+                onClick={onBack}
+                aria-keyshortcuts="Escape"
+                title={t("settings.backToChatHint")}
+                className={cn(
+                  "settings-back-button flex w-full cursor-pointer items-center justify-start gap-1 rounded-md px-2 py-1.5 text-left",
+                  "text-sm text-muted-foreground transition-colors duration-150 hover:bg-settings-tile-hover hover:text-foreground",
+                )}
               >
-                <div className={cn("size-1.5 rounded-full", saveIndicator.dotClass)} />
-                {saveIndicator.text}
-              </div>
+                <ArrowLeft className="size-3.5 shrink-0" />
+                <span>{t("settings.backToChat")}</span>
+                <kbd
+                  className={cn(
+                    "ml-auto rounded border border-border/60 px-1.5 py-0.5",
+                    "font-sans text-tiny leading-none text-muted-foreground/70",
+                  )}
+                >
+                  Esc
+                </kbd>
+              </button>
             </div>
           ) : null}
         </aside>
