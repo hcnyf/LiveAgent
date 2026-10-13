@@ -533,6 +533,17 @@ export type ProviderModelConfig = {
    * 参与 ChatRuntimeControls 的档位解析链（模型桶 → 默认档 → 供应商桶 → 全局）。
    */
   defaultThinkingLevel?: ReasoningLevel;
+  /**
+   * 生图模型的默认生成参数（仅 `CustomProvider.kind === "image"` 有意义）。
+   * 取值按协议白名单校验，见 `lib/settings/imageGeneration.ts`：
+   * codex 的 imageSize 是 `WxH`，gemini 的是宽高比——**刻意不做跨协议统一枚举**。
+   * 调用期可临时覆盖（工具参数优先），缺省时按协议默认值回落。
+   */
+  imageSize?: string;
+  /** 生图质量档（codex: low/medium/high/auto；gemini: 1K/2K）。 */
+  imageQuality?: string;
+  /** 生图默认张数（1..IMAGE_COUNT_MAX）；越界值在归一化时丢弃。 */
+  imageCount?: number;
 };
 
 export type ChatRuntimeControls = {

@@ -34,6 +34,12 @@ import {
   MAX_CHAT_TRANSCRIPT_WIDTH,
   MIN_CHAT_TRANSCRIPT_WIDTH,
 } from "@liveagent/ui/lib/transcript-width/transcriptWidthModel";
+import {
+  isImageGenerationProviderId,
+  normalizeImageCount,
+  normalizeImageQuality,
+  normalizeImageSize,
+} from "./imageGeneration";
 import { normalizeModelFailoverSettings } from "./modelFailover";
 import {
   normalizeChatTranscriptSettings,
@@ -149,6 +155,29 @@ import {
 
 export { normalizeFontFamily } from "@liveagent/ui/lib/shared/fontFamily";
 export type { WorkspaceProjectGroup } from "@liveagent/ui/lib/workspaceProjectTypes";
+export type {
+  ImageGenerationProviderId,
+  ResolvedImageGenerationParams,
+} from "./imageGeneration";
+export {
+  CODEX_IMAGE_QUALITIES,
+  CODEX_IMAGE_SIZES,
+  DEFAULT_IMAGE_COUNT,
+  defaultImageQuality,
+  defaultImageSize,
+  GEMINI_IMAGE_ASPECT_RATIOS,
+  GEMINI_IMAGE_RESOLUTIONS,
+  IMAGE_COUNT_MAX,
+  IMAGE_COUNT_MIN,
+  IMAGE_GENERATION_PROVIDER_IDS,
+  imageQualityOptions,
+  imageSizeOptions,
+  isImageGenerationProviderId,
+  normalizeImageCount,
+  normalizeImageQuality,
+  normalizeImageSize,
+  resolveImageGenerationParams,
+} from "./imageGeneration";
 export {
   hasProviderFailoverConfiguration,
   normalizeModelFailoverSettings,
@@ -985,6 +1014,12 @@ function normalizeLimitsSource(value: unknown): ModelLimitsSource | undefined {
 export function normalizeProviderModelConfig(
   input: unknown,
   providerId: ProviderId,
+  /**
+   * 供应商类别。只有 `"image"` 才保留生图参数——chat 供应商即便用 codex/gemini
+   * 协议也不该背着一份永不生效的尺寸/质量配置。缺省 `"chat"`，因此既有调用点
+   * 与测试无需改动。
+   */
+  kind: ProviderKind = "chat",
 ): ProviderModelConfig | null {
   if (typeof input === "string") {
     const id = input.trim();
@@ -1066,6 +1101,7 @@ export function normalizeProviderModelConfig(
     providerId === "codex" ? normalizePromptCacheHintMode(obj.promptCacheHintMode) : undefined;
   const inputModalities = normalizeInputModalities(obj.inputModalities);
   const thinkingLevels = normalizeThinkingLevels(obj.thinkingLevels);
+  const imageParams = normalizeProviderModelImageParams(obj, providerId, kind);
   // 默认档必须属于勾选集合，否则丢弃（两字段是同一份用户意图的两种视图）。
   const defaultThinkingLevel =
     thinkingLevels &&
@@ -1094,6 +1130,33 @@ export function normalizeProviderModelConfig(
     // 用户勾选的思考档位与默认档；两者同进同出（默认档不属于勾选集合时丢弃）
     ...(thinkingLevels ? { thinkingLevels } : {}),
     ...(defaultThinkingLevel ? { defaultThinkingLevel } : {}),
+    // 生图默认参数：仅生图供应商、且协议支持生图时才保留（取值按协议白名单校验，
+    // 非法值直接丢弃 = 未配置，由调用期回落到协议默认值）。
+    ...(imageParams ?? {}),
+  };
+}
+
+/**
+ * 生图默认参数的归一化。返回可直接展开进模型对象的字段片段，或 undefined
+ * （无可保留字段）。刻意与 `normalizeProviderModelConfig` 的其它字段分开，
+ * 让"仅 image kind + 仅生图协议"这条门控只有一处。
+ */
+function normalizeProviderModelImageParams(
+  obj: Record<string, unknown>,
+  providerId: ProviderId,
+  kind: ProviderKind,
+): Pick<ProviderModelConfig, "imageSize" | "imageQuality" | "imageCount"> | undefined {
+  if (kind !== "image" || !isImageGenerationProviderId(providerId)) return undefined;
+  const imageSize = normalizeImageSize(providerId, obj.imageSize);
+  const imageQuality = normalizeImageQuality(providerId, obj.imageQuality);
+  const imageCount = normalizeImageCount(obj.imageCount);
+  if (imageSize === undefined && imageQuality === undefined && imageCount === undefined) {
+    return undefined;
+  }
+  return {
+    ...(imageSize === undefined ? {} : { imageSize }),
+    ...(imageQuality === undefined ? {} : { imageQuality }),
+    ...(imageCount === undefined ? {} : { imageCount }),
   };
 }
 
@@ -1141,6 +1204,7 @@ export function normalizeThinkingLevels(input: unknown): ReasoningLevel[] | unde
 export function normalizeProviderModelConfigs(
   input: unknown,
   providerId: ProviderId,
+  kind: ProviderKind = "chat",
 ): ProviderModelConfig[] {
   if (!Array.isArray(input)) return [];
 
@@ -1148,7 +1212,7 @@ export function normalizeProviderModelConfigs(
   const seen = new Set<string>();
 
   for (const item of input) {
-    const normalized = normalizeProviderModelConfig(item, providerId);
+    const normalized = normalizeProviderModelConfig(item, providerId, kind);
     if (!normalized || seen.has(normalized.id)) continue;
     seen.add(normalized.id);
     out.push(normalized);
@@ -1360,7 +1424,7 @@ export function normalizeCustomProvider(input: unknown): CustomProvider {
           isFullUrl,
         )
       : undefined;
-  const models = normalizeProviderModelConfigs(obj.models, type);
+  const models = normalizeProviderModelConfigs(obj.models, type, normalizeProviderKind(obj.kind));
   const modelOrder = normalizeProviderModelOrder(obj.modelOrder, models);
   const validModelIds = new Set(models.map((model) => model.id));
   const apiKey = normalizeApiKey(typeof obj.apiKey === "string" ? obj.apiKey : "");

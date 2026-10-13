@@ -141,7 +141,6 @@ import {
 import { skillMentionInjection } from "../lib/chat/skills/mentionInjection";
 import { tauriGitClient } from "../lib/git/tauriGitClient";
 import { buildMemoryOverviewSection } from "../lib/memory/prompts/injection";
-import { setNotificationPrefs } from "../lib/system/notifications";
 import { createProviderRuntimeConfig, toModelValue } from "../lib/providers/llm";
 import {
   applyConversationThinking,
@@ -170,6 +169,7 @@ import { tauriSftpClient } from "../lib/sftp/tauriSftpClient";
 import { createGuiSidebarBackend } from "../lib/sidebar/guiSidebarBackend";
 import { desktopSttTransport } from "../lib/stt/desktopSttTransport";
 import { createSubagentStoreManager } from "../lib/subagents";
+import { setNotificationPrefs } from "../lib/system/notifications";
 import { tauriTerminalClient } from "../lib/terminal/tauriTerminalClient";
 import { cancelPendingAskUserQuestionsForConversation } from "../lib/tools/askUserQuestionTools";
 import {

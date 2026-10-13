@@ -72,7 +72,7 @@
 | T4.2 `defaultThinkingLevel` 接入解析链 | ✅ 本次完成（行为变更 R3） |
 | T4.3 `off` 由勾选决定 | ✅ 本次完成 |
 | 批① 窗口 + 设置壳 + 系统设置 | ✅ 已完成（T1.1 / T1.2 / T1.3 / T1.4） |
-| 批⑤ 生图运行时 | ⏳ 待做（⑤-3 依赖 P2） |
+| 批⑤ 生图运行时 | ⏳ 进行中（T5.1 已完成，T5.2–T5.5 待做） |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
 环境前置见附录 B（BuildTools 现落在 `D:\BuildTools`）。
@@ -280,6 +280,17 @@
 - **做什么**：`kind = "image"` 的供应商协议选项仅 `codex` / `gemini`（`claude_code`/`deepseek`/`xai` 均不显示）；生图模型配置显示尺寸/质量/张数默认值，**不显示**输入能力与思考档位
 - **验收**：协议选项里没有那三者；两套模型设置面板不互相污染（spec R14）
 - **段**：⑤-1
+
+**落地记录**：
+
+- 协议子集与两套面板的分支**已在 T3.1 的 UI 分栏中落地**（`providerTabsForKind` 把 image 的协议选项收窄为 codex/gemini；`ProviderModal` 对 image 关掉输入能力覆盖；`ProviderModalView` 按 `providerKind` 分支）。本次补齐的是**生图模型的默认生成参数**。
+- 新增共享模块 `crates/agent-ui/src/lib/settings/imageGeneration.ts`（唯一判定点）：`IMAGE_GENERATION_PROVIDER_IDS = ["codex","gemini"]`、按协议各自的取值表（codex：`CODEX_IMAGE_SIZES` 的 `WxH` + `CODEX_IMAGE_QUALITIES`；gemini：`GEMINI_IMAGE_ASPECT_RATIOS` + `GEMINI_IMAGE_RESOLUTIONS`）、`IMAGE_COUNT_MIN/MAX = 1/12`、协议默认值（codex 用上游自己的 `auto` 语义，不替用户猜尺寸）、`normalizeImageSize/Quality/Count`、`resolveImageGenerationParams`。
+- **不做跨协议统一枚举**（spec 明文要求）落到可执行层面：`normalizeImageSize("gemini","1024x1024")` 与 `normalizeImageSize("codex","16:9")` 都返回 `undefined`——两套取值互不承认。
+- `ProviderModelConfig` 加 `imageSize?` / `imageQuality?` / `imageCount?`；`normalizeProviderModelConfig` 增**可选**第三参 `kind`（缺省 `"chat"`，既有两参调用点与测试语义不变），只有 `kind === "image"` 且协议属生图子集时才保留这三个字段——**这是本批最易踩的坑（字段白名单）**：不加这一处，字段会在第一次 load/save 往返后被静默丢弃。
+- 越界值**丢弃而非钳制**（`imageCount: 99` → 未配置）：静默纠正会掩盖配置错误；调用期越界另有明确报错（验收 6）。
+- 生图模型面板（`ProviderModalView`）在 image 分支下新增三个字段（尺寸/质量/张数），沿用 `promptCacheHintMode` 的既有写法直接改 `setEditingModel` 的草稿，**不新增 viewModel 字段**；尺寸/宽高比是自描述取值直接显示原值，质量档走 i18n（`settings.imageQuality.*`，未知值原样显示）。
+- 测试：`crates/agent-gui/test/settings/image-generation-params.test.mjs` 6 例（协议子集 / 两套枚举互不承认 / kind 门控 / 旧存档零迁移 / 越界丢弃 / 解析回落顺序 / kind 透传）。
+- 验证：`pnpm typecheck:ui`、`typecheck:gui`、`check:ui-boundaries`、`lint` 全通过；`pnpm test:gui` 全绿（含新增 6 例）。
 
 ### T5.2 `GenerateImage` 工具 + codex 适配器 + 应用级临时根
 

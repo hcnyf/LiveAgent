@@ -512,7 +512,8 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.notifyApprovalTitle": "Tool call needs your approval",
   "chat.notifyApprovalBody": "{count} tool call(s) are waiting for your approval.",
   "chat.notifyApprovalTimeoutTitle": "Approval about to time out",
-  "chat.notifyApprovalTimeoutBody": "Unhandled tool approvals are treated as denied once they time out.",
+  "chat.notifyApprovalTimeoutBody":
+    "Unhandled tool approvals are treated as denied once they time out.",
   "chat.contextCheckpoint.title": "Context Checkpoint",
   "chat.contextCheckpoint.messageCount": "{count} msgs",
   "chat.contextCheckpoint.compressed": "Compressed",

@@ -246,12 +246,16 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
   "settings.notificationsSessionComplete": "Session complete",
   "settings.notificationsSessionCompleteHint": "Notify me when a session finishes a turn.",
   "settings.notificationsSessionError": "Session error",
-  "settings.notificationsSessionErrorHint": "Notify me when a session reports an error (the body is that error).",
+  "settings.notificationsSessionErrorHint":
+    "Notify me when a session reports an error (the body is that error).",
   "settings.notificationsPermissionRequestLabel": "Tool approval requests",
-  "settings.notificationsPermissionRequestHint": "Notify me when a tool waits for my approval, plus one reminder before it times out.",
+  "settings.notificationsPermissionRequestHint":
+    "Notify me when a tool waits for my approval, plus one reminder before it times out.",
   "settings.notificationsWhenFocused": "Also notify while the window has focus",
-  "settings.notificationsWhenFocusedHint": "When off, nothing is sent while LiveAgent is in the foreground (tool approvals included).",
-  "settings.notificationsPermissionDenied": "The system denied notification permission. Enable notifications for LiveAgent in your system settings.",
+  "settings.notificationsWhenFocusedHint":
+    "When off, nothing is sent while LiveAgent is in the foreground (tool approvals included).",
+  "settings.notificationsPermissionDenied":
+    "The system denied notification permission. Enable notifications for LiveAgent in your system settings.",
   "settings.notificationsPermissionUnknown": "Notification permission is not granted yet.",
   "settings.notificationsPermissionRequest": "Request permission",
   "settings.systemProxyEnable": "Enable app proxy",
@@ -546,6 +550,21 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
   "settings.providerKindImage": "Image models",
   "settings.imageProviderModelHint":
     "Image-generation providers serve image generation only and never join a conversation, so chat-only settings such as input capabilities and thinking levels are not offered.",
+  "settings.imageModelSize": "Default size",
+  "settings.imageModelSizeHint":
+    "Default size for image generation. OpenAI-compatible protocols take pixel sizes (e.g. 1024x1024); Gemini takes aspect ratios (e.g. 16:9). A tool call may override it.",
+  "settings.imageModelQuality": "Default quality",
+  "settings.imageModelQualityHint":
+    "Default quality for image generation. OpenAI-compatible protocols use low / medium / high; Gemini uses the 1K / 2K resolution tiers.",
+  "settings.imageModelCount": "Default count",
+  "settings.imageModelCountHint":
+    "Default number of images per generation (1-12). Requests above the limit fail with an explicit error instead of being silently truncated.",
+  "settings.imageQuality.low": "Low",
+  "settings.imageQuality.medium": "Medium",
+  "settings.imageQuality.high": "High",
+  "settings.imageQuality.auto": "Auto",
+  "settings.imageQuality.1k": "1K",
+  "settings.imageQuality.2k": "2K",
   "settings.providerServices": "Services",
   "settings.providerProtocolTools": "Import and protocol settings",
   "settings.providerServiceType": "Service type",

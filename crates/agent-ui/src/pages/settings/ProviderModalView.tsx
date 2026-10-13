@@ -2,6 +2,15 @@ import { getUsagePlanDisplay } from "@liveagent/app/lib/providers/usageQuery";
 import {
   CODEX_REQUEST_FORMAT_LABELS,
   type CodexRequestFormat,
+  DEFAULT_IMAGE_COUNT,
+  defaultImageQuality,
+  defaultImageSize,
+  IMAGE_COUNT_MAX,
+  IMAGE_COUNT_MIN,
+  imageQualityOptions,
+  imageSizeOptions,
+  isImageGenerationProviderId,
+  normalizeImageCount,
   PROMPT_CACHE_HINT_MODES,
   type PromptCacheHintMode,
   REASONING_LEVEL_CHOICES,
@@ -123,6 +132,26 @@ const THINKING_LEVEL_LABEL_KEYS: Record<ReasoningLevel, string> = {
   xhigh: "settings.reasoning.xhigh",
   max: "settings.reasoning.max",
 };
+
+/**
+ * 生图质量档 → i18n 键。质量是抽象词（low/medium/high 与 1K/2K 都不自解释），
+ * 必须本地化；尺寸/宽高比（"1024x1024" / "16:9"）则是自描述取值，直接显示原值
+ * ——给每个取值造翻译键只会让"上游新增一个尺寸"变成一次必须改 i18n 的发布。
+ */
+const IMAGE_QUALITY_LABEL_KEYS: Record<string, string> = {
+  low: "settings.imageQuality.low",
+  medium: "settings.imageQuality.medium",
+  high: "settings.imageQuality.high",
+  auto: "settings.imageQuality.auto",
+  "1K": "settings.imageQuality.1k",
+  "2K": "settings.imageQuality.2k",
+};
+
+/** 未知取值原样显示：宁可露出上游原值，也不要显示一个空白的下拉项。 */
+function imageQualityLabel(t: (key: string) => string, quality: string): string {
+  const key = IMAGE_QUALITY_LABEL_KEYS[quality];
+  return key ? t(key) : quality;
+}
 
 export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewModel }) {
   const {
@@ -247,6 +276,16 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     visibleModels,
   } = viewModel;
   const visibleModelById = new Map(visibleModels.map((model) => [model.id, model]));
+  // 生图分栏的协议选项已由 providerTabsForKind 收窄到 codex / gemini，但 type 是
+  // 落库字段（可被手工编辑或来自旧存档），这里兜底到 codex 只为面板不崩——不是
+  // "默认为 codex"的产品语义；运行时分派另有一处同样的兜底。
+  const imageGenerationProviderId = isImageGenerationProviderId(providerType)
+    ? providerType
+    : "codex";
+  const imageSizeChoices = imageSizeOptions(imageGenerationProviderId);
+  const imageQualityChoices = imageQualityOptions(imageGenerationProviderId);
+  const imageSizeDefault = defaultImageSize(imageGenerationProviderId);
+  const imageQualityDefault = defaultImageQuality(imageGenerationProviderId);
   return (
     <Dialog
       open={dialogOpen}
@@ -861,11 +900,106 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                           </FormField>
                         ) : null}
                         {providerKind === "image" ? (
-                          <FormField>
-                            <FormFieldDescription>
-                              {t("settings.imageProviderModelHint")}
-                            </FormFieldDescription>
-                          </FormField>
+                          <>
+                            <FormField>
+                              <FormFieldDescription>
+                                {t("settings.imageProviderModelHint")}
+                              </FormFieldDescription>
+                            </FormField>
+                            {/* 生图模型的默认生成参数。取值按协议给（codex 是 WxH +
+                                low/medium/high，gemini 是宽高比 + 1K/2K），刻意不做
+                                跨协议统一枚举——见 lib/settings/imageGeneration.ts。
+                                调用生图工具时可临时覆盖这三项。 */}
+                            <FormField>
+                              <FormFieldLabel>{t("settings.imageModelSize")}</FormFieldLabel>
+                              <Select
+                                value={editingModel.model.imageSize ?? imageSizeDefault}
+                                onValueChange={(value) =>
+                                  setEditingModel((prev) =>
+                                    prev
+                                      ? { ...prev, model: { ...prev.model, imageSize: value } }
+                                      : prev,
+                                  )
+                                }
+                              >
+                                <SelectTrigger variant="plain" className="h-8 shadow-none">
+                                  {/* 尺寸/宽高比是自描述取值，闭合态直接显示原值。 */}
+                                  <SelectValue>
+                                    {editingModel.model.imageSize ?? imageSizeDefault}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {imageSizeChoices.map((size) => (
+                                    <SelectItem key={size} value={size}>
+                                      {size}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormFieldDescription>
+                                {t("settings.imageModelSizeHint")}
+                              </FormFieldDescription>
+                            </FormField>
+                            <FormField>
+                              <FormFieldLabel>{t("settings.imageModelQuality")}</FormFieldLabel>
+                              <Select
+                                value={editingModel.model.imageQuality ?? imageQualityDefault}
+                                onValueChange={(value) =>
+                                  setEditingModel((prev) =>
+                                    prev
+                                      ? { ...prev, model: { ...prev.model, imageQuality: value } }
+                                      : prev,
+                                  )
+                                }
+                              >
+                                <SelectTrigger variant="plain" className="h-8 shadow-none">
+                                  <SelectValue>
+                                    {imageQualityLabel(
+                                      t,
+                                      editingModel.model.imageQuality ?? imageQualityDefault,
+                                    )}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {imageQualityChoices.map((quality) => (
+                                    <SelectItem key={quality} value={quality}>
+                                      {imageQualityLabel(t, quality)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormFieldDescription>
+                                {t("settings.imageModelQualityHint")}
+                              </FormFieldDescription>
+                            </FormField>
+                            <FormField>
+                              <FormFieldLabel>{t("settings.imageModelCount")}</FormFieldLabel>
+                              <Input
+                                type="number"
+                                min={IMAGE_COUNT_MIN}
+                                max={IMAGE_COUNT_MAX}
+                                step={1}
+                                className="h-8 w-24"
+                                value={String(editingModel.model.imageCount ?? DEFAULT_IMAGE_COUNT)}
+                                onChange={(event) =>
+                                  setEditingModel((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          model: {
+                                            ...prev.model,
+                                            imageCount: normalizeImageCount(event.target.value),
+                                          },
+                                        }
+                                      : prev,
+                                  )
+                                }
+                              />
+                              <FormFieldDescription>
+                                {t("settings.imageModelCountHint")}
+                              </FormFieldDescription>
+                            </FormField>
+                          </>
                         ) : null}
                         {providerKind !== "image" ? (
                           <FormField>

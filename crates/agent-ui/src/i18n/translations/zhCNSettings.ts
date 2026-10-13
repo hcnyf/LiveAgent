@@ -238,8 +238,10 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.notificationsPermissionRequestLabel": "工具审批请求",
   "settings.notificationsPermissionRequestHint": "有工具等待我批准时通知我；即将超时前再提醒一次。",
   "settings.notificationsWhenFocused": "窗口有焦点时也发送",
-  "settings.notificationsWhenFocusedHint": "关掉后，只要 LiveAgent 在前台就一条都不发（含工具审批请求）。",
-  "settings.notificationsPermissionDenied": "系统拒绝了通知权限，请在系统设置里为 LiveAgent 打开通知。",
+  "settings.notificationsWhenFocusedHint":
+    "关掉后，只要 LiveAgent 在前台就一条都不发（含工具审批请求）。",
+  "settings.notificationsPermissionDenied":
+    "系统拒绝了通知权限，请在系统设置里为 LiveAgent 打开通知。",
   "settings.notificationsPermissionUnknown": "尚未获得通知权限。",
   "settings.notificationsPermissionRequest": "申请权限",
   "settings.systemProxyEnable": "启用应用代理",
@@ -521,6 +523,21 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.providerKindImage": "生图模型",
   "settings.imageProviderModelHint":
     "生图供应商的模型只用于图像生成、不参与对话，因此不提供输入能力与思考档位等对话专用配置。",
+  "settings.imageModelSize": "默认尺寸",
+  "settings.imageModelSizeHint":
+    "生图时的默认尺寸。OpenAI 兼容协议填像素尺寸（如 1024x1024），Gemini 填宽高比（如 16:9）。模型调用生图工具时可按需覆盖。",
+  "settings.imageModelQuality": "默认质量",
+  "settings.imageModelQualityHint":
+    "生图时的默认质量档。OpenAI 兼容协议为 low / medium / high，Gemini 为 1K / 2K 分辨率档。",
+  "settings.imageModelCount": "默认张数",
+  "settings.imageModelCountHint":
+    "一次生成的默认张数（1-12）。超过上限时模型会收到明确报错，不会被静默截断。",
+  "settings.imageQuality.low": "低",
+  "settings.imageQuality.medium": "中",
+  "settings.imageQuality.high": "高",
+  "settings.imageQuality.auto": "自动",
+  "settings.imageQuality.1k": "1K",
+  "settings.imageQuality.2k": "2K",
   "settings.providerServices": "服务",
   "settings.providerProtocolTools": "导入与协议设置",
   "settings.providerServiceType": "服务类型",
