@@ -633,6 +633,7 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.imageViewer.saveToWorkspaceFailed": "无法保存到工作区",
   "chat.imageViewer.saveToWorkspaceNoWorkspace": "当前会话没有工作区，无法保存",
   "chat.imageViewer.saveToWorkspaceUnsupported": "当前运行环境不支持保存到工作区",
+  "chat.imageViewer.tempImageExpiryHint": "未保存到工作区的图片将在 {days} 天后自动清理",
   "chat.imageViewer.copy": "复制图片",
   "chat.imageViewer.copyFailed": "无法复制图片",
   "chat.imageViewer.copyAbsolutePath": "复制绝对路径",

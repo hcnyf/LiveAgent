@@ -180,7 +180,11 @@ function useProviderModalController({
     // contextWindow/maxOutputToken/limitsSource/inputModalities 等用户字段）；
     // normalizeFetchedModels 只用于供应商 API 刷新结果（如 Gemini 的
     // inputTokenLimit 字段形状），混用会在“打开并保存”往返中重置用户配置。
-    normalizeProviderModelConfigs(initialData?.models ?? [], providerType),
+    //
+    // **必须带上 providerKind**：生图参数（imageSize/imageQuality/imageCount）只在
+    // kind === "image" 时被归一化保留，漏传会以 "chat" 默认值静默清空它们——
+    // 于是"打开生图供应商再保存"就把尺寸/质量/张数抹掉了（与 `kind` 同一个白名单陷阱）。
+    normalizeProviderModelConfigs(initialData?.models ?? [], providerType, providerKind),
   );
   const [modelOrder, setModelOrder] = useState<string[] | undefined>(() =>
     initialData?.modelOrder ? [...initialData.modelOrder] : undefined,

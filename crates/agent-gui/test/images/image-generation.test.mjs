@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
 // 生图运行时（T5.2）的反漂移锁。重点不是"能出图"，而是这几条**不变量**：
@@ -48,6 +50,15 @@ const geminiImages = loader.loadModule("src/lib/images/adapters/geminiImages.ts"
 const imageTools = loader.loadModule("src/lib/tools/imageTools.ts");
 const toolPolicy = loader.loadModule("src/lib/tools/toolPolicy.ts");
 const catalog = loader.loadModule("@liveagent/ui/lib/tools/builtinToolCatalog.ts");
+const requestContextSanitizer = loader.loadModule("src/lib/chat/context/requestContextSanitizer.ts");
+const {
+  IMAGE_TEMP_ARTIFACT_DIR_NAME,
+  SESSION_IMAGE_TEMP_RETENTION_DAYS,
+  looksLikeImageTempArtifact,
+} = loader.loadModule("@liveagent/ui/contracts/sessionImageSave.ts");
+
+const TEMP_ARTIFACT_PATH =
+  "C:/Users/example/AppData/Local/Temp/liveagent-images/liveagent-deadbeef.png";
 
 const CODEX_IMAGE_PROVIDER = {
   id: "prov-openai-img",
@@ -479,4 +490,67 @@ test("GenerateImage reads reference images before editing", async () => {
   } finally {
     stub.restore();
   }
+});
+
+test("the model context never carries the generated image bytes, only paths (acceptance 4)", () => {
+  // 决策 R 的落地方式是**既有的 display_image 脱敏**，不是"结果里不放图"：
+  // 内联块是 UI 渲染所需，模型侧由 requestContextSanitizer 整段替换为路径文本。
+  // 这条断言把该不变量锁住——它是"每次生图不必为模型多付一张图 token"的唯一保障。
+  const result = {
+    role: "toolResult",
+    toolCallId: "call-1",
+    toolName: "GenerateImage",
+    content: [
+      { type: "text", text: "Generated 1 image(s) with OpenAI Images / gpt-image-1." },
+      { type: "image", data: "QUJD", mimeType: "image/png" },
+    ],
+    details: {
+      kind: "display_image",
+      loadMode: "inline",
+      path: TEMP_ARTIFACT_PATH,
+      mimeType: "image/png",
+      images: [
+        {
+          path: TEMP_ARTIFACT_PATH,
+          sourceType: "path",
+          renderMode: "inline",
+          mimeType: "image/png",
+          sizeBytes: 3,
+        },
+      ],
+    },
+    isError: false,
+    timestamp: 1,
+  };
+  const context = requestContextSanitizer.sanitizeContextForModelRequest({ messages: [result] });
+  const [message] = context.messages;
+  assert.equal(
+    message.content.some((block) => block.type === "image"),
+    false,
+    "inline image bytes must be stripped from the model request",
+  );
+  assert.equal(JSON.stringify(message.content).includes("QUJD"), false);
+  assert.equal(message.content[0].type, "text");
+  assert.match(message.content[0].text, /liveagent-images/);
+});
+
+test("shared UI constants stay in sync with the Rust temp-root source", () => {
+  // 共享 UI 用这两个常量决定"要不要提示这张图会被清理"，真源在 Rust 侧。
+  // 两边分叉的后果是提示与真实保留期不一致（用户按错误的天数做决定）。
+  const rustSource = readFileSync(
+    fileURLToPath(new URL("../../src-tauri/src/services/image_artifacts.rs", import.meta.url)),
+    "utf8",
+  );
+  assert.match(rustSource, new RegExp(`IMAGE_ARTIFACT_DIR_NAME: &str = "${IMAGE_TEMP_ARTIFACT_DIR_NAME}"`));
+  assert.match(rustSource, /30 \* 24 \* 60 \* 60/);
+  assert.equal(SESSION_IMAGE_TEMP_RETENTION_DAYS, 30);
+  // 路径判定用同一份目录名。
+  assert.equal(looksLikeImageTempArtifact(TEMP_ARTIFACT_PATH), true);
+  assert.equal(looksLikeImageTempArtifact("C:\\work\\images\\a.png"), false);
+  assert.equal(
+    looksLikeImageTempArtifact(
+      "C:\\Users\\x\\AppData\\Local\\Temp\\liveagent-images\\liveagent-abc.png",
+    ),
+    true,
+  );
 });

@@ -10,6 +10,10 @@ import {
   ImagePreviewMenuItem,
   runImagePreviewAction,
 } from "@liveagent/ui/components/chat/ImagePreviewMenu";
+import {
+  looksLikeImageTempArtifact,
+  SESSION_IMAGE_TEMP_RETENTION_DAYS,
+} from "@liveagent/ui/contracts/sessionImageSave";
 import { useLocale } from "@liveagent/ui/i18n/index";
 import type {
   DisplayImageItemDetails,
@@ -103,33 +107,49 @@ function SaveImageToWorkspaceMenuItem(props: {
 }) {
   const { t } = useLocale();
   if (!supportsSessionImageSaveToWorkspace) return null;
-  const path = props.detail.path?.trim() ?? "";
+  // 工作区内的图片，`path` 是**相对路径**（displayPath），而 Rust 侧要求绝对路径；
+  // 优先用 absolutePath，退回 path（外部/临时图两者相同）。
+  const path = (props.detail.absolutePath || props.detail.path || "").trim();
   if (!path || props.detail.renderMode === "proxy" || props.detail.sourceType === "url")
     return null;
+  const expiring = looksLikeImageTempArtifact(path);
   return (
-    <ImagePreviewMenuItem
-      onClick={() =>
-        void runImagePreviewAction({
-          fallback: t("chat.imageViewer.saveToWorkspaceFailed"),
-          onActionError: props.onActionError,
-          action: async () => {
-            const outcome = await saveSessionImage(path);
-            if (outcome.status === "unsupported") {
-              throw new Error(t("chat.imageViewer.saveToWorkspaceUnsupported"));
-            }
-            if (outcome.status === "no-workspace") {
-              throw new Error(t("chat.imageViewer.saveToWorkspaceNoWorkspace"));
-            }
-            toast.success(
-              t("chat.imageViewer.saveToWorkspaceDone").replace("{path}", outcome.saved.path),
-            );
-          },
-        })
-      }
-    >
-      <Save className="size-3.5" />
-      {t("chat.imageViewer.saveToWorkspace")}
-    </ImagePreviewMenuItem>
+    <>
+      <ImagePreviewMenuItem
+        onClick={() =>
+          void runImagePreviewAction({
+            fallback: t("chat.imageViewer.saveToWorkspaceFailed"),
+            onActionError: props.onActionError,
+            action: async () => {
+              const outcome = await saveSessionImage(path);
+              if (outcome.status === "unsupported") {
+                throw new Error(t("chat.imageViewer.saveToWorkspaceUnsupported"));
+              }
+              if (outcome.status === "no-workspace") {
+                throw new Error(t("chat.imageViewer.saveToWorkspaceNoWorkspace"));
+              }
+              toast.success(
+                t("chat.imageViewer.saveToWorkspaceDone").replace("{path}", outcome.saved.path),
+              );
+            },
+          })
+        }
+      >
+        <Save className="size-3.5" />
+        {t("chat.imageViewer.saveToWorkspace")}
+      </ImagePreviewMenuItem>
+      {/* 临时图的失效风险必须写在用户做决定的地方（spec 决策 P=丙 / 风险 R12）：
+          未转存的图在保留期后被清理；而缩略图走的是会话内联字节，届时不会碎图，
+          只会"悄悄指向一个不存在的文件"。 */}
+      {expiring ? (
+        <div className="px-2 py-1 text-[11px] leading-snug text-muted-foreground">
+          {t("chat.imageViewer.tempImageExpiryHint").replace(
+            "{days}",
+            String(SESSION_IMAGE_TEMP_RETENTION_DAYS),
+          )}
+        </div>
+      ) : null}
+    </>
   );
 }
 

@@ -680,6 +680,8 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.imageViewer.saveToWorkspaceFailed": "Could not save to the workspace",
   "chat.imageViewer.saveToWorkspaceNoWorkspace": "This conversation has no workspace to save into",
   "chat.imageViewer.saveToWorkspaceUnsupported": "This runtime cannot save to the workspace",
+  "chat.imageViewer.tempImageExpiryHint":
+    "Images not saved to the workspace are cleaned up after {days} days",
   "chat.imageViewer.copy": "Copy image",
   "chat.imageViewer.copyFailed": "Could not copy image",
   "chat.imageViewer.copyAbsolutePath": "Copy absolute path",

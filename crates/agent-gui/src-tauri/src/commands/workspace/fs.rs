@@ -3283,10 +3283,18 @@ fn fs_save_image_to_workdir_impl(
             .file_name()
             .ok_or_else(|| FsError::Other("Invalid target path".to_string()))?;
         // 同名不覆盖：用户点「保存」两次不该把第一张覆盖掉（也不该静默失败）。
-        unique_copy_target(parent.join(final_name))
+        unique_copy_target(parent.join(final_name))?
     };
 
     if !already_inside_workdir {
+        // 复制**之前**就确认目标在工作区内：`ensure_parent_dir` 返回的已是 canonical
+        // 父目录，这里再校验一次，避免"先写盘、后校验"在越界时留下一个已落盘的文件。
+        let target_parent = target
+            .parent()
+            .ok_or_else(|| FsError::Other("Invalid target path".to_string()))?;
+        if !target_parent.starts_with(&root) {
+            return Err(FsError::OutOfBounds(target_parent.display().to_string()));
+        }
         capture_pre_image(
             checkpoint.as_ref(),
             &root,
@@ -3328,9 +3336,9 @@ fn fs_save_image_to_workdir_impl(
 }
 
 /// 同名时依次尝试 `name-2.ext`、`name-3.ext`…（与上传导入的去重命名同策略）。
-fn unique_copy_target(target: PathBuf) -> PathBuf {
+fn unique_copy_target(target: PathBuf) -> Result<PathBuf, FsError> {
     if !target.exists() {
-        return target;
+        return Ok(target);
     }
     let stem = target
         .file_stem()
@@ -3350,10 +3358,14 @@ fn unique_copy_target(target: PathBuf) -> PathBuf {
         };
         let candidate = parent.join(name);
         if !candidate.exists() {
-            return candidate;
+            return Ok(candidate);
         }
     }
-    target
+    // 同名的 10000 个文件都占满：明确失败，绝不静默覆盖用户的既有文件。
+    Err(FsError::Other(format!(
+        "无法为 {} 找到可用的文件名（同名文件过多）",
+        target.display()
+    )))
 }
 
 fn image_mime_from_extension(path: &Path) -> &'static str {
