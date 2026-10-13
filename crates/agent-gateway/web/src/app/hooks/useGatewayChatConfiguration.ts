@@ -15,8 +15,8 @@ import {
   findProviderModelConfig,
   getChatRuntimeReasoningLevelsForProvider,
   isAgentDevMode,
-  isThinkingAlwaysOnForModel,
   normalizeChatRuntimeControlsForProvider,
+  resolveConfiguredThinkingAlwaysOn,
   resolveWorkspaceResources,
   type SelectedModel,
   setSelectedModel,
@@ -90,11 +90,17 @@ export function useGatewayChatConfiguration({
   // biome-ignore lint/correctness/useExhaustiveDependencies: thinkingLiveVersion 是刻意的失效信号，运行期档位补充到达后重算。
   const chatRuntimeThinkingAlwaysOn = useMemo(
     () =>
-      isThinkingAlwaysOnForModel(
-        currentChatProvider?.type ?? "claude_code",
+      resolveConfiguredThinkingAlwaysOn(
+        currentChatProvider?.type,
+        currentChatProvider,
         activeSelectedModel?.model,
       ),
-    [activeSelectedModel?.model, currentChatProvider?.type, thinkingLiveVersion],
+    [
+      activeSelectedModel?.model,
+      currentChatProvider,
+      currentChatProvider?.type,
+      thinkingLiveVersion,
+    ],
   );
   // normalizeChatRuntimeControlsForProvider 会按模型档位表钳制当前选中档：档位表
   // 随运行期补充变化时，选中档必须同步重钳，否则出现「选中档不在选项里」。

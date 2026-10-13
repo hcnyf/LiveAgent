@@ -150,10 +150,10 @@ import {
   getSshProjectHostIds,
   isAgentDevMode,
   isAgentExecutionMode,
-  isThinkingAlwaysOnForModel,
   normalizeChatRuntimeControlsForProvider,
   normalizeSelectedModelForProviders,
   parseSelectedModelJson,
+  resolveConfiguredThinkingAlwaysOn,
   resolveEffectivePromptSettings,
   resolveEffectiveTheme,
   resolveWorkspaceResources,
@@ -3407,8 +3407,9 @@ function ChatPageContent(props: ChatPageProps) {
       modelId: paneSelectedModel?.model,
       provider: paneProvider,
     });
-    const paneThinkingAlwaysOn = isThinkingAlwaysOnForModel(
-      paneProvider?.type ?? "claude_code",
+    const paneThinkingAlwaysOn = resolveConfiguredThinkingAlwaysOn(
+      paneProvider?.type,
+      paneProvider,
       paneSelectedModel?.model,
     );
     const paneModelLabel = (() => {

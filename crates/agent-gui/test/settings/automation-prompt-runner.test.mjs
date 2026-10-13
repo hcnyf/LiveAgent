@@ -248,7 +248,9 @@ test("Cron reasoning levels follow the selected model in shared UI", () => {
     assert.match(source, /providers: CustomProvider\[\]/);
     assert.match(source, /const selectedModel = parseModelValue\(selectedModelValue\)/);
     assert.match(source, /getChatRuntimeReasoningLevelsForProvider\(\{/);
-    assert.match(source, /isThinkingAlwaysOnForModel\(/);
+    // 档位表与"能否关闭思考"都改走同一个带供应商实例的解析器（用户勾选优先）。
+    assert.match(source, /provider,\s*\}\)\.filter\(isCronReasoningLevel\)/);
+    assert.match(source, /resolveConfiguredThinkingAlwaysOn\(/);
     assert.match(source, /return thinkingAlwaysOn \? supportedLevels : \["off", \.\.\.supportedLevels\]/);
     assert.match(source, /\{cronReasoningLevels\.map\(\(level\) => \(/);
     assert.match(source, /coerceCronReasoningLevel\(nextReasoningLevels, current\)/);

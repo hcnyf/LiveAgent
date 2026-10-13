@@ -59,8 +59,11 @@
 | T3.2 上下文/最大输出快捷填入 | ✅ 已提交（`7ae221fa`） |
 | T3.3 输入能力多选（含 PDF 运行时） | ✅ 已完成（`e51f2266`） |
 | T3.4 思考档位字段 + 表单 | ✅ 已完成（`a4629a8d`） |
-| T4.1 档位解析接口加覆盖参数 + 9 个调用点 | ✅ 本次完成（见该节「落地记录」） |
-| 批④ T4.2 / T4.3 | ⏳ 下一步 |
+| T4.1 档位解析接口加覆盖参数 + 9 个调用点 | ✅ 已完成（`57261791`） |
+| T4.2 `defaultThinkingLevel` 接入解析链 | ✅ 本次完成（行为变更 R3） |
+| T4.3 `off` 由勾选决定 | ✅ 本次完成 |
+| 批① 窗口 + 设置壳 + 系统设置 | ⏳ 下一步 |
+| 批⑤ 生图运行时 | ⏳ 待做（⑤-3 依赖 P2） |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
 环境前置见附录 B（BuildTools 现落在 `D:\BuildTools`）。
@@ -207,19 +210,23 @@
 3. **内存化依赖**：WebUI 两个 hook 的 memo 依赖补上 `currentChatProvider` / `selectedProvider`（provider 对象随 settings 更新换代，档位勾选变化必须触发重算）。
 4. **向后兼容**：不传 `provider` 时行为与改前逐字一致（纯目录），既有测试与调用方零改动。
 
-### T4.2 `defaultThinkingLevel` 接入解析链
+### T4.2 `defaultThinkingLevel` 接入解析链 —— ✅ 已完成
 
 - **文件**：`crates/agent-ui/src/lib/settings/index.ts:481`（`resolveChatRuntimeReasoning`）
 - **做什么**：链改为 `reasoningByModel → defaultThinkingLevel → reasoningByProvider → reasoning`
 - **验收**：未单独选过档位的模型会选中其默认档
 - **坑**：**这是行为变更**（spec R3）——用户此前按"供应商"选过的档会被该模型的默认档覆盖。**必须在 PR 描述里显式标注**
 
-### T4.3 `off` 由勾选决定
+**落地记录**：链的插入点在 `resolveChatRuntimeReasoning` 的第 4 个可选参数上，由 `normalizeChatRuntimeControlsForProvider` 用 `resolveConfiguredDefaultThinkingLevel(params.provider, params.modelId)` 喂入。默认档只在"模型桶没有该模型的显式选择"时生效（会话里选过就听会话的）；读侧再按档位集合钳制一次。**行为变更（R3）已在本条与提交信息中标注**：此前按供应商选的档会被该模型的默认档顶掉——这是 spec 确认接受的取舍。
+
+### T4.3 `off` 由勾选决定 —— ✅ 已完成
 
 - **文件**：`crates/agent-ui/src/components/chat/ComposerModelControls.tsx:206-211`、`crates/agent-ui/src/lib/settings/index.ts:195`
 - **做什么**：`off` 是否出现在会话里，改由"勾选里是否含 `off`"决定，不再由目录 `alwaysOn` 决定
 - **验收**：勾了 `off` 的模型在会话里能选"关闭思考"
 - **坑**：请求期仍由目录钳制（xai 的 `off` 被 `map.off = null` 屏蔽）→ 静默偏差存在，由批③的偏差标注暴露，**这是经确认的取舍，不要顺手改成替换式**
+
+**落地记录**：新增 `resolveConfiguredThinkingAlwaysOn(providerId, provider, modelId)`——**有勾选 → `!levels.includes("off")`；无勾选 → 目录 `alwaysOn`**。`isThinkingAlwaysOnForModel`（纯目录）保留为回落实现，既有测试不改。`ComposerModelControls` 的 `effortChoices` 无需改动：它已按 `thinkingAlwaysOn ? filter(!= off) : ["off", ...filter(!= off)]` 派生，档位集合里含 `off` 时自然出现在首位、不含时自然消失。5 个生产调用点全部改走新解析器（`ChatPage` 背景 Pane、`useChatModelSelection`、`CronTaskModal`、`useGatewayChatConfiguration`、`GatewayConversationPaneHost`），都把供应商实例一并传入。请求期目录钳制**未动**（④-4 的取舍）。
 
 ---
 

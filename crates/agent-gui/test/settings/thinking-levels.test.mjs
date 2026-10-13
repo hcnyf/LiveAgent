@@ -28,6 +28,8 @@ const {
 const {
   getChatRuntimeReasoningLevelsForProvider,
   normalizeChatRuntimeControlsForProvider,
+  resolveConfiguredDefaultThinkingLevel,
+  resolveConfiguredThinkingAlwaysOn,
   resolveConfiguredThinkingLevels,
 } = loader.loadModule("src/lib/settings/index.ts");
 
@@ -253,4 +255,84 @@ test("the declared levels also clamp the selected level at read time", () => {
     }).reasoning,
     "low",
   );
+});
+
+// ---------------------------------------------------------------------------
+// T4.2：defaultThinkingLevel 接入解析链（模型桶 → 默认档 → 供应商桶 → 全局）
+// ---------------------------------------------------------------------------
+
+const DEEPSEEK_PROVIDER_WITH_DEFAULT = {
+  type: "deepseek",
+  models: [
+    {
+      id: "deepseek-v4-pro",
+      thinkingLevels: ["low", "high", "max"],
+      defaultThinkingLevel: "low",
+    },
+    // 默认档不在勾选集合内（非法组合）：读侧按"没有默认档"处理。
+    { id: "deepseek-v4-flash", thinkingLevels: ["low"], defaultThinkingLevel: "max" },
+  ],
+};
+
+test("resolveConfiguredDefaultThinkingLevel only accepts a default inside the declared levels", () => {
+  assert.equal(
+    resolveConfiguredDefaultThinkingLevel(DEEPSEEK_PROVIDER_WITH_DEFAULT, "deepseek-v4-pro"),
+    "low",
+  );
+  assert.equal(
+    resolveConfiguredDefaultThinkingLevel(DEEPSEEK_PROVIDER_WITH_DEFAULT, "deepseek-v4-flash"),
+    undefined,
+  );
+  assert.equal(resolveConfiguredDefaultThinkingLevel({ type: "deepseek" }, "deepseek-v4-pro"), undefined);
+});
+
+test("the default level sits between the model bucket and the provider bucket", () => {
+  const stored = { reasoning: "high", reasoningByProvider: { deepseek: "max" } };
+  const params = {
+    providerId: "deepseek",
+    modelId: "deepseek-v4-pro",
+    provider: DEEPSEEK_PROVIDER_WITH_DEFAULT,
+  };
+  // 未单独选过档位：落到该模型的默认档（而不是供应商桶里的 max）。
+  assert.equal(normalizeChatRuntimeControlsForProvider(stored, params).reasoning, "low");
+  // 没有默认档时维持旧口径：供应商桶胜出。
+  assert.equal(
+    normalizeChatRuntimeControlsForProvider(stored, {
+      ...params,
+      provider: {
+        type: "deepseek",
+        models: [{ id: "deepseek-v4-pro", thinkingLevels: ["low", "high", "max"] }],
+      },
+    }).reasoning,
+    "max",
+  );
+  // 模型桶永远最优先（会话里显式选过就听会话的）。
+  assert.equal(
+    normalizeChatRuntimeControlsForProvider(
+      { ...stored, reasoningByModel: { deepseek: { "deepseek-v4-pro": "high" } } },
+      params,
+    ).reasoning,
+    "high",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// T4.3：off 是否可选由勾选决定（有勾选时不再听目录的 alwaysOn）
+// ---------------------------------------------------------------------------
+
+test("resolveConfiguredThinkingAlwaysOn follows the declaration, then the catalog", () => {
+  // 勾选里含 off → 可关闭。
+  assert.equal(
+    resolveConfiguredThinkingAlwaysOn("deepseek", DEEPSEEK_PROVIDER, "deepseek-v4-flash"),
+    false,
+  );
+  // 勾选里没有 off → 不可关闭（即使目录说可关）。
+  assert.equal(
+    resolveConfiguredThinkingAlwaysOn("deepseek", DEEPSEEK_PROVIDER, "deepseek-v4-pro"),
+    true,
+  );
+  // 未自定义 → 目录：xai 恒开、deepseek flash 可关。
+  assert.equal(resolveConfiguredThinkingAlwaysOn("xai", undefined, "grok-4.5"), true);
+  assert.equal(resolveConfiguredThinkingAlwaysOn("deepseek", undefined, "deepseek-v4-flash"), false);
+  assert.equal(resolveConfiguredThinkingAlwaysOn(undefined, { type: "xai" }, "grok-4.5"), true);
 });

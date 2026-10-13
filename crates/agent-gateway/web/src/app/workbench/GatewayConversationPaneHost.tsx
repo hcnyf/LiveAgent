@@ -76,8 +76,8 @@ import {
   applyConversationThinking,
   findProviderModelConfig,
   getChatRuntimeReasoningLevelsForProvider,
-  isThinkingAlwaysOnForModel,
   normalizeChatRuntimeControlsForProvider,
+  resolveConfiguredThinkingAlwaysOn,
   type SelectedModel,
 } from "@/lib/settings";
 import {
@@ -511,8 +511,9 @@ export function GatewayConversationPaneHost(props: GatewayConversationPaneHostPr
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: thinkingLiveVersion 是刻意的失效信号，运行期档位补充到达后重算。
   const paneThinkingAlwaysOn = useMemo(
-    () => isThinkingAlwaysOnForModel(selectedProvider?.type ?? "claude_code", selection?.model),
-    [selectedProvider?.type, selection?.model, thinkingLiveVersion],
+    () =>
+      resolveConfiguredThinkingAlwaysOn(selectedProvider?.type, selectedProvider, selection?.model),
+    [selectedProvider, selectedProvider?.type, selection?.model, thinkingLiveVersion],
   );
 
   // 提示词澄清执行器（桌面端背景 Pane 口径）：模型覆盖/回退/错误拍平在

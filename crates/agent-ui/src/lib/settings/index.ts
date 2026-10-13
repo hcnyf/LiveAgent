@@ -481,20 +481,25 @@ function normalizeChatRuntimeReasoningByModel(
 }
 
 /**
- * 档位的存储解析顺序:模型桶 → 供应商桶 → 全局默认。供应商桶保留为「迁移前
- * 存量值/供应商级默认」,会话内写入只落模型桶,因此在某模型上改档位永远不会
+ * 档位的存储解析顺序:模型桶 → 模型的默认档 → 供应商桶 → 全局默认。供应商桶保留为
+ * 「迁移前存量值/供应商级默认」,会话内写入只落模型桶,因此在某模型上改档位永远不会
  * 影响其他模型(旧单桶方案的全部串档路径都从这里切断)。
+ *
+ * `defaultThinkingLevel` 插在模型桶之后（spec ④-2，行为变更 R3）：未单独给这个模型
+ * 选过档位的会话会落到该模型的默认档，而不是供应商桶里那个历史选择。
  */
 function resolveChatRuntimeReasoning(
   controls: ChatRuntimeControls,
   key: ChatRuntimeReasoningProviderKey,
   modelId: string | undefined,
+  defaultThinkingLevel?: ReasoningLevel,
 ): ReasoningLevel {
   const trimmedModelId = modelId?.trim();
   if (trimmedModelId) {
     const level = controls.reasoningByModel[key]?.[trimmedModelId];
     if (level) return level;
   }
+  if (defaultThinkingLevel) return defaultThinkingLevel;
   return controls.reasoningByProvider[key] ?? controls.reasoning;
 }
 
@@ -529,12 +534,12 @@ export type ChatRuntimeReasoningParams = {
 };
 
 /**
- * 档位勾选来源的最小形状：只要求能按模型 id 找到该模型的 `thinkingLevels`。
+ * 档位勾选来源的最小形状：只要求能按模型 id 找到该模型的档位声明。
  * `models` 可缺省——WebUI 的 `ModelProviderSource` 等窄视图类型不带模型列表，
  * 缺省时按"未自定义"处理（回落目录）。
  */
 export type ReasoningLevelsProvider = Pick<CustomProvider, "type"> & {
-  models?: Pick<ProviderModelConfig, "id" | "thinkingLevels">[];
+  models?: Pick<ProviderModelConfig, "id" | "thinkingLevels" | "defaultThinkingLevel">[];
 };
 
 /**
@@ -546,13 +551,58 @@ export function resolveConfiguredThinkingLevels(
   modelId: string | undefined,
 ): ReasoningLevel[] {
   const trimmedModelId = modelId?.trim();
-  const declared =
-    trimmedModelId && Array.isArray(provider.models)
-      ? normalizeThinkingLevels(
-          provider.models.find((item) => item.id === trimmedModelId)?.thinkingLevels,
-        )
-      : undefined;
-  return declared ?? getKnownModelThinkingLevels(provider.type, trimmedModelId);
+  return (
+    readThinkingDeclaration(provider, trimmedModelId)?.levels ??
+    getKnownModelThinkingLevels(provider.type, trimmedModelId)
+  );
+}
+
+/**
+ * 该模型的用户默认档（`defaultThinkingLevel`）；未自定义勾选或未设默认档 → undefined。
+ * 只认"默认档 ∈ 勾选集合"的合法组合（normalizer 已保证，这里按同口径读）。
+ */
+export function resolveConfiguredDefaultThinkingLevel(
+  provider: ReasoningLevelsProvider | undefined,
+  modelId: string | undefined,
+): ReasoningLevel | undefined {
+  return readThinkingDeclaration(provider, modelId)?.defaultThinkingLevel;
+}
+
+/**
+ * 思考是否不可关闭：**有勾选时由勾选里是否含 "off" 决定**（spec ④-3），
+ * 未自定义时回落目录的 `alwaysOn`（含 xai 的 wire 限制）。
+ * 注意：请求期仍由目录钳制（`map.off = null`），此处的偏差按决策 K 由设置页标注暴露。
+ */
+export function resolveConfiguredThinkingAlwaysOn(
+  providerId: ProviderId | undefined,
+  provider: ReasoningLevelsProvider | undefined,
+  modelId: string | undefined,
+): boolean {
+  const declaredLevels = readThinkingDeclaration(provider, modelId)?.levels;
+  if (declaredLevels) return !declaredLevels.includes("off");
+  return isThinkingAlwaysOnForModel(providerId ?? "claude_code", modelId);
+}
+
+/**
+ * 读一个模型的档位声明（已归一化）。非数组 `models`（WebUI 窄视图类型）或模型未
+ * 声明勾选时返回 undefined = 按目录推断。
+ */
+function readThinkingDeclaration(
+  provider: ReasoningLevelsProvider | undefined,
+  modelId: string | undefined,
+): { levels: ReasoningLevel[]; defaultThinkingLevel?: ReasoningLevel } | undefined {
+  const trimmedModelId = modelId?.trim();
+  if (!provider || !trimmedModelId || !Array.isArray(provider.models)) return undefined;
+  const entry = provider.models.find((item) => item.id === trimmedModelId);
+  const levels = normalizeThinkingLevels(entry?.thinkingLevels);
+  if (!levels) return undefined;
+  const defaultThinkingLevel = entry?.defaultThinkingLevel;
+  return {
+    levels,
+    ...(defaultThinkingLevel && levels.includes(defaultThinkingLevel)
+      ? { defaultThinkingLevel }
+      : {}),
+  };
 }
 
 export function getChatRuntimeReasoningLevelsForProvider(
@@ -584,7 +634,13 @@ export function normalizeChatRuntimeControlsForProvider(
   const key = getChatRuntimeReasoningProviderKey(params);
   const levels = getChatRuntimeReasoningLevelsForProvider(params);
   const reasoning = normalizeChatRuntimeReasoningForLevels(
-    resolveChatRuntimeReasoning(controls, key, params.modelId),
+    resolveChatRuntimeReasoning(
+      controls,
+      key,
+      params.modelId,
+      // 模型桶之后、供应商桶之前：该模型的用户默认档（spec ④-2）。
+      resolveConfiguredDefaultThinkingLevel(params.provider, params.modelId),
+    ),
     levels,
   );
   return { ...controls, reasoning };
