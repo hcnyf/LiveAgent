@@ -521,13 +521,16 @@ C 盘一度 **0 字节可用**，`cargo test` 直接以 `rustc-LLVM ERROR: IO fa
 | **protoc** | `crates/agent-gui/src-tauri/build.rs:44` 编译 gateway proto | `mise.toml` 钉 34.0；本机用 winget `Google.Protobuf` **36.0**，`PROTOC` 指向完整路径（已 `setx` 持久化）。**与 mise.toml 存在版本偏差，需知悉** |
 | `LIVEAGENT_APP_VERSION` | `build.rs` 读取（有回退） | 显式设为 `1.3.0-dev.0` |
 
-### 必须注意：`CARGO_TARGET_DIR` 未持久化
+### `CARGO_TARGET_DIR` 已持久化（2026-10-13 更新，取代早前"有意不持久化"的结论）
 
-Tauri 的 `target/` 是数 GB 级，而 C 盘只剩约 9.6 GB。因此 **`CARGO_TARGET_DIR` 有意不 `setx` 持久化**（持久化会影响机器上所有 Rust 项目），每条 cargo 命令都要显式带上：
+C 盘一度 **0 字节可用**（`cargo test` 直接以 `rustc-LLVM ERROR: IO failure on output stream: no space on device` 失败），因此改为持久化到 D 盘：
 
 ```
-$env:CARGO_TARGET_DIR="D:\rust\target\liveagent"
+setx CARGO_TARGET_DIR "D:\cargo-target"    # 机器级用户变量，新开的 shell 生效
 ```
+
+- 代价是"影响机器上所有 Rust 项目"，但在 C 盘 0 字节的现实面前，显式不持久化已不可行。
+- 若在**当前会话**里需要显式指定，仍可用 `$env:CARGO_TARGET_DIR="D:\cargo-target"` 覆盖。
 
 ### 实测基线
 
