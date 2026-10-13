@@ -107,12 +107,13 @@
       }
     </style>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>LiveAgent</title>
+    <!-- %APP_NAME% 由 vite.config 的 liveagent-app-name-html 插件替换（真源：tauri.conf.json 的 productName）。 -->
+    <title>%APP_NAME%</title>
   </head>
 
   <body>
     <div id="root">
-      <div class="app-boot-screen" data-static-boot-shell="" role="status" aria-label="正在加载 LiveAgent" aria-busy="true">
+      <div class="app-boot-screen" data-static-boot-shell="" role="status" aria-label="正在加载 %APP_NAME%" aria-busy="true">
         <div class="app-boot-content" aria-hidden="true">
           <img class="app-boot-icon" src="/src-tauri/icons/icon-simple.png" alt="" />
           <div class="app-boot-progress"><span></span></div>

@@ -17,6 +17,7 @@
 // The jsdom globals are installed for the lifetime of the env (node:test runs
 // files in separate processes, so this cannot leak into other test files).
 
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { createTsModuleLoader } from "./load-ts-module.mjs";
@@ -25,7 +26,21 @@ const requireFromGui = createRequire(
   fileURLToPath(new URL("../../package.json", import.meta.url)),
 );
 
+// vite 的 `define` 常量在测试环境里不存在，而组件会直接引用它们
+// （`__LIVEAGENT_APP_NAME__` / `__LIVEAGENT_APP_VERSION__`）——不注入就是
+// ReferenceError。取值与 vite.config.ts 走同一条回退链（环境变量 → 配置文件 →
+// 默认值），避免"测试里显示名与真实构建不一致"这种隐性偏差。
+const tauriConf = JSON.parse(
+  readFileSync(new URL("../../src-tauri/tauri.conf.json", import.meta.url), "utf8"),
+);
+const BUILD_DEFINES = {
+  __LIVEAGENT_APP_NAME__:
+    process.env.LIVEAGENT_DISPLAY_NAME?.trim() || tauriConf.productName?.trim() || "LiveAgent",
+  __LIVEAGENT_APP_VERSION__: process.env.LIVEAGENT_APP_VERSION?.trim() || "0.0.0",
+};
+
 const GLOBAL_KEYS = [
+  ...Object.keys(BUILD_DEFINES),
   "window",
   "document",
   "navigator",
@@ -71,6 +86,9 @@ export async function createDomTestEnv(options = {}) {
 
   setGlobal("window", dom.window);
   setGlobal("document", dom.window.document);
+  for (const [key, value] of Object.entries(BUILD_DEFINES)) {
+    setGlobal(key, value);
+  }
   setGlobal("navigator", dom.window.navigator);
   setGlobal("HTMLElement", dom.window.HTMLElement);
   setGlobal("Element", dom.window.Element);

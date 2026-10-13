@@ -10,11 +10,30 @@ const packageJson = JSON.parse(
 
 const env = process.env as Record<string, string | undefined>;
 const appVersion = env.LIVEAGENT_APP_VERSION?.trim() || packageJson.version || "0.0.0";
+
+// 应用显示名的唯一真源与 Rust 侧同源：tauri.conf.json 的 productName
+// （build.rs 也读同一个文件注入 LIVEAGENT_DISPLAY_NAME）。显式设
+// LIVEAGENT_DISPLAY_NAME 可覆盖。这样"把同一个应用打成并存的两个包"只需改配置。
+const tauriConf = JSON.parse(
+  readFileSync(new URL("./src-tauri/tauri.conf.json", import.meta.url), "utf8"),
+) as { productName?: string };
+const appName = env.LIVEAGENT_DISPLAY_NAME?.trim() || tauriConf.productName?.trim() || "LiveAgent";
 const host = env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [react(), Icons({ compiler: "jsx", jsx: "react" })],
+  plugins: [
+    react(),
+    Icons({ compiler: "jsx", jsx: "react" }),
+    {
+      // 首屏静态壳（`index.html` 的 <title> 与启动屏 aria-label）在 JS 加载前就要
+      // 显示正确的应用名，所以走 HTML 占位符替换，而不是等运行时注入。
+      name: "liveagent-app-name-html",
+      transformIndexHtml(html: string) {
+        return html.replaceAll("%APP_NAME%", appName);
+      },
+    },
+  ],
   resolve: {
     dedupe: ["react", "react-dom"],
     alias: {
@@ -26,6 +45,7 @@ export default defineConfig(async () => ({
   },
   define: {
     __LIVEAGENT_APP_VERSION__: JSON.stringify(appVersion),
+    __LIVEAGENT_APP_NAME__: JSON.stringify(appName),
   },
   optimizeDeps: {
     // @tanstack/react-virtual imports the vendored @tanstack/virtual-core

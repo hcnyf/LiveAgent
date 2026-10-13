@@ -442,6 +442,53 @@ for (const batch of splitTestFilesIntoBatches(files)) {
 - **乙・按子系统分支并行**：①与②并行、③④串行、⑤独立分支。最快，但三处同时改动 `agent-ui` 共享层，合并冲突与交叉回归风险上升。
 - **丙・逐批实现 + 子代理审查**：我逐批实现，每批完成后派一个只读子代理做独立审查（重点查 spec 的验收标准是否真的满足，而不是查代码风格）。速度居中，多一道独立校验。
 
+## 附录 C：并存安装（`LiveAgent N`）——部署形态变更（2026-10-13）
+
+**需求**：把本工作区打出的包装成**另一个应用**（与机器上已装的 `LiveAgent 1.3.7` 并存），但**共用数据目录**。
+
+### 机制（逐条实测/查证）
+
+| 层面 | 由什么决定 | 改 productName + identifier 后 |
+|---|---|---|
+| 数据目录 | `~/.{CARGO_PKG_NAME}`（`history_db.rs:9-11`、`sandbox.rs:424`、`managed_process.rs:196`） | **不变 → 两应用天然共用** |
+| MSI 升级链 | UpgradeCode（identifier 的函数） | 变成新链 → **并存安装**，不替换 1.3.7 |
+| 单实例锁 | bundle identifier（`tauri-plugin-single-instance-2.4.3` 源码注释） | 各自独立锁 → **可同时运行** |
+| 本地反代 | 随机端口（`bind(..., 0)`） | 无冲突 |
+| 远程网关 | 连出去的 443（非本地监听） | 无冲突 |
+| WebView2 数据目录 | identifier | 变新目录 → 应用内 localStorage 不共享（可接受） |
+
+**铁律**：不要改 `crates/agent-gui/src-tauri/Cargo.toml` 的 `name = "liveagent"`——数据目录就是拿它拼的，改包名 = 数据目录变成 `~/.<新名>`，共用立刻失效。**只改 `tauri.conf.json` 即可**（平台覆盖配置 `tauri.{macos,windows,linux}*.conf.json` 都没有覆盖 productName/identifier，已核实）。
+
+### 显示名单点真源
+
+应用名不再硬编码：**真源 = `tauri.conf.json` 的 `productName`**，两条注入链都与现有 `LIVEAGENT_APP_VERSION` 同构：
+
+- Rust：`build.rs` 读 `tauri.conf.json` → `cargo:rustc-env=LIVEAGENT_DISPLAY_NAME` → `tray.rs` 的 `APP_DISPLAY_NAME`（托盘 tooltip、状态行）+ `lib.rs` 的托盘图标 tooltip。
+- 前端：`vite.config.ts` 读同一个文件 → `define __LIVEAGENT_APP_NAME__`（标题栏 `WindowsTitleBar`、更新公告 `ReleaseAnnouncementDialog`）+ `transformIndexHtml` 替换 `index.html` 的 `%APP_NAME%`（`<title>` 与启动屏 aria-label，首屏在 JS 之前就要正确）。
+- 两者都支持 `LIVEAGENT_DISPLAY_NAME` 环境变量显式覆盖。
+- 不变量由测试锁定：`services::tray` 的 `app_display_name_follows_the_configured_product_name`（实跑证明注入值 == 配置值）、`app_display_name_is_injected_and_non_empty`。
+- 测试环境需注入这些构建期常量（`test/helpers/dom-test-env.mjs`），否则渲染到它们的组件会 `ReferenceError`。
+- **i18n 的 `app.name` 保留原值不动**：标题栏改用注入值后它成为遗留键（仍被 `translations.test.mjs` 断言为 `"LiveAgent"`）。设置页描述性文案里的 "LiveAgent" 也未改——**它们指的是产品/生态（浏览器扩展名、`~/.liveagent` 路径），不属于应用显示名**。若要让设置页文案也跟随，属新增范围。
+
+### 共用数据目录的风险（使用约定）
+
+1. **同时改设置会丢更新**：设置按域整表替换（`DELETE FROM <域>; INSERT`，`settings/mod.rs:87-101`），两个应用同时改同一域时后写覆盖先写（不同域互不影响）。
+2. **同时操作同一会话会互相覆盖**：历史库是 WAL（多进程安全），但两个进程各持运行时状态。
+3. **旧应用会静默抹掉新应用的设置字段**：旧版归一化是字段白名单，不认识新版新增字段（`kind`、生图参数、通知四项、代理 mode、思考档位）。
+4. **长期结构性风险**：历史库有 `HISTORY_DB_SCHEMA_VERSION` 且**拒绝打开更高版本**（`history_db.rs:75-77`）。当前两边都是 4，安全；但新应用一旦升 schema，旧应用就再也打不开历史库——共用数据 = 两应用绑在同一条 schema 时间线上，旧应用实质是只读保底。
+
+**约定**：新应用当实验版、旧应用保底；不要两边同时改设置；不要在同一个会话里两边同时发消息；升 schema 前先决定旧应用是否还要用。
+
+### 打包与安装注意
+
+- **只用 MSI 包**（`targets: "all"` 会同时产出 NSIS，NSIS 默认装到 `%LOCALAPPDATA%` 并与 MSI 并存出两套卸载项）。
+- MSI 默认路径是 `C:\Program Files\LiveAgent N`（C 盘）→ 安装时手动改到 D 盘。
+- 装前退出正在运行的 1.3.7（它独占 `config.sqlite`，实测读文件头被拒）。
+- `%LOCALAPPDATA%\tauri` 不存在 → 首次打包需联网下载 WiX。
+- 版本号不必高于 1.3.7（新 identifier 不与旧链比较版本），但建议给个明确版本以便区分。
+
+---
+
 ## 附录 A：生图消费点清单（P1 已产出）
 
 排查范围：`crates/agent-ui`（共享 UI）、`crates/agent-gui`（前端 + `src-tauri` Rust）、`crates/agent-gateway`（Go 网关 + `web/` 前端）。结论：**必改 3 + 强建议 6 + 防御性 7 + 待口径确认 6 + 已确认无需改动 40 余处**。

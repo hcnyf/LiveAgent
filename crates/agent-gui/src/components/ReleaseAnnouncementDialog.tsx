@@ -26,7 +26,8 @@ export function ReleaseAnnouncementDialog({
   const announcement = controller.announcement;
   if (!announcement) return null;
 
-  const title = releaseTitle(announcement) || `LiveAgent v${announcement.currentVersion}`;
+  const title =
+    releaseTitle(announcement) || `${__LIVEAGENT_APP_NAME__} v${announcement.currentVersion}`;
   const releaseDate = formatReleaseDate(announcement.date);
   return (
     <Dialog

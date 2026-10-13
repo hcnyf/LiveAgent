@@ -279,7 +279,9 @@ export function WindowsTitleBar({ controlsOnly = false }: { controlsOnly?: boole
           draggable={false}
         />
         <span className="truncate text-xs font-medium leading-1p45 tracking-0p01em text-foreground/80">
-          {t("app.name")}
+          {/* 应用名走构建期注入（真源 tauri.conf.json 的 productName）：同一份代码
+              要能打出并存的两个包，名字不能写死在 i18n 里。 */}
+          {__LIVEAGENT_APP_NAME__}
         </span>
       </div>
 

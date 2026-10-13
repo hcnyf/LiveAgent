@@ -25,6 +25,42 @@ fn main() {
         });
     println!("cargo:rustc-env=LIVEAGENT_APP_VERSION={app_version}");
 
+    // 应用显示名（托盘 tooltip / 标题栏 / 启动屏）的唯一真源是 tauri.conf.json 的
+    // productName——`productName` 与 `identifier` 一起决定"这是哪个应用"（安装目录、
+    // 开始菜单、MSI 升级链、单实例锁），所以显示名必须跟着它走，不能再各自硬编码。
+    // 显式设 `LIVEAGENT_DISPLAY_NAME` 可覆盖（与 LIVEAGENT_APP_VERSION 同构）。
+    let tauri_conf = std::path::Path::new(&manifest_dir).join("tauri.conf.json");
+    println!("cargo:rerun-if-changed={}", tauri_conf.display());
+    println!("cargo:rerun-if-env-changed=LIVEAGENT_DISPLAY_NAME");
+    let display_name_from_config = std::env::var("LIVEAGENT_DISPLAY_NAME")
+        .ok()
+        .map(|name| name.trim().to_owned())
+        .filter(|name| !name.is_empty())
+        .is_none();
+    let display_name = std::env::var("LIVEAGENT_DISPLAY_NAME")
+        .ok()
+        .map(|name| name.trim().to_owned())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| {
+            let tauri_conf_text =
+                std::fs::read_to_string(&tauri_conf).expect("read tauri.conf.json for productName");
+            let tauri_conf_value: serde_json::Value =
+                serde_json::from_str(&tauri_conf_text).expect("parse tauri.conf.json");
+            tauri_conf_value
+                .get("productName")
+                .and_then(serde_json::Value::as_str)
+                .filter(|name| !name.trim().is_empty())
+                .expect("tauri.conf.json productName must be a non-empty string")
+                .trim()
+                .to_owned()
+        });
+    println!("cargo:rustc-env=LIVEAGENT_DISPLAY_NAME={display_name}");
+    // 让测试能区分"来自配置"与"被显式覆盖"——前者才该断言等于 productName。
+    println!(
+        "cargo:rustc-env=LIVEAGENT_DISPLAY_NAME_FROM_CONFIG={}",
+        if display_name_from_config { "1" } else { "0" }
+    );
+
     // v2 业务消息与 WebSocket 帧壳共用 agent-gateway 目录为 include 根。
     let gateway_root = std::path::Path::new(&manifest_dir)
         .join("..")

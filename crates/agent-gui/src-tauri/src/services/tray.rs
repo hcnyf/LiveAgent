@@ -443,7 +443,10 @@ pub fn apply_tray_menu(
         .map_err(err)?;
 
     // 托盘图标附属状态。
-    let tooltip = model.tooltip.as_deref().unwrap_or("LiveAgent");
+    // 显示名来自 tauri.conf.json 的 productName（经 build.rs 注入），不硬编码：
+    // 同一份代码打出不同 productName 的包时，托盘提示必须跟着变，否则两个应用
+    // 在系统托盘里分不清。
+    let tooltip = model.tooltip.as_deref().unwrap_or(APP_DISPLAY_NAME);
     if let Err(error) = handles.tray_icon.set_tooltip(Some(tooltip)) {
         // Linux 不支持 tooltip；仅记录不失败。
         eprintln!("failed to set tray tooltip: {error}");
@@ -458,8 +461,13 @@ pub fn apply_tray_menu(
     Ok(())
 }
 
+/// 应用显示名：由 `build.rs` 从 `tauri.conf.json` 的 `productName` 注入
+/// （可用 `LIVEAGENT_DISPLAY_NAME` 覆盖）。**不要在别处再硬编码应用名**——
+/// 同一份代码要能打出并存的两个包（如 `LiveAgent` 与 `LiveAgent N`）。
+pub const APP_DISPLAY_NAME: &str = env!("LIVEAGENT_DISPLAY_NAME");
+
 fn compose_status_line(app_version: &str, status_suffix: Option<&str>) -> String {
-    let base = format!("LiveAgent {app_version}");
+    let base = format!("{APP_DISPLAY_NAME} {app_version}");
     match status_suffix {
         Some(suffix) if !suffix.trim().is_empty() => format!("{base} · {}", suffix.trim()),
         _ => base,
@@ -685,11 +693,38 @@ mod tests {
 
     #[test]
     fn compose_status_line_appends_suffix_only_when_non_empty() {
-        assert_eq!(compose_status_line("1.3.0", None), "LiveAgent 1.3.0");
-        assert_eq!(compose_status_line("1.3.0", Some("  ")), "LiveAgent 1.3.0");
+        // 断言用常量拼接：改名只动 tauri.conf.json，测试不需要跟着改字面量。
+        assert_eq!(compose_status_line("1.3.0", None), format!("{APP_DISPLAY_NAME} 1.3.0"));
+        assert_eq!(
+            compose_status_line("1.3.0", Some("  ")),
+            format!("{APP_DISPLAY_NAME} 1.3.0")
+        );
         assert_eq!(
             compose_status_line("1.3.0", Some("远程已连接")),
-            "LiveAgent 1.3.0 · 远程已连接"
+            format!("{APP_DISPLAY_NAME} 1.3.0 · 远程已连接")
         );
+    }
+
+    #[test]
+    fn app_display_name_is_injected_and_non_empty() {
+        // 空名会让托盘与状态行退化成 " 1.3.0"，也会让两个并存的应用无法区分。
+        assert!(!APP_DISPLAY_NAME.trim().is_empty());
+    }
+
+    #[test]
+    fn app_display_name_follows_the_configured_product_name() {
+        // 显示名的唯一真源是 tauri.conf.json 的 productName（build.rs 注入）：
+        // 改名只动配置一处，Rust 侧自动跟随。显式用 LIVEAGENT_DISPLAY_NAME 覆盖
+        // 构建时这条不适用（build.rs 会标记来源）。
+        if env!("LIVEAGENT_DISPLAY_NAME_FROM_CONFIG") != "1" {
+            return;
+        }
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../../tauri.conf.json")).expect("parse tauri.conf");
+        let product_name = conf
+            .get("productName")
+            .and_then(serde_json::Value::as_str)
+            .expect("tauri.conf.json productName");
+        assert_eq!(APP_DISPLAY_NAME, product_name);
     }
 }
