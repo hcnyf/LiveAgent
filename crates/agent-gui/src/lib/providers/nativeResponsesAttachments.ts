@@ -8,6 +8,7 @@ import {
 } from "@liveagent/ui/lib/chat/uploadedFiles";
 import { invoke } from "@tauri-apps/api/core";
 import { isCheckpointBridgeText } from "../chat/compaction/bridge";
+import { readInputModalitiesDeclaration } from "./runtime/modelInputModalitiesDeclaration";
 
 type PayloadHook = (payload: unknown, model: Model<Api>) => unknown | Promise<unknown>;
 
@@ -76,12 +77,14 @@ type GeminiNativeAttachmentCandidate = {
  * 原生内联策略（按附件 kind 分层，五家 provider 统一）：
  *
  * - image：各家都是标准 block（input_image / image_url / image / inlineData），
- *   兼容中转也认，零往返成本，保留原生内联。codex / deepseek / gemini 分支沿用
- *   原有的 model.input 含 "image" 门控；anthropic 分支按 modelFactory 的约定不读
- *   model.input（见 buildAnthropicNativeAttachmentContentPart）。
+ *   兼容中转也认，零往返成本，保留原生内联。门控见 modelSupportsImageInput：
+ *   勾选"图片"的用户声明优先，自动态沿用各分支现状（anthropic 分支读不到有
+ *   意义的 model.input，见 buildAnthropicNativeAttachmentContentPart）。
  * - pdf：document / input_file / inlineData 都是各家专有结构，第三方
  *   Anthropic/OpenAI/Gemini 兼容中转普遍不认（Kimi Coding、z.ai 等直接 400
- *   "Invalid request"），只在各家官方端点内联；其余端点退回 Read（lopdf 抽文本）。
+ *   "Invalid request"）。门控见 supportsNativePdfInline：勾选"PDF"的用户声明
+ *   优先（用户为自家端点/中转担保），自动态下只在各家官方端点内联；不内联时
+ *   退回 Read（lopdf 抽文本）。
  * - text / word / spreadsheet / notebook / archive：一律不内联，走 Read。
  *   这正是在兼容中转上出错的类型，而 Read 对它们的结果与内联等价。
  *
@@ -152,11 +155,19 @@ function parseHostname(baseUrl: string | undefined) {
 }
 
 /**
- * PDF 只在各家官方端点原生内联。判断依据是请求 baseUrl 的主机名，而不是
- * provider 类型——`claude_code` / `codex` / `gemini` 类型同样用于第三方兼容
- * 中转（Kimi Coding、z.ai、各类 new-api 等），它们不接受专有 document 结构。
+ * PDF 是否原生内联：用户声明优先，自动态下只认各家官方端点。
+ *
+ * 自动态的判断依据是请求 baseUrl 的主机名，而不是 provider 类型——`claude_code`
+ * / `codex` / `gemini` 类型同样用于第三方兼容中转（Kimi Coding、z.ai、各类
+ * new-api 等），它们不接受专有 document 结构。
+ *
+ * 显式声明（设置里勾了"PDF"）即按声明：用户为自家端点/中转担保，中转也内联；
+ * 声明里没有"PDF"（含只勾"文本"的显式否定）则一律退回 Read 抽文本。
  */
 function supportsNativePdfInline(model: Model<Api>, baseUrl: string | undefined) {
+  const declared = readInputModalitiesDeclaration(model);
+  if (declared) return declared.includes("pdf");
+
   const hostname = parseHostname(baseUrl);
   if (!hostname) return false;
   switch (model.api) {
@@ -173,15 +184,18 @@ function supportsNativePdfInline(model: Model<Api>, baseUrl: string | undefined)
       return hostname === "generativelanguage.googleapis.com";
     // deepseek-responses 有意落在这里：官方《图像理解》指南只把 file / input_file
     // 用于图片（file_id 指向 Files API 上传的图），没有承诺 PDF 的 document 结构，
-    // 所以 DeepSeek 的 PDF 一律退回 Read 抽文本。
+    // 所以自动态下 DeepSeek 的 PDF 一律退回 Read 抽文本（用户显式勾选 PDF 时
+    // 上方声明分支已提前返回，视为用户为自家端点担保）。
     default:
       return false;
   }
 }
 
 /**
- * 附件 kind 是否进入原生内联候选。image 总是候选（MIME 与模型图片能力沿用各
- * adapter 原有的筛法），pdf 仅官方端点，其余 kind 一律交给 Read。
+ * 附件 kind 是否进入原生内联候选。image 总是候选（图片能力与实际 MIME 由各
+ * adapter 的 modelSupportsImageInput / MIME 白名单继续筛），pdf 看
+ * supportsNativePdfInline（用户声明优先，自动态仅官方端点），其余 kind 一律
+ * 交给 Read。
  */
 function isNativeInlineCandidate(
   file: PendingUploadedFile,
@@ -224,7 +238,20 @@ function isGoogleGenerativeAIModel(model: Model<Api>) {
   return model.api === "google-generative-ai";
 }
 
+/**
+ * 图片是否原生内联。用户勾选"图片"的显式声明优先；自动态维持各分支现状——
+ * codex / deepseek / gemini 读 model.input 的 "image" 位，anthropic 分支没有
+ * 可依据的 model.input（modelFactory 给自定义 anthropic 模型硬编码保守占位值
+ * ["text"]，见 buildAnthropicNativeAttachmentContentPart），维持"内联"现状，
+ * 否则 k3 / glm 等一切非目录模型的图片内联都会失效。
+ *
+ * 边界：工具结果图片的剥离口径不在这里（anthropic 分支由 piAiAdapter 决定，
+ * 那个分支不读 model.input，也不读本声明）。
+ */
 function modelSupportsImageInput(model: Model<Api>) {
+  const declared = readInputModalitiesDeclaration(model);
+  if (declared) return declared.includes("image");
+  if (isAnthropicMessagesModel(model)) return true;
   return Array.isArray(model.input) && model.input.includes("image");
 }
 
@@ -584,9 +611,11 @@ async function buildAnthropicNativeAttachmentContentPart(params: {
 }): Promise<AnthropicNativeAttachmentContentPart | null> {
   const { file, model, workdir, baseUrl } = params;
   if (!isNativeInlineCandidate(file, model, baseUrl)) return null;
-  // Anthropic 分支不读 model.input：modelFactory 给所有自定义 Anthropic 模型
-  // 硬编码 input: ["text"]，且用户 inputModalities 覆盖也不作用于此处。
-  // 若在这里加图片门控，k3 / glm 等一切非目录模型的图片内联都会失效。
+  // anthropic 分支的图片门控读用户声明（modelSupportsImageInput），不再依赖
+  // model.input：modelFactory 给所有自定义 Anthropic 模型硬编码 input: ["text"]，
+  // 直接读它会让 k3 / glm 等一切非目录模型的图片内联失效；自动态（无声明）仍按
+  // 现状内联。PDF 的候选资格由 supportsNativePdfInline 决定（声明优先）。
+  if (file.kind === "image" && !modelSupportsImageInput(model)) return null;
 
   const attachment = await readNativeAttachment({ workdir, file });
   const mimeType = normalizeMimeType(attachment.mimeType);
@@ -654,9 +683,9 @@ async function buildGeminiNativeAttachmentContentPart(params: {
 }): Promise<GeminiNativeAttachmentCandidate | null> {
   const { file, model, workdir, baseUrl } = params;
   if (!isNativeInlineCandidate(file, model, baseUrl)) return null;
-  if ((file.kind === "image" || file.kind === "pdf") && !modelSupportsImageInput(model)) {
-    return null;
-  }
+  // PDF 的候选资格已由 isNativeInlineCandidate → supportsNativePdfInline 决定，
+  // 这里只再筛图片能力（否则用户勾了 PDF 却没勾图片时 PDF 反而内联不了）。
+  if (file.kind === "image" && !modelSupportsImageInput(model)) return null;
 
   const attachment = await readNativeAttachment({ workdir, file });
   const mimeType = normalizeMimeType(attachment.mimeType);

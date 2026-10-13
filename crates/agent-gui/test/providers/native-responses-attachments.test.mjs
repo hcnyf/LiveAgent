@@ -415,6 +415,63 @@ test("Anthropic Messages native attachment adapter adds image and document block
   });
 });
 
+test("Anthropic native attachments follow the declared input modalities on relays", async () => {
+  const calls = [];
+  const loader = createLoader(async (command, args) => {
+    calls.push({ command, args });
+    if (args.kind === "pdf") return { mimeType: "application/pdf", data: "cGRm", sizeBytes: 3 };
+    return { mimeType: "image/png", data: "aW1hZ2U=", sizeBytes: 5 };
+  });
+  const uploadedFiles = loader.loadModule("@liveagent/ui/lib/chat/uploadedFiles.ts");
+  const nativeAttachments = loader.loadModule("src/lib/providers/nativeResponsesAttachments.ts");
+
+  const message = uploadedFiles.createUserMessageWithUploads("Inspect these", [
+    {
+      relativePath: "uploads/1/screenshot.png",
+      absolutePath: "/workspace/uploads/1/screenshot.png",
+      fileName: "screenshot.png",
+      kind: "image",
+      sizeBytes: 5,
+    },
+    {
+      relativePath: "uploads/1/report.pdf",
+      absolutePath: "/workspace/uploads/1/report.pdf",
+      fileName: "report.pdf",
+      kind: "pdf",
+      sizeBytes: 3,
+    },
+  ]);
+
+  const result = await nativeAttachments.__nativeResponsesAttachmentsTest
+    .applyNativeAttachmentsToAnthropicPayload({
+      payload: { messages: [{ role: "user", content: message.content }] },
+      context: { messages: [message] },
+      model: {
+        api: "anthropic-messages",
+        input: ["text"],
+        inputModalitiesOverride: ["text", "pdf"],
+      },
+      workdir: "/workspace",
+      baseUrl: KIMI_RELAY_BASE_URL,
+    });
+
+  // 声明只有 text + pdf：图片不内联（退回 Read），PDF 在中转上也内联。
+  assert.deepEqual(
+    calls.map((call) => call.args.kind),
+    ["pdf"],
+  );
+  assert.equal(result.messages[0].content[0].type, "text");
+  assert.match(
+    result.messages[0].content[0].text,
+    /Anthropic Messages request as native image\/document inputs/,
+  );
+  assert.equal(result.messages[0].content.length, 2);
+  assert.equal(result.messages[0].content[1].type, "document");
+  assert.equal(result.messages[0].content[1].title, "report.pdf");
+  assert.match(result.messages[0].content[0].text, /report\.pdf.{0,24}inlined/);
+  assert.doesNotMatch(result.messages[0].content[0].text, /screenshot\.png.{0,24}inlined/);
+});
+
 test("Anthropic Messages native attachment adapter keeps text files on the Read path", async () => {
   const loader = createLoader(async () => {
     throw new Error("should not read text attachments for native inline");
@@ -664,6 +721,54 @@ test("PDF native inline is limited to official provider hosts", () => {
   );
   assert.equal(
     supportsNativePdfInline({ api: "openai-completions" }, OFFICIAL_OPENAI_BASE_URL),
+    false,
+  );
+});
+
+test("PDF native inline follows an explicit capability declaration ahead of the host rule", () => {
+  const loader = createLoader(async () => {
+    throw new Error("unused");
+  });
+  const nativeAttachments = loader.loadModule("src/lib/providers/nativeResponsesAttachments.ts");
+  const { supportsNativePdfInline } = nativeAttachments.__nativeResponsesAttachmentsTest;
+
+  // 勾了 PDF：中转也内联（用户为自家端点担保）。
+  assert.equal(
+    supportsNativePdfInline(
+      { api: "anthropic-messages", inputModalitiesOverride: ["text", "pdf"] },
+      KIMI_RELAY_BASE_URL,
+    ),
+    true,
+  );
+  assert.equal(
+    supportsNativePdfInline(
+      { api: "openai-responses", inputModalitiesOverride: ["text", "image", "pdf"] },
+      "https://relay.example.com/v1",
+    ),
+    true,
+  );
+  // 声明里没有 PDF：官方端点也不内联（显式否定优先于主机名规则）。
+  assert.equal(
+    supportsNativePdfInline(
+      { api: "anthropic-messages", inputModalitiesOverride: ["text"] },
+      OFFICIAL_ANTHROPIC_BASE_URL,
+    ),
+    false,
+  );
+  assert.equal(
+    supportsNativePdfInline(
+      { api: "openai-responses", inputModalitiesOverride: ["text", "image"] },
+      OFFICIAL_OPENAI_BASE_URL,
+    ),
+    false,
+  );
+  // 缺失 = 自动：回到主机名规则。
+  assert.equal(
+    supportsNativePdfInline({ api: "anthropic-messages" }, OFFICIAL_ANTHROPIC_BASE_URL),
+    true,
+  );
+  assert.equal(
+    supportsNativePdfInline({ api: "anthropic-messages" }, KIMI_RELAY_BASE_URL),
     false,
   );
 });

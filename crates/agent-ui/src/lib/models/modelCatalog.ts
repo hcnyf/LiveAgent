@@ -159,7 +159,7 @@ export function findCatalogModelAcrossProviders(
 // 展示用的输入模态查询：先按供应商作用域查，未命中再跨供应商回查（与限额
 // 解析同一回查策略——中转聚合常把别家模型挂在本供应商类型下）。返回目录
 // 快照数据；用户的 inputModalities 覆盖是否优先由调用方决定（覆盖只表达
-// text/image 门控，与目录的完整模态集合语义不同）。
+// text/image/pdf 的发送门控，与目录含 audio/video 的完整模态集合语义不同）。
 export function resolveModelInputModalities(
   providerId: CatalogAppProviderId,
   modelId: string | undefined,

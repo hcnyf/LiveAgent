@@ -985,9 +985,9 @@ export function normalizeProviderModelConfig(
     maxOutputToken: limits.maxOutputToken,
     limitsSource,
     ...(promptCacheHintMode ? { promptCacheHintMode } : {}),
-    // 用户手动的输入模态覆盖（如给未识别的多模态模型强制开启图片输入）；
-    // 经 normalizeInputModalities 归一化后透传（可能过滤非法值/补齐 text/
-    // 重排顺序），合法覆盖永不被自动删除。
+    // 用户手动的输入模态声明（勾选集合：文本/图片/PDF）；经
+    // normalizeInputModalities 归一化后透传（可能过滤非法值/补齐 text/
+    // 重排为规范顺序），合法声明永不被自动删除。
     ...(inputModalities ? { inputModalities } : {}),
   };
 }
@@ -996,8 +996,9 @@ export function normalizeProviderModelConfig(
  * 输入模态覆盖的运行时归一化（设置加载与 modelFactory 共用的唯一校验）：
  * - 非数组、空数组、全部非法 -> undefined（等价于“无覆盖，用内置推断”）；
  * - 混合非法项采用“过滤合法项”的容错策略；
- * - 本应用的聊天协议始终发送文本，因此含 "image" 缺 "text" 时自动补齐；
- * - 输出固定为 ["text","image"] 规范顺序，避免同义配置产生持久化差异。
+ * - 本应用的聊天协议始终发送文本，因此含 "image"/"pdf" 缺 "text" 时自动补齐；
+ * - 输出固定为 ["text"] | ["text","image"] | ["text","pdf"] | ["text","image","pdf"]
+ *   的规范顺序（text → image → pdf），避免同义配置产生持久化差异。
  */
 export function normalizeInputModalities(input: unknown): ModelInputModalitiesOverride | undefined {
   if (!Array.isArray(input)) return undefined;
@@ -1008,7 +1009,12 @@ export function normalizeInputModalities(input: unknown): ModelInputModalitiesOv
     ),
   );
   if (valid.size === 0) return undefined;
-  return valid.has("image") ? ["text", "image"] : ["text"];
+  const hasImage = valid.has("image");
+  const hasPdf = valid.has("pdf");
+  if (hasImage && hasPdf) return ["text", "image", "pdf"];
+  if (hasImage) return ["text", "image"];
+  if (hasPdf) return ["text", "pdf"];
+  return ["text"];
 }
 export function normalizeProviderModelConfigs(
   input: unknown,

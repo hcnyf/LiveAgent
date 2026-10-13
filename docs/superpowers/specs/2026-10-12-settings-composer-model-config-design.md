@@ -250,17 +250,19 @@
 | 层 | 数据 | 用途 |
 |---|---|---|
 | 目录模态集合 | `CatalogInputModality[]`，**已含 pdf/audio/video** | **展示**：模型行右侧图标（`ProviderModalView.tsx:103-108`） |
-| 用户 `inputModalities` 覆盖 | 现仅 `["text"] \| ["text","image"]` | **发送门控** |
+| 用户 `inputModalities` 声明 | 本次扩为含 PDF 的四种形态 | **发送门控** |
 
 `modelCatalog.ts:159-162` 原注释明确："覆盖只表达 text/image 门控，与目录的完整模态集合语义不同"。
 
 本次是**扩展覆盖的值域至含 PDF**，**不是**把覆盖升级为完整模态声明——否则目录的 audio/video 信息会被一次勾选抹掉。
 
 - 值域：缺失（=自动）｜`["text"]`｜`["text","image"]`｜`["text","pdf"]`｜`["text","image","pdf"]`。既有两种值仍合法 → **零迁移**。
-- UI：由 `DropdownMenu` 单选（`:777-819`）改为 4 个 `Checkbox`（`components/ui/checkbox.tsx` 已存在）：`自动`／`文本`／`图片`／`PDF`，`自动` 与其余互斥（勾自动则清空其余并删除字段）。
-- **PDF 门控接上**：`crates/agent-gui/src/lib/providers/nativeResponsesAttachments.ts:159` 的 `supportsNativePdfInline(model, baseUrl)` 现仅看主机名，改为：
-  `勾了 pdf → true；自动 → 现主机名规则；都没勾 → false`。
-- **开放 `claude_code`**（决策 H=甲）：需把 `providerUtils.ts:50-60` 的 `providerSupportsModelInputModalitiesOverride` 纳入 `claude_code`，并**让 Anthropic 附件路径开始读该声明**。这**有意破掉** `settings/types.ts:470-472` 与 `modelFactory.ts:354-360`（输入模态覆盖的注释段）现有"anthropic 不读 `model.input`，以避免虚假能力声明"的防线，两处注释须同步改写说明新语义。
+- UI：由 `DropdownMenu` 单选（`:777-819`）改为 4 个 `Checkbox`（`components/ui/checkbox.tsx` 已存在）：`自动`／`文本`／`图片`／`PDF`；`自动` 与其余互斥（勾自动=删除字段），`文本` 恒勾选且禁用（聊天协议始终发送文本，normalizer 也会补齐）。
+- **PDF 门控接上**：`crates/agent-gui/src/lib/providers/nativeResponsesAttachments.ts` 的 `supportsNativePdfInline(model, baseUrl)` 由"仅看主机名"改为两层：
+  `有声明 → 声明里有 pdf`；`无声明（自动）→ 现主机名规则`；`声明里没有 pdf（含只勾文本）→ false`。
+  与之配套，`gemini` 分支原先"PDF 还需要图片能力"的附加条件删除（否则勾了 PDF 却没勾图片时 PDF 反而内联不了）。
+- **声明的承载**（实现细节）：pi-ai 的 `Model.input` 类型只接受 `"text" | "image"`，`"pdf"` 进不去。因此 `createModelFromConfig` 在装配结果上另挂仓库自有字段 `inputModalitiesOverride`（`runtime/modelInputModalitiesDeclaration.ts`，零依赖叶子模块）：`text/image` 照旧投影到 `model.input`（codex/xai/gemini/deepseek 分支），附件层读该字段决定 PDF（以及 anthropic 分支的图片）是否原生内联。缺失 = 自动。
+- **开放 `claude_code`**（决策 H=甲）：`providerSupportsModelInputModalitiesOverride` 纳入 `claude_code`，并**让 Anthropic 附件路径开始读该声明**：图片按声明 `includes("image")` 门控、PDF 按 `includes("pdf")` 门控，自动态维持现状（图片照旧内联）。这**有意破掉** `settings/types.ts` 与 `modelFactory.ts` 原"anthropic 不读 `model.input`，以避免虚假能力声明"的防线（两处注释已改写说明新语义）；**边界**：工具结果图片的剥离口径不在本项内（`piAiAdapter` 的 anthropic 分支既不读 `model.input` 也不读本声明，保持不变）。
 - 注意与 ④-4 的边界：本项只动**输入模态**这条线；**思考档位**仍保持目录派生，见 ④-4。
 - **PDF 附件侧不需新做**：`PendingUploadedFile.kind` 已含 `"pdf"`（`lib/chat/uploadTypes.ts:1-8`）；三套专有结构已写好（OpenAI `input_file` `:31`／Anthropic `document` `:54`／Gemini `inlineData` `:63`），不内联时退回 Read 抽文本。
 

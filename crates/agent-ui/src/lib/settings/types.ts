@@ -454,16 +454,21 @@ export type PromptCacheHintMode = "auto" | "openai-key" | "openrouter-session" |
 export type ModelLimitsSource = "catalog" | "provider" | "fallback" | "user";
 
 /** 模型输入模态的合法值全集（运行时校验与类型的单一来源）。 */
-export const MODEL_INPUT_MODALITIES = ["text", "image"] as const;
+export const MODEL_INPUT_MODALITIES = ["text", "image", "pdf"] as const;
 
 /** 模型输入模态；缺省时按 provider 内置规则推断。 */
 export type ModelInputModality = (typeof MODEL_INPUT_MODALITIES)[number];
 
 /**
  * 归一化后的输入模态覆盖的规范形态：聊天协议始终发送文本，
- * 因此 "text" 恒在首位；normalizer 只会产出这两种形状。
+ * 因此 "text" 恒在首位，其余按 text → image → pdf 的规范顺序排列；
+ * normalizer 只会产出这四种形状。
  */
-export type ModelInputModalitiesOverride = ["text"] | ["text", "image"];
+export type ModelInputModalitiesOverride =
+  | ["text"]
+  | ["text", "image"]
+  | ["text", "pdf"]
+  | ["text", "image", "pdf"];
 
 export type ProviderModelConfig = {
   id: string;
@@ -476,11 +481,17 @@ export type ProviderModelConfig = {
   /** OpenAI 兼容端点的缓存提示协议；缺失时继承供应商设置。 */
   promptCacheHintMode?: PromptCacheHintMode;
   /**
-   * 用户手动的输入模态覆盖（如 ["text","image"] 强制开启图片输入）。
-   * 缺失时按 provider 内置启发式推断（白名单/官方已知模型目录）。
-   * 生效范围：仅 codex/xai/gemini provider（这些路径的附件发送受
-   * model.input 门控）；deepseek wire 层硬拒绝图片、anthropic 附件
-   * 路径不读 model.input，这两类 provider 上本字段不起作用。
+   * 用户手动的输入模态覆盖（声明）：勾选集合即声明的输入能力，规范顺序
+   * text → image → pdf。缺失 = 自动，按 provider 内置启发式推断
+   * （白名单/官方已知模型目录）与附件层的官方端点主机名规则决定。
+   *
+   * 语义边界（不得与"目录完整模态集合"混同）：本字段只表达发送门控，
+   * 目录里的 audio/video 等模态不在此列。生效范围是附件发送路径本身——
+   * codex/xai/gemini/deepseek 走 `model.input` 门控；`claude_code` 的
+   * anthropic 附件路径直接读本声明（图片/PDF 是否原生内联），不再依赖
+   * 自定义模型上那个保守的 `input: ["text"]` 占位值。工具结果图片的剥离
+   * 口径不由本字段决定（见 piAiAdapter 的 anthropic 分支）。
+   *
    * 读取前须经 normalizeInputModalities 归一化。
    */
   inputModalities?: ModelInputModalitiesOverride;

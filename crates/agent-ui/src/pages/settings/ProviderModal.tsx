@@ -33,7 +33,7 @@ import {
   findNewModelIds,
 } from "@liveagent/ui/lib/providers/modelVendor";
 import {
-  applyModelInputModalitiesMode,
+  applyModelInputModalitiesSelection,
   applyModelsActiveState,
   applyProviderModelDraft,
   applyUsageQueryModePreset,
@@ -43,15 +43,16 @@ import {
   createUsageQueryDraft,
   detectCodingPlanProvider,
   fetchModelsFromApi,
-  getModelInputModalitiesMode,
+  getModelInputModalitiesSelection,
   getPersistedUsageQueryProviderId,
   isGatewayWebuiRuntime,
-  type ModelInputModalitiesMode,
+  type ModelInputModalitiesSelection,
   matchBalanceProviders,
   mergeFetchedModels,
   providerSupportsModelInputModalitiesOverride,
   requiresCustomUsageQueryConfirmation,
   serializeUsageQueryDraft,
+  toggleModelInputModalitiesItem,
 } from "@liveagent/ui/pages/settings/providerUtils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProviderModalView } from "./ProviderModalView";
@@ -567,21 +568,35 @@ function useProviderModalController({
     : null;
   const canOverrideModelInputModalities =
     providerSupportsModelInputModalitiesOverride(providerType);
-  const editingModelInputModalitiesMode = editingModel
-    ? getModelInputModalitiesMode(editingModel.model)
+  const editingModelInputModalities = editingModel
+    ? getModelInputModalitiesSelection(editingModel.model)
     : "auto";
   const canSaveEditingModel =
     editingModelContextWindow !== null && editingModelMaxOutputToken !== null;
 
-  function setEditingModelInputModalitiesMode(mode: ModelInputModalitiesMode) {
+  function setEditingModelInputModalities(selection: ModelInputModalitiesSelection) {
     setEditingModel((prev) =>
       prev
         ? {
             ...prev,
-            model: applyModelInputModalitiesMode(prev.model, mode),
+            model: applyModelInputModalitiesSelection(prev.model, selection),
           }
         : prev,
     );
+  }
+
+  function toggleEditingModelInputModalitiesItem(item: "image" | "pdf", checked: boolean) {
+    setEditingModel((prev) => {
+      if (!prev) return prev;
+      const current = getModelInputModalitiesSelection(prev.model);
+      return {
+        ...prev,
+        model: applyModelInputModalitiesSelection(
+          prev.model,
+          toggleModelInputModalitiesItem(current, item, checked),
+        ),
+      };
+    });
   }
 
   function modelsWithEditingDraft(): ProviderModelConfig[] | null {
@@ -904,7 +919,7 @@ function useProviderModalController({
     customHeaders,
     editingModel,
     editingModelContextWindow,
-    editingModelInputModalitiesMode,
+    editingModelInputModalities,
     editingModelMaxOutputToken,
     fetchError,
     fetchingModels,
@@ -955,7 +970,7 @@ function useProviderModalController({
     setApiKey,
     setBaseUrl,
     setEditingModel,
-    setEditingModelInputModalitiesMode,
+    setEditingModelInputModalities,
     setHeaderImportError,
     setHeaderImportOpen,
     setHeaderImportSummary,
@@ -982,6 +997,7 @@ function useProviderModalController({
     streamRetryMode,
     commitStreamRetryCountInput,
     t,
+    toggleEditingModelInputModalitiesItem,
     toggleModel,
     toggleVisibleModelsActive,
     typeLabel,

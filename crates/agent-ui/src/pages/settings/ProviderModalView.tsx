@@ -8,7 +8,6 @@ import {
 } from "@liveagent/app/lib/settings";
 import {
   AudioLines,
-  ChevronDown,
   ClipboardPaste,
   ExternalLink,
   Eye,
@@ -38,6 +37,7 @@ import {
   SettingsToggleGroupItem,
 } from "@liveagent/ui/components/settings/SettingsToggleGroup";
 import { Button, RefreshButton } from "@liveagent/ui/components/ui/button";
+import { Checkbox } from "@liveagent/ui/components/ui/checkbox";
 import {
   Dialog,
   DialogActions,
@@ -52,8 +52,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@liveagent/ui/components/ui/dropdown-menu";
 import { Input } from "@liveagent/ui/components/ui/input";
@@ -85,6 +83,7 @@ import { cn } from "@liveagent/ui/lib/shared/utils";
 import {
   applyUsageQueryModePreset,
   formatTokenCount,
+  hasModelInputModalitiesItem,
   setUsageQueryScript,
   USAGE_QUERY_CODING_PLAN_PROVIDERS,
 } from "@liveagent/ui/pages/settings/providerUtils";
@@ -133,7 +132,7 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     customHeaders,
     editingModel,
     editingModelContextWindow,
-    editingModelInputModalitiesMode,
+    editingModelInputModalities,
     editingModelMaxOutputToken,
     fetchError,
     fetchingModels,
@@ -185,7 +184,7 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     setApiKey,
     setBaseUrl,
     setEditingModel,
-    setEditingModelInputModalitiesMode,
+    setEditingModelInputModalities,
     setHeaderImportError,
     setHeaderImportOpen,
     setHeaderImportSummary,
@@ -212,6 +211,7 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     streamRetryMode,
     commitStreamRetryCountInput,
     t,
+    toggleEditingModelInputModalitiesItem,
     toggleModel,
     toggleVisibleModelsActive,
     typeLabel,
@@ -797,49 +797,44 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                         {canOverrideModelInputModalities ? (
                           <FormField>
                             <FormFieldLabel>{t("settings.modelInputModalities")}</FormFieldLabel>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger
-                                render={
-                                  <Button
-                                    variant="ghost"
-                                    className="h-9 w-full justify-between bg-settings-tile-hover px-3"
-                                  />
-                                }
-                                aria-label={t("settings.modelInputModalities")}
-                              >
-                                {t(
-                                  editingModelInputModalitiesMode === "auto"
-                                    ? "settings.modelInputModalitiesAuto"
-                                    : editingModelInputModalitiesMode === "text"
-                                      ? "settings.modelInputModalitiesText"
-                                      : "settings.modelInputModalitiesTextImage",
-                                )}
-                                <ChevronDown className="size-4 text-muted-foreground" />
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent variant="soft">
-                                <DropdownMenuRadioGroup
-                                  value={editingModelInputModalitiesMode}
-                                  onValueChange={(value) => {
-                                    if (
-                                      value === "auto" ||
-                                      value === "text" ||
-                                      value === "text-image"
-                                    )
-                                      setEditingModelInputModalitiesMode(value);
-                                  }}
-                                >
-                                  <DropdownMenuRadioItem value="auto">
-                                    {t("settings.modelInputModalitiesAuto")}
-                                  </DropdownMenuRadioItem>
-                                  <DropdownMenuRadioItem value="text">
-                                    {t("settings.modelInputModalitiesText")}
-                                  </DropdownMenuRadioItem>
-                                  <DropdownMenuRadioItem value="text-image">
-                                    {t("settings.modelInputModalitiesTextImage")}
-                                  </DropdownMenuRadioItem>
-                                </DropdownMenuRadioGroup>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                              <Label className="flex cursor-pointer items-center gap-2 text-sm font-normal">
+                                <Checkbox
+                                  checked={editingModelInputModalities === "auto"}
+                                  onCheckedChange={() => setEditingModelInputModalities("auto")}
+                                />
+                                {t("settings.modelInputModalitiesAuto")}
+                              </Label>
+                              {/* 聊天协议始终发送文本：该项恒为勾选且不可取消。 */}
+                              <Label className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
+                                <Checkbox checked disabled />
+                                {t("settings.modelInputModalitiesText")}
+                              </Label>
+                              <Label className="flex cursor-pointer items-center gap-2 text-sm font-normal">
+                                <Checkbox
+                                  checked={hasModelInputModalitiesItem(
+                                    editingModelInputModalities,
+                                    "image",
+                                  )}
+                                  onCheckedChange={(checked) =>
+                                    toggleEditingModelInputModalitiesItem("image", checked)
+                                  }
+                                />
+                                {t("settings.modelInputModalitiesImage")}
+                              </Label>
+                              <Label className="flex cursor-pointer items-center gap-2 text-sm font-normal">
+                                <Checkbox
+                                  checked={hasModelInputModalitiesItem(
+                                    editingModelInputModalities,
+                                    "pdf",
+                                  )}
+                                  onCheckedChange={(checked) =>
+                                    toggleEditingModelInputModalitiesItem("pdf", checked)
+                                  }
+                                />
+                                {t("settings.modelInputModalitiesPdf")}
+                              </Label>
+                            </div>
                             <FormFieldDescription>
                               {t("settings.modelInputModalitiesHint")}
                             </FormFieldDescription>

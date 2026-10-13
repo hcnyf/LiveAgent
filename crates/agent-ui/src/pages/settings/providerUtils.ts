@@ -1,5 +1,6 @@
 import {
   createProviderModelConfig,
+  type ModelInputModalitiesOverride,
   normalizeInputModalities,
   normalizeProviderModelConfigs,
   type ProviderId,
@@ -45,7 +46,11 @@ export function applyProviderModelDraft(
   return models.map((model) => (model.id === draft.id ? nextModel : model));
 }
 
-export type ModelInputModalitiesMode = "auto" | "text" | "text-image";
+/**
+ * 输入能力表单的选择值：`"auto"` = 无声明（按内置推断/官方端点规则），
+ * 其余四种即用户勾选集合（规范顺序 text → image → pdf，normalizer 产出）。
+ */
+export type ModelInputModalitiesSelection = "auto" | ModelInputModalitiesOverride;
 
 export function providerSupportsModelInputModalitiesOverride(providerId: ProviderId): boolean {
   return (
@@ -55,26 +60,51 @@ export function providerSupportsModelInputModalitiesOverride(providerId: Provide
     // deepseek：Responses wire 已接受 input_image（官方《图像理解》指南），模型
     // 能力默认按 id 推断（flash 家族吃图、Pro 纯文本），中转端点不吃图时用覆盖
     // 改回 ["text"]。
-    providerId === "deepseek"
+    providerId === "deepseek" ||
+    // claude_code：Anthropic 附件路径直接读该声明决定图片/PDF 是否原生内联，
+    // 中转（Kimi Coding、z.ai 等）不吃专有 document 结构时勾"仅文本"即可回退 Read。
+    providerId === "claude_code"
   );
 }
 
-export function getModelInputModalitiesMode(model: ProviderModelConfig): ModelInputModalitiesMode {
-  if (!model.inputModalities) return "auto";
-  return model.inputModalities.length === 2 ? "text-image" : "text";
+export function getModelInputModalitiesSelection(
+  model: ProviderModelConfig,
+): ModelInputModalitiesSelection {
+  return normalizeInputModalities(model.inputModalities) ?? "auto";
 }
 
-export function applyModelInputModalitiesMode(
+export function applyModelInputModalitiesSelection(
   model: ProviderModelConfig,
-  mode: ModelInputModalitiesMode,
+  selection: ModelInputModalitiesSelection,
 ): ProviderModelConfig {
   const modelWithoutOverride = { ...model };
   delete modelWithoutOverride.inputModalities;
-  if (mode === "auto") return modelWithoutOverride;
-  return {
-    ...modelWithoutOverride,
-    inputModalities: mode === "text-image" ? ["text", "image"] : ["text"],
-  };
+  if (selection === "auto") return modelWithoutOverride;
+  return { ...modelWithoutOverride, inputModalities: selection };
+}
+
+/** 勾选态读取；自动态（空集合）下图片/PDF 一律视为未勾选（"自动"与其余互斥）。 */
+export function hasModelInputModalitiesItem(
+  selection: ModelInputModalitiesSelection,
+  item: "image" | "pdf",
+): boolean {
+  const declared: readonly string[] = selection === "auto" ? [] : selection;
+  return declared.includes(item);
+}
+
+/** 勾选/取消单项后的下一个选择值；取消到空集合回落 `["text"]`（文本恒开）。 */
+export function toggleModelInputModalitiesItem(
+  selection: ModelInputModalitiesSelection,
+  item: "image" | "pdf",
+  checked: boolean,
+): ModelInputModalitiesOverride {
+  const current: readonly string[] = selection === "auto" ? [] : selection;
+  const hasImage = item === "image" ? checked : current.includes("image");
+  const hasPdf = item === "pdf" ? checked : current.includes("pdf");
+  if (hasImage && hasPdf) return ["text", "image", "pdf"];
+  if (hasImage) return ["text", "image"];
+  if (hasPdf) return ["text", "pdf"];
+  return ["text"];
 }
 
 // KEEP IN SYNC:general/newapi 预设与桌面端 Rust services/provider_usage.rs 的

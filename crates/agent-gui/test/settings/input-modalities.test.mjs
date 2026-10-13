@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
 
-// inputModalities（模型输入模态用户覆盖）的反漂移锁：
-// 1. normalizer 的过滤/补齐/规范顺序契约；
+// inputModalities（模型输入模态用户声明）的反漂移锁：
+// 1. normalizer 的过滤/补齐/规范顺序契约（text → image → pdf）；
 // 2. 设置加载往返不丢字段；
-// 3. modelFactory 只在附件发送确实受 model.input 门控的分支（codex/gemini/
-//    deepseek）应用覆盖，anthropic 不适用（避免虚假能力声明）。
+// 3. modelFactory 把声明里的 text/image 投影到 model.input（codex/gemini/deepseek
+//    分支），anthropic 分支的 model.input 维持保守占位值；声明原文一律另挂在
+//    inputModalitiesOverride 上供附件层读（决定 PDF 是否原生内联）。
 const loader = createTsModuleLoader();
 const { normalizeInputModalities, normalizeProviderModelConfig, normalizeProviderModelConfigs } =
   loader.loadModule("src/lib/settings/index.ts");
@@ -19,10 +20,12 @@ const providerUtilsLoader = createTsModuleLoader({
   mocks: { "@tauri-apps/api/core": { invoke: async () => ({}) } },
 });
 const {
-  applyModelInputModalitiesMode,
-  getModelInputModalitiesMode,
+  applyModelInputModalitiesSelection,
+  getModelInputModalitiesSelection,
+  hasModelInputModalitiesItem,
   normalizeFetchedModels,
   providerSupportsModelInputModalitiesOverride,
+  toggleModelInputModalitiesItem,
 } = providerUtilsLoader.loadModule("@liveagent/ui/pages/settings/providerUtils.ts");
 
 test("normalizeInputModalities rejects non-arrays and empty/fully-invalid arrays", () => {
@@ -38,13 +41,22 @@ test("normalizeInputModalities rejects non-arrays and empty/fully-invalid arrays
 test("normalizeInputModalities filters mixed arrays and dedupes", () => {
   assert.deepEqual(normalizeInputModalities(["image", 123, "future"]), ["text", "image"]);
   assert.deepEqual(normalizeInputModalities(["image", "image", "text"]), ["text", "image"]);
+  assert.deepEqual(normalizeInputModalities(["pdf", "pdf", "audio"]), ["text", "pdf"]);
 });
 
 test("normalizeInputModalities auto-adds text and emits canonical order", () => {
-  // 聊天协议始终发送文本：image-only 覆盖自动补齐 text
+  // 聊天协议始终发送文本：image/pdf-only 声明自动补齐 text
   assert.deepEqual(normalizeInputModalities(["image"]), ["text", "image"]);
   assert.deepEqual(normalizeInputModalities(["image", "text"]), ["text", "image"]);
   assert.deepEqual(normalizeInputModalities(["text"]), ["text"]);
+  assert.deepEqual(normalizeInputModalities(["pdf"]), ["text", "pdf"]);
+  // 规范顺序恒为 text → image → pdf，与输入顺序无关
+  assert.deepEqual(normalizeInputModalities(["pdf", "image"]), ["text", "image", "pdf"]);
+  assert.deepEqual(normalizeInputModalities(["pdf", "text", "image", "pdf"]), [
+    "text",
+    "image",
+    "pdf",
+  ]);
 });
 
 test("normalizeProviderModelConfig preserves a valid inputModalities override", () => {
@@ -59,6 +71,16 @@ test("normalizeProviderModelConfig preserves a valid inputModalities override", 
     "codex",
   );
   assert.deepEqual(normalized.inputModalities, ["text", "image"]);
+
+  // 既有两种存档值（["text"] / ["text","image"]）与新增的 pdf 形态同样原样往返：
+  // 零迁移。
+  for (const stored of [["text"], ["text", "image"], ["text", "pdf"], ["text", "image", "pdf"]]) {
+    const viaLoad = normalizeProviderModelConfig(
+      { id: "k3", contextWindow: 258000, maxOutputToken: 32000, inputModalities: stored },
+      "claude_code",
+    );
+    assert.deepEqual(viaLoad.inputModalities, stored);
+  }
 });
 
 test("normalizeProviderModelConfig drops malformed inputModalities and legacy archives", () => {
@@ -90,23 +112,49 @@ test("modelFactory: codex completions custom model honors the override", () => {
 });
 
 test(
-  "ProviderModal input capability mode preserves auto/text/image semantics and provider boundary",
+  "ProviderModal input capability selection preserves auto/text/image/pdf semantics and provider boundary",
   () => {
     const baseModel = { id: "k3", contextWindow: 258000, maxOutputToken: 32000 };
-    const textOnly = applyModelInputModalitiesMode(baseModel, "text");
-    const textAndImage = applyModelInputModalitiesMode(textOnly, "text-image");
-    const automatic = applyModelInputModalitiesMode(textAndImage, "auto");
+    assert.equal(getModelInputModalitiesSelection(baseModel), "auto");
 
-    assert.equal(getModelInputModalitiesMode(baseModel), "auto");
-    assert.equal(getModelInputModalitiesMode(textOnly), "text");
-    assert.equal(getModelInputModalitiesMode(textAndImage), "text-image");
+    const textOnly = applyModelInputModalitiesSelection(baseModel, ["text"]);
+    assert.deepEqual(textOnly.inputModalities, ["text"]);
+    assert.deepEqual(getModelInputModalitiesSelection(textOnly), ["text"]);
+    const textAndImage = applyModelInputModalitiesSelection(textOnly, ["text", "image"]);
+    assert.deepEqual(textAndImage.inputModalities, ["text", "image"]);
+    assert.deepEqual(getModelInputModalitiesSelection(textAndImage), ["text", "image"]);
+    const automatic = applyModelInputModalitiesSelection(textAndImage, "auto");
     assert.equal("inputModalities" in automatic, false);
+    assert.equal(getModelInputModalitiesSelection(automatic), "auto");
+
+    // 勾选态：自动态下图片/PDF 都视为未勾选（"自动"与其余互斥）。
+    assert.equal(hasModelInputModalitiesItem("auto", "image"), false);
+    assert.equal(hasModelInputModalitiesItem("auto", "pdf"), false);
+    assert.equal(hasModelInputModalitiesItem(["text", "image"], "image"), true);
+    assert.equal(hasModelInputModalitiesItem(["text", "image"], "pdf"), false);
+    assert.equal(hasModelInputModalitiesItem(["text", "pdf"], "pdf"), true);
+
+    // 勾选/取消产出规范顺序；取消到空集合回落 ["text"]（文本恒开）。
+    assert.deepEqual(toggleModelInputModalitiesItem("auto", "pdf", true), ["text", "pdf"]);
+    assert.deepEqual(toggleModelInputModalitiesItem("auto", "image", true), ["text", "image"]);
+    assert.deepEqual(toggleModelInputModalitiesItem(["text", "image"], "pdf", true), [
+      "text",
+      "image",
+      "pdf",
+    ]);
+    assert.deepEqual(toggleModelInputModalitiesItem(["text", "image", "pdf"], "pdf", false), [
+      "text",
+      "image",
+    ]);
+    assert.deepEqual(toggleModelInputModalitiesItem(["text", "pdf"], "pdf", false), ["text"]);
+    assert.deepEqual(toggleModelInputModalitiesItem(["text"], "image", false), ["text"]);
 
     assert.equal(providerSupportsModelInputModalitiesOverride("codex"), true);
     assert.equal(providerSupportsModelInputModalitiesOverride("xai"), true);
     assert.equal(providerSupportsModelInputModalitiesOverride("gemini"), true);
     assert.equal(providerSupportsModelInputModalitiesOverride("deepseek"), true);
-    assert.equal(providerSupportsModelInputModalitiesOverride("claude_code"), false);
+    // claude_code 现开放：anthropic 附件路径直接读声明（图片/PDF 是否原生内联）。
+    assert.equal(providerSupportsModelInputModalitiesOverride("claude_code"), true);
   },
 );
 
@@ -119,6 +167,8 @@ test("modelFactory: codex custom model ignores a malformed override", () => {
     { id: "k3", contextWindow: 258000, maxOutputToken: 32000, inputModalities: ["audio"] },
   );
   assert.deepEqual(model.input, ["text"]);
+  // 全非法 = 无声明：不得挂上空声明。
+  assert.equal("inputModalitiesOverride" in model, false);
 });
 
 test("modelFactory: gemini custom model honors the override", () => {
@@ -180,7 +230,7 @@ test("modelFactory: deepseek infers image input from the model id and honors the
   assert.deepEqual(forcedImage.input, ["text", "image"]);
 });
 
-test("modelFactory: anthropic custom model does not apply the override (attachments ignore model.input upstream)", () => {
+test("modelFactory: anthropic custom model keeps placeholder model.input but carries the declaration", () => {
   const model = createModelFromConfig(
     "claude_code",
     "unknown-relay-claude-model",
@@ -193,7 +243,51 @@ test("modelFactory: anthropic custom model does not apply the override (attachme
       inputModalities: ["text", "image"],
     },
   );
+  // 自定义 anthropic 模型的 input 仍是保守占位值：附件层不读它（见
+  // nativeResponsesAttachments 的 modelSupportsImageInput），改读下面的声明。
   assert.deepEqual(model.input, ["text"]);
+  assert.deepEqual(model.inputModalitiesOverride, ["text", "image"]);
+});
+
+test("modelFactory: declared pdf rides on the runtime model, never in pi-ai Model.input", () => {
+  const withPdf = createModelFromConfig(
+    "claude_code",
+    "unknown-relay-claude-model",
+    "https://claude-relay.example.com",
+    undefined,
+    {
+      id: "unknown-relay-claude-model",
+      contextWindow: 200000,
+      maxOutputToken: 32000,
+      inputModalities: ["text", "pdf"],
+    },
+  );
+  // pi-ai 的 Model.input 类型只接受 text/image：pdf 只能走声明字段。
+  assert.deepEqual(withPdf.input, ["text"]);
+  assert.deepEqual(withPdf.inputModalitiesOverride, ["text", "pdf"]);
+
+  const codexWithPdf = createModelFromConfig(
+    "codex",
+    "k3",
+    "https://api.kimi.com/coding/v1",
+    "openai-completions",
+    {
+      id: "k3",
+      contextWindow: 258000,
+      maxOutputToken: 32000,
+      inputModalities: ["text", "pdf"],
+    },
+  );
+  assert.deepEqual(codexWithPdf.input, ["text"]);
+  assert.deepEqual(codexWithPdf.inputModalitiesOverride, ["text", "pdf"]);
+
+  // 自动态不带声明字段（缺失 = 自动）。
+  const automatic = createModelFromConfig(
+    "claude_code",
+    "unknown-relay-claude-model",
+    "https://claude-relay.example.com",
+  );
+  assert.equal("inputModalitiesOverride" in automatic, false);
 });
 
 test("gemini persisted model survives the ProviderModal open/save round trip", () => {

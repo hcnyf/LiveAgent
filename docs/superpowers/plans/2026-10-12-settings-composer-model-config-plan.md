@@ -46,6 +46,23 @@
 
 ①②可立即并行。③④⑤串行。
 
+**进度**（截至 2026-10-13）：
+
+| 任务 | 状态 |
+|---|---|
+| P1 生图消费点排查 | ✅ 已完成并落地（`144c7d23`、`fa7010f0`） |
+| P2 本地反代 multipart 实测 | ⏳ 未做（阻塞 ⑤-3） |
+| 批① 窗口 + 设置壳 | ⏳ 未开始 |
+| 批② 输入框视觉 | ✅ 已提交（`34177787`） |
+| T3.1 `kind` 数据层 + P1 落地 | ✅ 已提交（`144c7d23`、`fa7010f0`）；**UI 两类分栏仍未做** |
+| T3.2 上下文/最大输出快捷填入 | ✅ 已提交（`7ae221fa`） |
+| T3.3 输入能力多选（含 PDF 运行时） | ✅ 本次完成（见该节「落地记录」） |
+| T3.4 思考档位字段 + 表单 | ⏳ 下一步 |
+| 批④ 思考档位端到端联动 | ⏳ 未开始（依赖 T3.4） |
+| 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
+
+环境前置见附录 B（BuildTools 现落在 `D:\BuildTools`）。
+
 ---
 
 ## 批① 窗口 + 设置壳 + 系统设置
@@ -128,13 +145,21 @@
 - **坑**：同一行内十进制与二进制并存是文档原意，不要"顺手统一"
 - **验收**：点击后写入正确字面值且 `limitsSource` 变为 `user`
 
-### T3.3 输入能力改多选（含 PDF 运行时）
+### T3.3 输入能力改多选（含 PDF 运行时）—— ✅ 已完成
 
 - **文件**：`crates/agent-ui/src/lib/settings/types.ts:446-476`、`index.ts`（`normalizeInputModalities`）、`crates/agent-ui/src/pages/settings/providerUtils.ts:48-78`、`ProviderModalView.tsx:774-824`、`ProviderModal.tsx:568`、`crates/agent-gui/src/lib/providers/nativeResponsesAttachments.ts:159`、`crates/agent-gui/src/lib/providers/runtime/modelFactory.ts:354-360`、`crates/agent-ui/src/lib/models/modelCatalog.ts:159-162`
-- **做什么**：值域扩为 `缺失(=自动) | ["text"] | ["text","image"] | ["text","pdf"] | ["text","image","pdf"]`；UI 改 4 个 `Checkbox`（`自动` 与其余互斥）；`supportsNativePdfInline` 改为 `勾了 pdf → true；自动 → 主机名规则；都没勾 → false`；`providerSupportsModelInputModalitiesOverride` 纳入 `claude_code`
+- **做什么**：值域扩为 `缺失(=自动) | ["text"] | ["text","image"] | ["text","pdf"] | ["text","image","pdf"]`；UI 改 4 个 `Checkbox`（`自动` 与其余互斥）；`supportsNativePdfInline` 改为 `有声明 → 声明里有 pdf；自动 → 主机名规则；声明里没有 pdf → false`；`providerSupportsModelInputModalitiesOverride` 纳入 `claude_code`
 - **验收**：既有两种存档值仍合法（零迁移）；勾选 PDF 后在第三方中转上走原生内联
 - **坑**：这是**有意破掉**"anthropic 不读 `model.input`"的防线（spec R5），`settings/types.ts:470-472` 与 `modelFactory.ts:354-360` 两处注释须同步改写说明新语义。**不要**把覆盖升级成"完整模态声明"——目录的 audio/video 会被抹掉
-- **验证**：`pnpm test:gui` + `cargo test`
+- **验证**：`pnpm test:gui`（3424/3424）+ `pnpm test:webui`（全绿）+ `pnpm typecheck:ui` / `typecheck:gui` + `pnpm check:ui-boundaries`
+
+#### 落地记录（与初稿的差异，均已回写 spec ③-4）
+
+1. **声明的承载**：pi-ai 的 `Model.input` 类型只接受 `"text" | "image"`，`"pdf"` 进不去 → 新增零依赖叶子模块 `runtime/modelInputModalitiesDeclaration.ts`，`createModelFromConfig` 改为"装配 + 挂 `inputModalitiesOverride`"两层（装配体改名 `buildModelFromConfig`，仍是唯一装配点）。`text/image` 照旧投影进 `model.input`（局部量 `wireInput`），附件层读声明字段决定 PDF 是否内联。
+2. **UI 形态**：4 个 `Checkbox` 里 `文本` 恒勾选且禁用（聊天协议始终发送文本，normalizer 也会补齐）；`自动` 勾选即删除字段。`ModelInputModalitiesMode`（三值字符串）改为 `ModelInputModalitiesSelection = "auto" | ModelInputModalitiesOverride`，配套 `get/apply/has/toggle` 四个纯函数。
+3. **gemini 的 PDF 附加条件删除**：原 `buildGeminiNativeAttachmentContentPart` 要求 PDF 还需通过图片能力门控，会导致"勾了 PDF 没勾图片 → PDF 内联不了"，与 T3.3 目标直接冲突，故删除该条件（PDF 候选资格统一由 `isNativeInlineCandidate → supportsNativePdfInline` 决定）。
+4. **anthropic 图片门控**：`modelSupportsImageInput` 由"读 `model.input`"改为"有声明按声明，无声明 anthropic 维持内联、其余分支读 `model.input`"——否则 `claude_code` 开放后图片勾选框会变成静默空操作（`k3`/`glm` 等非目录模型的 `input` 是硬编码占位值）。工具结果图片不在本项内（`piAiAdapter` 不变），已在注释里写明边界。
+5. **Rust 侧无需改动**：`sanitize_provider_summary` 把 `models` 整段透传，模型级字段（含 `inputModalities` 新值）不受白名单影响。
 
 ### T3.4 思考档位与默认档字段 + 表单
 

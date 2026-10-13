@@ -24,6 +24,7 @@ import {
   isOfficialDeepSeekBaseUrl,
   normalizeDeepSeekResponsesBaseUrl,
 } from "../deepSeekNative";
+import { withInputModalitiesDeclaration } from "./modelInputModalitiesDeclaration";
 import { isXaiProviderTarget } from "./xaiResponsesPayload";
 
 // ---------------------------------------------------------------------------
@@ -326,7 +327,30 @@ function inferCodexApi(requestFormat?: CodexRequestFormat, preferredApi?: CodexA
   return requestFormat ?? preferredApi ?? "openai-responses";
 }
 
+/**
+ * 运行时模型工厂的唯一出口：装配结果上再挂用户声明的输入模态原文
+ * （`inputModalitiesOverride`），供附件层决定 PDF 是否原生内联。
+ *
+ * 装配本身（buildModelFromConfig）只把声明里的 text/image 投影到 pi-ai 的
+ * `Model.input`；"pdf" 在 pi-ai 的类型里不存在，只能另挂字段——见
+ * modelInputModalitiesDeclaration。
+ */
 export function createModelFromConfig(
+  providerId: ProviderId,
+  modelId: string,
+  baseUrl: string,
+  requestFormat?: CodexRequestFormat,
+  modelConfig?: ProviderModelConfig,
+  upstreamBaseUrl?: string,
+): Model<Api> {
+  return withInputModalitiesDeclaration(
+    buildModelFromConfig(providerId, modelId, baseUrl, requestFormat, modelConfig, upstreamBaseUrl),
+    normalizeInputModalities(modelConfig?.inputModalities),
+  );
+}
+
+/** 唯一装配点：只认 pi-ai 的 Model 形状，声明原文由 createModelFromConfig 追加。 */
+function buildModelFromConfig(
   providerId: ProviderId,
   modelId: string,
   baseUrl: string,
@@ -351,13 +375,20 @@ export function createModelFromConfig(
   // 思考能力（reasoning + 档位）唯一来源：生成目录（未命中走其兜底推断）。
   // pi-ai 目录命中时只取其 thinkingLevelMap 的 wire 改写值，可用性不听它的。
   const thinking = resolveModelThinking(providerId, modelId);
-  // 输入模态的用户显式覆盖（如给未被内置白名单识别的多模态模型开启图片
-  // 输入）；缺省走各 provider 的内置推断/已知模型目录。校验逻辑与设置加载
-  // 共用同一个 normalizer，不信任调用方的静态类型。
-  // 只在附件发送确实受 model.input 门控的 provider 分支生效（codex/gemini/
-  // deepseek）；anthropic 附件路径暂不读 model.input，那里不适用用户覆盖，
-  // 避免产生虚假能力声明。
+  // 输入模态的用户显式声明（勾选集合）；缺省走各 provider 的内置推断/已知
+  // 模型目录。校验逻辑与设置加载共用同一个 normalizer，不信任调用方的静态类型。
   const inputOverride = normalizeInputModalities(modelConfig?.inputModalities);
+  // pi-ai 的 Model.input 类型只接受 "text" | "image"：声明里的 "pdf" 不进 input，
+  // 由 createModelFromConfig 挂的 inputModalitiesOverride 承载（附件层据此决定
+  // PDF 是否原生内联）。text/image 部分照旧覆盖 model.input，作用于所有附件发送
+  // 受 model.input 门控的分支（codex/xai/gemini/deepseek）；anthropic 分支的
+  // model.input 保持原样（自定义模型是保守占位值），附件层直接读声明。
+  const declaredInputModalities: readonly string[] | undefined = inputOverride;
+  const wireInput: ("text" | "image")[] | undefined = declaredInputModalities
+    ? declaredInputModalities.includes("image")
+      ? ["text", "image"]
+      : ["text"]
+    : undefined;
 
   if (providerId === "deepseek") {
     return {
@@ -369,7 +400,7 @@ export function createModelFromConfig(
         officialHost: isOfficialDeepSeekBaseUrl(upstreamBaseUrl?.trim() || baseUrl),
       }),
       ...resolveModelThinkingFields(thinking, DEEPSEEK_THINKING_WIRE_VALUES),
-      input: inputOverride ?? resolveDeepSeekModelInput(modelId),
+      input: wireInput ?? resolveDeepSeekModelInput(modelId),
       cost: zeroCost,
       contextWindow,
       maxTokens,
@@ -403,7 +434,7 @@ export function createModelFromConfig(
         contextWindow,
         maxTokens,
         cost: zeroCost,
-        ...(inputOverride ? { input: inputOverride } : {}),
+        ...(wireInput ? { input: wireInput } : {}),
         ...resolveModelThinkingFields(
           thinking,
           isXaiTarget ? XAI_THINKING_WIRE_VALUES : known.thinkingLevelMap,
@@ -437,7 +468,7 @@ export function createModelFromConfig(
         thinking,
         isXaiTarget ? XAI_THINKING_WIRE_VALUES : completionsOverrides?.thinkingLevelMap,
       ),
-      input: inputOverride ?? resolveCodexModelInput(api, modelId),
+      input: wireInput ?? resolveCodexModelInput(api, modelId),
       cost: zeroCost,
       contextWindow,
       maxTokens,
@@ -459,7 +490,7 @@ export function createModelFromConfig(
         contextWindow,
         maxTokens,
         cost: zeroCost,
-        ...(inputOverride ? { input: inputOverride } : {}),
+        ...(wireInput ? { input: wireInput } : {}),
         ...resolveModelThinkingFields(thinking, known.thinkingLevelMap),
       };
     }
@@ -471,7 +502,7 @@ export function createModelFromConfig(
       provider: "google",
       baseUrl: normalizedBaseUrl,
       ...resolveModelThinkingFields(thinking),
-      input: inputOverride ?? ["text", "image"],
+      input: wireInput ?? ["text", "image"],
       cost: zeroCost,
       contextWindow,
       maxTokens,
