@@ -729,6 +729,8 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
   "settings.estimatedLimitsBadge": "Estimated",
   "settings.contextWindow": "Context Window",
   "settings.maxOutputToken": "Max Output Token",
+  "settings.contextWindowPresets": "Quick fill the context window",
+  "settings.maxOutputTokenPresets": "Quick fill max output tokens",
   "settings.modelInputModalities": "Input capabilities",
   "settings.modelInputModalitiesAuto": "Auto-detect (recommended)",
   "settings.modelInputModalitiesText": "Text only",

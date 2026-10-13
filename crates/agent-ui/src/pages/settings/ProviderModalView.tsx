@@ -77,6 +77,10 @@ import {
   isCliIdentityProviderId,
   listCliIdentityProviderIds,
 } from "@liveagent/ui/lib/providers/customHeaders";
+import {
+  CONTEXT_WINDOW_PRESETS,
+  MAX_OUTPUT_TOKEN_PRESETS,
+} from "@liveagent/ui/lib/settings/modelLimitPresets";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import {
   applyUsageQueryModePreset,
@@ -84,6 +88,7 @@ import {
   setUsageQueryScript,
   USAGE_QUERY_CODING_PLAN_PROVIDERS,
 } from "@liveagent/ui/pages/settings/providerUtils";
+import { ModelLimitPresetRow } from "./ModelLimitPresets";
 import { ProviderHeaderNameInput } from "./ProviderHeaderNameInput";
 import type { ProviderModalViewModel } from "./ProviderModal";
 import {
@@ -729,6 +734,15 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                           <FormFieldLabel htmlFor="model-context-window">
                             {t("settings.contextWindow")}
                           </FormFieldLabel>
+                          <ModelLimitPresetRow
+                            presets={CONTEXT_WINDOW_PRESETS}
+                            label={t("settings.contextWindowPresets")}
+                            onPick={(value) =>
+                              setEditingModel((prev) =>
+                                prev ? { ...prev, contextWindow: String(value) } : prev,
+                              )
+                            }
+                          />
                           <Input
                             variant="plain"
                             id="model-context-window"
@@ -752,6 +766,15 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                           <FormFieldLabel htmlFor="model-max-output">
                             {t("settings.maxOutputToken")}
                           </FormFieldLabel>
+                          <ModelLimitPresetRow
+                            presets={MAX_OUTPUT_TOKEN_PRESETS}
+                            label={t("settings.maxOutputTokenPresets")}
+                            onPick={(value) =>
+                              setEditingModel((prev) =>
+                                prev ? { ...prev, maxOutputToken: String(value) } : prev,
+                              )
+                            }
+                          />
                           <Input
                             variant="plain"
                             id="model-max-output"

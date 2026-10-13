@@ -695,6 +695,8 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.estimatedLimitsBadge": "估计值",
   "settings.contextWindow": "Context Window",
   "settings.maxOutputToken": "Max Output Token",
+  "settings.contextWindowPresets": "上下文窗口快捷填入",
+  "settings.maxOutputTokenPresets": "最大输出 Token 快捷填入",
   "settings.modelInputModalities": "输入能力",
   "settings.modelInputModalitiesAuto": "自动推断（推荐）",
   "settings.modelInputModalitiesText": "仅文本",
