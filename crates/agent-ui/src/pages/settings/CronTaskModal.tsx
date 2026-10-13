@@ -134,6 +134,8 @@ function getCronReasoningLevels(
     providerId: provider.type,
     requestFormat: provider.requestFormat,
     modelId: selectedModel.model,
+    // 档位勾选按「实例 + 模型」挂载：定时任务的档位表也要跟随该模型的勾选。
+    provider,
   }).filter(isCronReasoningLevel);
   const thinkingAlwaysOn = isThinkingAlwaysOnForModel(provider.type, selectedModel.model);
 

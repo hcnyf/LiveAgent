@@ -25,6 +25,11 @@ const {
   hasModelThinkingLevelsOverride,
   resolveUnsupportedThinkingLevels,
 } = providerUtilsLoader.loadModule("@liveagent/ui/pages/settings/providerUtils.ts");
+const {
+  getChatRuntimeReasoningLevelsForProvider,
+  normalizeChatRuntimeControlsForProvider,
+  resolveConfiguredThinkingLevels,
+} = loader.loadModule("src/lib/settings/index.ts");
 
 const BASE_MODEL = { id: "k3", contextWindow: 258000, maxOutputToken: 32000 };
 
@@ -167,4 +172,85 @@ test("unsupported thinking levels come only from an authoritative catalog verdic
   ]);
   // 自定义/未收录模型：目录判不出，方向单一，一律不给提示。
   assert.deepEqual(resolveUnsupportedThinkingLevels("claude_code", "totally-unknown-relay-model"), []);
+});
+
+// ---------------------------------------------------------------------------
+// T4.1：档位解析链的覆盖参数（有勾选用勾选，无勾选回落目录）
+// ---------------------------------------------------------------------------
+
+const DEEPSEEK_PROVIDER = {
+  type: "deepseek",
+  requestFormat: undefined,
+  models: [
+    { id: "deepseek-v4-pro", thinkingLevels: ["low", "high", "max"] },
+    { id: "deepseek-v4-flash", thinkingLevels: ["off", "low"] },
+  ],
+};
+
+test("resolveConfiguredThinkingLevels prefers the declared levels and falls back to the catalog", () => {
+  // 有勾选：勾选集合胜出（含 off 这类目录不会给出的档）。
+  assert.deepEqual(
+    resolveConfiguredThinkingLevels(DEEPSEEK_PROVIDER, "deepseek-v4-flash"),
+    ["off", "low"],
+  );
+  // 有实例但该模型没有勾选：回落目录。
+  assert.deepEqual(
+    resolveConfiguredThinkingLevels({ type: "deepseek", models: [{ id: "deepseek-v4-pro" }] }, "deepseek-v4-pro"),
+    ["low", "high", "max"],
+  );
+  // 模型列表为空 / 没有 models 字段（WebUI 的窄视图类型）：同样回落目录，不抛错。
+  assert.deepEqual(
+    resolveConfiguredThinkingLevels({ type: "deepseek", models: [] }, "deepseek-v4-pro"),
+    ["low", "high", "max"],
+  );
+  assert.deepEqual(resolveConfiguredThinkingLevels({ type: "deepseek" }, "deepseek-v4-pro"), [
+    "low",
+    "high",
+    "max",
+  ]);
+  // 目录未收录的 id：走兜底推断（不是把别处的勾选漏过来）。
+  assert.deepEqual(resolveConfiguredThinkingLevels(DEEPSEEK_PROVIDER, "unknown-model"), [
+    "minimal",
+    "low",
+    "medium",
+    "high",
+  ]);
+});
+
+test("getChatRuntimeReasoningLevelsForProvider honors the optional provider instance", () => {
+  // 不传实例：维持旧口径（纯目录），既有调用方零改动。
+  assert.deepEqual(
+    getChatRuntimeReasoningLevelsForProvider({ providerId: "deepseek", modelId: "deepseek-v4-flash" }),
+    ["low", "high", "max"],
+  );
+  // 传实例：该模型的勾选胜出。
+  assert.deepEqual(
+    getChatRuntimeReasoningLevelsForProvider({
+      providerId: "deepseek",
+      modelId: "deepseek-v4-flash",
+      provider: DEEPSEEK_PROVIDER,
+    }),
+    ["off", "low"],
+  );
+});
+
+test("the declared levels also clamp the selected level at read time", () => {
+  const stored = { reasoningByModel: { deepseek: { "deepseek-v4-flash": "high" } } };
+  // 未接实例（目录三档）：high 在表内，原样保留。
+  assert.equal(
+    normalizeChatRuntimeControlsForProvider(stored, {
+      providerId: "deepseek",
+      modelId: "deepseek-v4-flash",
+    }).reasoning,
+    "high",
+  );
+  // 接实例（勾选只有 off/low）：high 被钳到勾选集合内的 low。
+  assert.equal(
+    normalizeChatRuntimeControlsForProvider(stored, {
+      providerId: "deepseek",
+      modelId: "deepseek-v4-flash",
+      provider: DEEPSEEK_PROVIDER,
+    }).reasoning,
+    "low",
+  );
 });

@@ -504,6 +504,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
       providerId: provider.type,
       requestFormat: provider.requestFormat,
       modelId: model,
+      provider,
     });
     const selectedModel: SelectedModel = {
       ...effectiveSelectedModel.selectedModel,

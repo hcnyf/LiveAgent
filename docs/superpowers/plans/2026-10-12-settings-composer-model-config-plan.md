@@ -59,7 +59,8 @@
 | T3.2 上下文/最大输出快捷填入 | ✅ 已提交（`7ae221fa`） |
 | T3.3 输入能力多选（含 PDF 运行时） | ✅ 已完成（`e51f2266`） |
 | T3.4 思考档位字段 + 表单 | ✅ 已完成（`a4629a8d`） |
-| 批④ 思考档位端到端联动 | ⏳ 下一步（T3.4 已就绪） |
+| T4.1 档位解析接口加覆盖参数 + 9 个调用点 | ✅ 本次完成（见该节「落地记录」） |
+| 批④ T4.2 / T4.3 | ⏳ 下一步 |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
 环境前置见附录 B（BuildTools 现落在 `D:\BuildTools`）。
@@ -189,12 +190,22 @@
 
 ## 批④ 思考档位端到端联动
 
-### T4.1 档位解析接口加覆盖参数 + 6 个调用点
+### T4.1 档位解析接口加覆盖参数 + 6 个调用点 —— ✅ 已完成
 
 - **文件**：`crates/agent-ui/src/lib/settings/index.ts:512`、新增共享 helper（建议放 `lib/models` 或 `lib/settings`）、以及调用点：`crates/agent-gui/src/pages/ChatPage.tsx:3403`、`crates/agent-gui/src/pages/chat/runtime/useChatModelSelection.ts:175`、`crates/agent-gui/src/lib/providers/runtime/providerRuntimeConfig.ts:25`、`crates/agent-gateway/web/src/app/hooks/useGatewayChatConfiguration.ts:73`、`crates/agent-gateway/web/src/app/workbench/GatewayConversationPaneHost.tsx:496`、`crates/agent-ui/src/pages/settings/CronTaskModal.tsx:133`
 - **做什么**：接口加可选覆盖参数（读档位时"有勾选用勾选，无勾选回落目录"）；用 helper 避免 6 处重复查找
 - **验收**：6 处全部接入；**`CronTaskModal` 最易漏，单独确认**
 - **坑**：这是 agent-gui 与 agent-gateway/web 的共享层，接口变更两端同时生效
+
+#### 落地记录
+
+1. **共享 helper**：`resolveConfiguredThinkingLevels(provider, modelId)` 与 `ChatRuntimeReasoningParams`（`provider?: ReasoningLevelsProvider`）落在 `lib/settings/index.ts`。`ReasoningLevelsProvider` 只要求 `{ type, models?: { id, thinkingLevels }[] }`——WebUI 的 `ModelProviderSource` 是窄 Pick（不带 `models`），运行时缺 `models` 时按"未自定义"回落目录而不是抛错。
+2. **实际接入 9 处**（比初稿的 6 处多，凡是同时调 `normalize/update…ForProvider` 的地方都必须同源，否则"读的档位"与"钳的档位"会分叉）：
+   - 初稿 6 处：`ChatPage`（背景 Pane）、`useChatModelSelection`、`providerRuntimeConfig`、`useGatewayChatConfiguration`、`GatewayConversationPaneHost`、`CronTaskModal`；
+   - 追加 3 处：`useSendChatTurn`（本轮实际下发的档位钳制，`:503`）、`gatewayChatCommandActions.resolveConversationRuntimeControls`、`clarifyPromptTurn`。
+   - `useChatModelSelection` / `useGatewayChatConfiguration` 顺带把 `chatRuntimeReasoningParams`（memo）复用到 `updateChatRuntimeControlsForProvider`，写入路径与读取路径同参数。
+3. **内存化依赖**：WebUI 两个 hook 的 memo 依赖补上 `currentChatProvider` / `selectedProvider`（provider 对象随 settings 更新换代，档位勾选变化必须触发重算）。
+4. **向后兼容**：不传 `provider` 时行为与改前逐字一致（纯目录），既有测试与调用方零改动。
 
 ### T4.2 `defaultThinkingLevel` 接入解析链
 

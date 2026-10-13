@@ -307,6 +307,8 @@
 
 抽共享 helper（如 `resolveConfiguredThinkingLevels(provider, modelId)`）避免 6 处重复查找。
 
+**落地形态**：helper 与 `ChatRuntimeReasoningParams` 落在 `settings/index.ts`，`provider` 参数只要求"能按模型 id 找到 `thinkingLevels`"的最小形状（WebUI 的 `ModelProviderSource` 不带 `models`，缺省即按未自定义回落目录）。实际接入 **9 处**——除上表 6 处外，凡调用 `normalize/updateChatRuntimeControlsForProvider` 的地方都必须同源（`useSendChatTurn` 的本轮下发钳制、`gatewayChatCommandActions.resolveConversationRuntimeControls`、`clarifyPromptTurn`），否则"读的档位表"与"钳当前档的档位表"会分叉。不传 `provider` 时行为与改前逐字一致。
+
 **注意**：此函数为 agent-gui 与 agent-gateway/web 共用，接口变更两端同时生效——这是本设计被判为架构级而非 bounded 的具体原因。
 
 ### ④-2 `defaultThinkingLevel` 接入解析链

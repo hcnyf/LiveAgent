@@ -3398,12 +3398,14 @@ function ChatPageContent(props: ChatPageProps) {
         providerId: paneProvider?.type,
         requestFormat: paneProvider?.requestFormat,
         modelId: paneSelectedModel?.model,
+        provider: paneProvider,
       },
     );
     const paneReasoningOptions = getChatRuntimeReasoningLevelsForProvider({
       providerId: paneProvider?.type,
       requestFormat: paneProvider?.requestFormat,
       modelId: paneSelectedModel?.model,
+      provider: paneProvider,
     });
     const paneThinkingAlwaysOn = isThinkingAlwaysOnForModel(
       paneProvider?.type ?? "claude_code",

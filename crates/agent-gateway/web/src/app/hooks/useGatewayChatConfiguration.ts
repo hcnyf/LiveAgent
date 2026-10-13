@@ -67,20 +67,25 @@ export function useGatewayChatConfiguration({
   }, [activeSelectedModel, settings.customProviders]);
   // 运行期思考档位补充到达会改变档位列表/恒开判定，版本号计入依赖使 memo 跟进。
   const thinkingLiveVersion = useThinkingLiveVersion();
-  // biome-ignore lint/correctness/useExhaustiveDependencies: thinkingLiveVersion 是刻意的失效信号，运行期档位补充到达后重算。
-  const chatRuntimeReasoningOptions = useMemo(
-    () =>
-      getChatRuntimeReasoningLevelsForProvider({
-        providerId: currentChatProvider?.type,
-        requestFormat: currentChatProvider?.requestFormat,
-        modelId: activeSelectedModel?.model,
-      }),
+  const chatRuntimeReasoningParams = useMemo(
+    () => ({
+      providerId: currentChatProvider?.type,
+      requestFormat: currentChatProvider?.requestFormat,
+      modelId: activeSelectedModel?.model,
+      // 档位勾选按「实例 + 模型」挂载，只有实例查得到（缺失回落目录）。
+      provider: currentChatProvider,
+    }),
     [
       activeSelectedModel?.model,
+      currentChatProvider,
       currentChatProvider?.requestFormat,
       currentChatProvider?.type,
-      thinkingLiveVersion,
     ],
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: thinkingLiveVersion 是刻意的失效信号，运行期档位补充到达后重算。
+  const chatRuntimeReasoningOptions = useMemo(
+    () => getChatRuntimeReasoningLevelsForProvider(chatRuntimeReasoningParams),
+    [chatRuntimeReasoningParams, thinkingLiveVersion],
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: thinkingLiveVersion 是刻意的失效信号，运行期档位补充到达后重算。
   const chatRuntimeThinkingAlwaysOn = useMemo(
@@ -102,10 +107,12 @@ export function useGatewayChatConfiguration({
           providerId: currentChatProvider?.type,
           requestFormat: currentChatProvider?.requestFormat,
           modelId: activeSelectedModel?.model,
+          provider: currentChatProvider,
         },
       ),
     [
       activeSelectedModel,
+      currentChatProvider,
       currentChatProvider?.requestFormat,
       currentChatProvider?.type,
       settings.chatRuntimeControls,
@@ -131,12 +138,14 @@ export function useGatewayChatConfiguration({
           providerId: currentChatProvider?.type,
           requestFormat: currentChatProvider?.requestFormat,
           modelId: activeSelectedModel?.model,
+          provider: currentChatProvider,
         }),
       }));
     },
     [
       activeSelectedModel,
       chatRuntimeControlsForCurrentProvider,
+      currentChatProvider,
       currentChatProvider?.requestFormat,
       currentChatProvider?.type,
       displayedConversationId,

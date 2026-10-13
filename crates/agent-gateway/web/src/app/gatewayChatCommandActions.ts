@@ -101,6 +101,7 @@ export function resolveConversationRuntimeControls(input: {
       providerId: provider?.type,
       requestFormat: provider?.requestFormat,
       modelId: input.selectedModel?.model,
+      provider,
     },
   );
 }

@@ -165,8 +165,15 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
       providerId: currentChatProvider?.type,
       requestFormat: currentChatProvider?.requestFormat,
       modelId: currentChatModelId,
+      // 档位勾选按「实例 + 模型」挂载，只有实例查得到（缺失回落目录）。
+      provider: currentChatProvider,
     }),
-    [currentChatModelId, currentChatProvider?.requestFormat, currentChatProvider?.type],
+    [
+      currentChatModelId,
+      currentChatProvider,
+      currentChatProvider?.requestFormat,
+      currentChatProvider?.type,
+    ],
   );
   // 运行期思考档位补充到达会改变档位列表/恒开判定，版本号计入依赖使 memo 跟进。
   const thinkingLiveVersion = useThinkingLiveVersion();

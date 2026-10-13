@@ -20,6 +20,7 @@ export function createProviderRuntimeConfig(
     providerId: provider.type,
     requestFormat: provider.requestFormat,
     modelId: model,
+    provider,
   };
   const controls = normalizeChatRuntimeControlsForProvider(controlsInput, reasoningParams);
   const reasoningSupported = getChatRuntimeReasoningLevelsForProvider(reasoningParams).length > 0;

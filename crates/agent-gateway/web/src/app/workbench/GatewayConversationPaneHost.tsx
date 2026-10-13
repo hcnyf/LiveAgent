@@ -478,10 +478,12 @@ export function GatewayConversationPaneHost(props: GatewayConversationPaneHostPr
           providerId: selectedProvider?.type,
           requestFormat: selectedProvider?.requestFormat,
           modelId: selection?.model,
+          provider: selectedProvider,
         },
       ),
     [
       context.settings.chatRuntimeControls,
+      selectedProvider,
       selectedProvider?.requestFormat,
       selectedProvider?.type,
       selection?.model,
@@ -497,8 +499,10 @@ export function GatewayConversationPaneHost(props: GatewayConversationPaneHostPr
         providerId: selectedProvider?.type,
         requestFormat: selectedProvider?.requestFormat,
         modelId: selection?.model,
+        provider: selectedProvider,
       }),
     [
+      selectedProvider,
       selectedProvider?.requestFormat,
       selectedProvider?.type,
       selection?.model,

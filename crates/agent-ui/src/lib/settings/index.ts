@@ -516,11 +516,49 @@ export function normalizeChatRuntimeControls(input: unknown): ChatRuntimeControl
   };
 }
 
-export function getChatRuntimeReasoningLevelsForProvider(params: {
+/**
+ * 档位解析的入参：`providerId` 是**协议类型**，可选的 `provider` 是**具体供应商实例**
+ * （勾选按实例+模型挂载在 ProviderModelConfig 上，只有实例能查到）。
+ */
+export type ChatRuntimeReasoningParams = {
   providerId?: ProviderId;
   requestFormat?: CodexRequestFormat;
   modelId?: string;
-}): ReasoningLevel[] {
+  /** 给出时其档位勾选优先于目录；缺失则回落目录（覆盖式，见决策 A/J）。 */
+  provider?: ReasoningLevelsProvider;
+};
+
+/**
+ * 档位勾选来源的最小形状：只要求能按模型 id 找到该模型的 `thinkingLevels`。
+ * `models` 可缺省——WebUI 的 `ModelProviderSource` 等窄视图类型不带模型列表，
+ * 缺省时按"未自定义"处理（回落目录）。
+ */
+export type ReasoningLevelsProvider = Pick<CustomProvider, "type"> & {
+  models?: Pick<ProviderModelConfig, "id" | "thinkingLevels">[];
+};
+
+/**
+ * 档位列表的唯一解析入口：**有用户勾选用勾选，无勾选回落目录**。
+ * 入参是具体供应商实例而非协议类型，勾选才查得到（按实例 + 模型挂载）。
+ */
+export function resolveConfiguredThinkingLevels(
+  provider: ReasoningLevelsProvider,
+  modelId: string | undefined,
+): ReasoningLevel[] {
+  const trimmedModelId = modelId?.trim();
+  const declared =
+    trimmedModelId && Array.isArray(provider.models)
+      ? normalizeThinkingLevels(
+          provider.models.find((item) => item.id === trimmedModelId)?.thinkingLevels,
+        )
+      : undefined;
+  return declared ?? getKnownModelThinkingLevels(provider.type, trimmedModelId);
+}
+
+export function getChatRuntimeReasoningLevelsForProvider(
+  params: ChatRuntimeReasoningParams,
+): ReasoningLevel[] {
+  if (params.provider) return resolveConfiguredThinkingLevels(params.provider, params.modelId);
   return getKnownModelThinkingLevels(params.providerId ?? "claude_code", params.modelId);
 }
 
@@ -540,11 +578,7 @@ export function getKnownModelThinkingLevels(
  */
 export function normalizeChatRuntimeControlsForProvider(
   input: unknown,
-  params: {
-    providerId?: ProviderId;
-    requestFormat?: CodexRequestFormat;
-    modelId?: string;
-  },
+  params: ChatRuntimeReasoningParams,
 ): ChatRuntimeControls {
   const controls = normalizeChatRuntimeControls(input);
   const key = getChatRuntimeReasoningProviderKey(params);
@@ -600,11 +634,7 @@ export function applyThinkingPatchToSelection(
 export function updateChatRuntimeControlsForProvider(
   input: unknown,
   patch: Partial<ChatRuntimeControls>,
-  params: {
-    providerId?: ProviderId;
-    requestFormat?: CodexRequestFormat;
-    modelId?: string;
-  },
+  params: ChatRuntimeReasoningParams,
 ): ChatRuntimeControls {
   const key = getChatRuntimeReasoningProviderKey(params);
   const levels = getChatRuntimeReasoningLevelsForProvider(params);
