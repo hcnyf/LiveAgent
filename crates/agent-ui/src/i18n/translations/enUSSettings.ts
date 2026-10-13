@@ -518,7 +518,12 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
     "Changes save automatically. General preferences apply to all services; failover is configured per protocol.",
   "settings.providerChooseService": "Choose a service type",
   "settings.providerChooseServiceHint":
-    "Select the compatible API, then configure the connection and models.",
+    "Pick a category and compatible API, then configure the connection and models.",
+  "settings.providerKind": "Provider category",
+  "settings.providerKindChat": "Chat models",
+  "settings.providerKindImage": "Image models",
+  "settings.imageProviderModelHint":
+    "Image-generation providers serve image generation only and never join a conversation, so chat-only settings such as input capabilities and thinking levels are not offered.",
   "settings.providerServices": "Services",
   "settings.providerProtocolTools": "Import and protocol settings",
   "settings.providerServiceType": "Service type",

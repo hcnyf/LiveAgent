@@ -1,5 +1,5 @@
 import type { UsagePlanDisplay, UsageRelativeTime } from "@liveagent/app/lib/providers/usageQuery";
-import type { PromptCacheHintMode, ProviderId } from "@liveagent/app/lib/settings";
+import type { PromptCacheHintMode, ProviderId, ProviderKind } from "@liveagent/app/lib/settings";
 import {
   ClaudeIcon,
   DeepseekIcon,
@@ -99,6 +99,17 @@ export function UsagePlanLine({ plan }: { plan: UsagePlanDisplay }) {
 }
 
 export const PROVIDER_TABS: ProviderId[] = ["claude_code", "codex", "gemini", "xai", "deepseek"];
+
+/**
+ * 生图供应商可选的协议子集：`claude_code` / `deepseek` 无生图 API、`xai` 本期不做
+ * （决策 M=丙），三者不出现在生图类别的服务选项里——不写空实现、不留注定 400 的选项。
+ */
+export const IMAGE_PROVIDER_TABS: ProviderId[] = ["codex", "gemini"];
+
+/** 某类别（`CustomProvider.kind`）可选的协议列表。 */
+export function providerTabsForKind(kind: ProviderKind): ProviderId[] {
+  return kind === "image" ? IMAGE_PROVIDER_TABS : PROVIDER_TABS;
+}
 
 const PROVIDER_LABELS: Record<ProviderId, string> = {
   claude_code: "Anthropic",

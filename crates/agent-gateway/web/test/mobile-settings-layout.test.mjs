@@ -71,12 +71,18 @@ test("mobile cron details give configuration more room and compact log summaries
   );
 });
 
-// 工具栏改为包裹布局：窄屏下 tabs 与动作组自然换行，动作组在 640px 以下撑满
-// 一行并平分；自定义设置从 Sheet 改为 fullscreen-mobile 的 Dialog。
-test("mobile provider toolbar stacks tabs above a full-width action group", () => {
+// 供应商列表已由协议 Tabs 改为「对话模型／生图模型」两类分栏：工具行只留动作组，
+// 滚动容器下移到分栏外层；动作组在 640px 以下仍撑满一行并平分。
+test("mobile provider toolbar keeps a full-width action group above kind sections", () => {
   assert.match(providersSource, /flex min-h-0 flex-1 flex-col gap-4/);
-  assert.match(providersSource, /flex shrink-0 flex-wrap items-center justify-between gap-3/);
-  assert.match(providersSource, /max-w-full overflow-x-auto pb-1/);
+  assert.match(providersSource, /flex shrink-0 flex-wrap items-center justify-end gap-3/);
+  assert.match(
+    providersSource,
+    /overflow-y-auto pr-1 web:max-820:pr-0 web:max-820:overscroll-y-contain/,
+  );
+  assert.match(providersSource, /PROVIDER_KIND_SECTIONS\.map\(\(kind\) => \(/);
+  assert.match(providersSource, /providerTabsForKind\(activeKind\)/);
+  assert.doesNotMatch(providersSource, /TabsList/);
   assert.match(
     providersSource,
     /inline-flex min-w-0 shrink-0 flex-wrap items-center gap-2[\s\S]{0,200}?max-640:w-full max-640:\[&>\.settings-provider-action\]:flex-1/,

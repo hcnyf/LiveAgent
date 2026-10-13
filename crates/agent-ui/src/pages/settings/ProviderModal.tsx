@@ -8,6 +8,7 @@ import {
   PROVIDER_RETRY_MAX_RETRIES_LIMITS,
   type PromptCacheHintMode,
   type ProviderId,
+  type ProviderKind,
   type ProviderModelConfig,
   type ProviderRetryPolicy,
   type ReasoningLevel,
@@ -71,6 +72,8 @@ import {
 
 type ModalProps = {
   providerType: ProviderId;
+  /** 新建供应商的类别（编辑时以 `initialData.kind` 为准）。 */
+  providerKind?: ProviderKind;
   initialData?: CustomProvider;
   onSave: (data: Omit<CustomProvider, "id">) => void;
   onClose: () => void;
@@ -129,6 +132,7 @@ function reconcileModelOrder(
 
 function useProviderModalController({
   providerType: defaultProviderType,
+  providerKind: defaultProviderKind,
   initialData,
   onSave,
   onClose,
@@ -136,6 +140,8 @@ function useProviderModalController({
   const [providerType, setProviderType] = useState<ProviderId>(
     initialData?.type ?? defaultProviderType,
   );
+  // 类别只在新建时来自服务选择弹窗；编辑时以存档为准（旧存档缺省 chat）。
+  const providerKind: ProviderKind = initialData?.kind ?? defaultProviderKind ?? "chat";
   const { t } = useLocale();
   const isGatewayWebui = isGatewayWebuiRuntime();
   const initialApiKey = initialData?.apiKey ?? "";
@@ -573,7 +579,7 @@ function useProviderModalController({
     ? parsePositiveInteger(editingModel.maxOutputToken)
     : null;
   const canOverrideModelInputModalities =
-    providerSupportsModelInputModalitiesOverride(providerType);
+    providerKind !== "image" && providerSupportsModelInputModalitiesOverride(providerType);
   const editingModelInputModalities = editingModel
     ? getModelInputModalitiesSelection(editingModel.model)
     : "auto";
@@ -762,6 +768,7 @@ function useProviderModalController({
     onSave({
       name: name.trim(),
       type: providerType,
+      kind: providerKind,
       baseUrl: baseUrl.trim(),
       isFullUrl,
       modelsUrl: providerType === "gemini" ? undefined : modelsUrl.trim() || undefined,
@@ -994,6 +1001,7 @@ function useProviderModalController({
     promptCacheRetention,
     promptCachingEnabled,
     providerType,
+    providerKind,
     removeCustomHeader,
     removeModel,
     requestClose,

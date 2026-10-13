@@ -493,7 +493,12 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.providerSettingsAutosave":
     "修改自动保存；通用偏好对所有服务生效，故障转移按兼容协议配置。",
   "settings.providerChooseService": "选择服务类型",
-  "settings.providerChooseServiceHint": "先选择兼容协议，下一步填写连接信息并配置模型。",
+  "settings.providerChooseServiceHint": "先选类别与兼容协议，下一步填写连接信息并配置模型。",
+  "settings.providerKind": "供应商类别",
+  "settings.providerKindChat": "对话模型",
+  "settings.providerKindImage": "生图模型",
+  "settings.imageProviderModelHint":
+    "生图供应商的模型只用于图像生成、不参与对话，因此不提供输入能力与思考档位等对话专用配置。",
   "settings.providerServices": "服务",
   "settings.providerProtocolTools": "导入与协议设置",
   "settings.providerServiceType": "服务类型",

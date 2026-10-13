@@ -227,6 +227,13 @@
 2. **其余消费点须逐个列全后再动手**（不得凭记忆）：至少包含用量查询、模型失败转移（`model_failover`）、设置页按 `providerType` 的分组排序。此项列入实现计划的第一个任务。
 3. 列表 UI 从协议 `Tabs` 改为两类分栏；「添加供应商」的服务选择弹窗（`:1144-1177`）需增加类别维度。生图分栏的完整形态（协议子集、生图参数、运行时与两种触发路径）见 `2026-10-12-image-generation-runtime-design.md`。
 
+**落地形态（已实现）**：
+
+- 分栏 = 两段纵向堆叠（`ProviderKindSection`：类别标题 + 计数 + 该类别列表），滚动容器在分栏外层，列表自身不再滚动；排序维度同步由协议改为类别（重排只在同类内部生效）。协议分组不再出现在列表页，改由「自定义设置」弹窗内的协议下拉承担失败转移等按协议配置。
+- 创建流程：服务选择弹窗顶部先选类别（`SettingsToggleGroup`），再列该类别可用的协议——生图类别只列 `codex`/`gemini`（决策 M=丙，`IMAGE_PROVIDER_TABS`）；`ProviderModal` 用 `initialData?.kind ?? providerKind ?? "chat"` 定类别并写进保存 payload。
+- **R14 边界**：`kind === "image"` 时模型设置窄栏隐藏对话专用字段（输入能力、思考档位与默认档、codex 缓存提示覆盖），只留一行说明；生图自己的生成参数（质量/尺寸/张数）在 ⑤-1 落地。上下文/最大输出两项暂留（生图模型条目的占位限额），⑤-1 复核。
+- **候选列表补漏**：`FailoverSettingsCard` 的 `vendorProviders` 过滤加了 `kind === "chat"`（P1 清单里"失败转移候选列表"一条的 UI 侧）。
+
 ### ③-2 / ③-3 上下文与最大输出快捷填入
 
 设计锚点：模型设置面板是弹窗右侧**窄栏** `<aside>`（`ProviderModalView.tsx:710-713`）；两个输入框为 `Input variant="plain" className="h-8"`（`:732-749` 上下文、`:755-772` 最大输出）。`limitsSource` 语义见 `providerUtils.ts:30-46`（改过值即标 `user`，永不被自动覆盖）。

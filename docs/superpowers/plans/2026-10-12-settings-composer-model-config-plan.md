@@ -55,11 +55,11 @@
 | 批① 窗口 + 设置壳 | ⏳ 未开始 |
 | 批② 输入框视觉 | ✅ 已提交（`34177787`） |
 | T3.1 `kind` 数据层 + P1 落地 | ✅ 已提交（`144c7d23`、`fa7010f0`） |
+| T3.1 的 UI 两类分栏 | ✅ 本次完成（见该节「落地记录」） |
 | T3.2 上下文/最大输出快捷填入 | ✅ 已提交（`7ae221fa`） |
 | T3.3 输入能力多选（含 PDF 运行时） | ✅ 已完成（`e51f2266`） |
-| T3.4 思考档位字段 + 表单 | ✅ 本次完成（见该节「落地记录」） |
-| T3.1 的 UI 两类分栏 | ⏳ 未做（`kind` 数据层已就绪） |
-| 批④ 思考档位端到端联动 | ⏳ 未开始（依赖 T3.4） |
+| T3.4 思考档位字段 + 表单 | ✅ 已完成（`a4629a8d`） |
+| 批④ 思考档位端到端联动 | ⏳ 下一步（T3.4 已就绪） |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
 环境前置见附录 B（BuildTools 现落在 `D:\BuildTools`）。
@@ -131,12 +131,20 @@
 
 ## 批③ 供应商 + 模型配置表单
 
-### T3.1 供应商 `kind` 字段 + 两类分栏
+### T3.1 供应商 `kind` 字段 + 两类分栏 —— ✅ 已完成
 
 - **文件**：`crates/agent-ui/src/lib/settings/types.ts:618`、`crates/agent-ui/src/lib/settings/index.ts`（`normalizeCustomProvider`）、`crates/agent-ui/src/pages/settings/ProvidersSection.tsx:1095-1142`、`ProviderModal.tsx` / `ProviderModalView.tsx`、`crates/agent-ui/src/lib/models/modelOptions.ts:105-129`、`crates/agent-gui/src/agent-ui-adapters/providerSettings.tsx:210`、`crates/agent-gui/test/settings/normalization.test.mjs`、`crates/agent-gateway/test/webui/web-settings.test.mjs`
 - **做什么**：新增 `kind: "chat" | "image"` 默认 `"chat"`；列表从协议 `Tabs` 改两类分栏；`buildModelOptions` 加 `kind !== "image"` 过滤；创建流程增加类别维度；落地 P1 清单的每一条
 - **验收**：生图供应商不出现在对话模型选择器；既有存档零迁移；Rust 侧无需改动（`redact_provider_credential` 透传未知字段）
-- **验证**：`pnpm test:gui` + `pnpm test:webui` + `pnpm check:ui-boundaries`
+- **验证**：`pnpm test:gui`（3437/3437）+ `pnpm test:webui` + `pnpm check:ui-boundaries`
+
+#### 落地记录（两段：数据层 `144c7d23`/`fa7010f0`，UI 本次）
+
+1. **分栏与排序的维度从协议改成类别**：`ProviderList` 的入参由 `type: ProviderId | "all"` 改为 `kind: ProviderKind`，`handleProviderReorder(kind, nextIds)` 同维度重排（重排只在同类别内部生效，跨类别相对顺序不变）；新增 `ProviderKindSection`（标题 + 计数 + 列表），滚动容器下移到分栏外层，列表自身不再滚动（避免嵌套滚动区）。
+2. **创建流程的类别维度**：服务选择弹窗顶部加「对话模型／生图模型」`SettingsToggleGroup`，协议列表由 `providerTabsForKind(kind)` 给出——生图类别只列 `codex`/`gemini`（决策 M=丙，`IMAGE_PROVIDER_TABS`）。`ProviderModal` 新增 `providerKind` 入参，控制器用 `initialData?.kind ?? providerKind ?? "chat"` 定类别并写进保存 payload（编辑时以存档为准）。
+3. **R14 边界（两套字段不互相污染）**：`kind === "image"` 时模型设置窄栏隐藏对话专用字段——输入能力（`canOverrideModelInputModalities` 同时要求非 image）、思考档位与默认档、codex 的缓存提示覆盖，改为一行说明文案 `settings.imageProviderModelHint`。生图自己的生成参数（质量/尺寸/张数）属 ⑤-1，未提前落地；上下文/最大输出两项暂留（生图模型条目需要的占位限额，⑤-1 一并复核）。
+4. **P1 候选列表补漏**：`FailoverSettingsCard` 的 `vendorProviders` 原本只按协议过滤，生图供应商会出现在失败转移候选里；已加 `providerListKind(provider) === "chat"`。
+5. **测试**：新增 `crates/agent-gui/test/settings/provider-kind-sections.test.mjs`（协议子集、分栏/排序维度、创建流程带 `kind`、对话专用字段门控、失败转移候选排除）；同步改写 `crates/agent-gateway/web/test/mobile-settings-layout.test.mjs` 的旧工具栏断言（它原来锁的是"tabs 与动作组换行"，现锁"动作组在上 + 分栏 + 外层滚动 + 无 TabsList"）。
 
 ### T3.2 上下文与最大输出快捷填入
 

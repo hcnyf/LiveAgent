@@ -14,6 +14,7 @@ import {
   MODEL_FAILOVER_QUEUE_LIMIT,
   type ProviderFailoverSettings,
   type ProviderId,
+  type ProviderKind,
   type SelectedModel,
   updateCustomProviders,
   updateCustomSettings,
@@ -57,7 +58,6 @@ import {
 } from "@liveagent/ui/components/ui/select";
 import { Skeleton } from "@liveagent/ui/components/ui/skeleton";
 import { Switch } from "@liveagent/ui/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@liveagent/ui/components/ui/tabs";
 import { VerticalReorderList } from "@liveagent/ui/components/ui/VerticalReorderList";
 import { useLocale } from "@liveagent/ui/i18n/index";
 import { buildModelOptions } from "@liveagent/ui/lib/models/modelOptions";
@@ -75,10 +75,19 @@ import {
   itemsByIdOrder,
   PROVIDER_TABS,
   ProviderBrandIcon,
+  providerTabsForKind,
   UsagePlanLine,
   usageRelativeTimeText,
 } from "./ProviderPresentation";
 import { RetryErrorSection } from "./RetryErrorSection";
+
+/**
+ * 列表分栏用的类别：与 `normalizeCustomProvider` 的默认值同义（旧存档 = chat）。
+ * 归一化后字段恒存在，这里的兜底只为防御未归一化的中间态。
+ */
+function providerListKind(provider: CustomProvider): ProviderKind {
+  return provider.kind === "image" ? "image" : "chat";
+}
 
 function FailoverNumberField(props: {
   label: string;
@@ -137,7 +146,11 @@ function FailoverSettingsCard(props: SettingsSectionProps & { providerType: Prov
   // Failover keeps the conversation's model and only switches which provider
   // serves it, so the queue holds providers, not models.
   const vendorProviders = useMemo(
-    () => settings.customProviders.filter((provider) => provider.type === providerType),
+    () =>
+      settings.customProviders.filter(
+        // 生图供应商不参与对话模型的失败转移（P1 清单：候选列表也要排除）。
+        (provider) => provider.type === providerType && providerListKind(provider) === "chat",
+      ),
     [settings.customProviders, providerType],
   );
   const providerById = useMemo(() => {
@@ -882,19 +895,19 @@ function ProviderCardRow(props: {
 }
 
 function ProviderList(props: {
-  type: ProviderId | "all";
+  kind: ProviderKind;
   providers: CustomProvider[];
   onAdd: () => void;
   onEdit: (provider: CustomProvider) => void;
   onDelete: (id: string) => void;
-  onReorder: (type: ProviderId | "all", nextIds: string[]) => void;
+  onReorder: (kind: ProviderKind, nextIds: string[]) => void;
   usageByProvider: ProviderUsageState;
   refreshingProviderIds: ReadonlySet<string>;
   onRefreshUsage: (providerId: string) => void;
 }) {
   const { t } = useLocale();
   const {
-    type,
+    kind,
     providers,
     onAdd,
     onEdit,
@@ -905,8 +918,8 @@ function ProviderList(props: {
     onRefreshUsage,
   } = props;
   const filtered = useMemo(
-    () => (type === "all" ? providers : providers.filter((provider) => provider.type === type)),
-    [providers, type],
+    () => providers.filter((provider) => providerListKind(provider) === kind),
+    [providers, kind],
   );
   const providerById = useMemo(
     () => new Map(filtered.map((provider) => [provider.id, provider])),
@@ -930,70 +943,103 @@ function ProviderList(props: {
     });
   }
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1 web:max-820:pr-0 web:max-820:overscroll-y-contain web:max-820:[-webkit-overflow-scrolling:touch]">
-        {filtered.length === 0 ? (
-          <div
-            className={cn(
-              "flex flex-col items-center justify-center",
-              "rounded-xl bg-settings-tile py-12 text-center",
-              "web:max-820:min-h-settings-provider-empty-min-h web:max-820:px-16px web:max-820:py-28px web:max-520:min-h-settings-provider-empty-min-h-2 web:max-520:px-12px web:max-520:py-22px",
-            )}
-          >
-            <div className="mb-3 flex items-center justify-center text-3xl text-foreground">
-              <Plus className="size-5" />
-            </div>
-            <p className="text-sm font-medium">{t("settings.noProvidersHint")}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4 gap-1.5 web:max-820:w-settings-provider-empty-add-w web:max-820:min-h-40px web:max-520:w-full"
-              onClick={onAdd}
-            >
-              <Plus className="size-3.5" />
-              {t("settings.addProvider")}
-            </Button>
+    <div className="flex flex-col gap-4">
+      {filtered.length === 0 ? (
+        <div
+          className={cn(
+            "flex flex-col items-center justify-center",
+            "rounded-xl bg-settings-tile py-12 text-center",
+            "web:max-820:min-h-settings-provider-empty-min-h web:max-820:px-16px web:max-820:py-28px web:max-520:min-h-settings-provider-empty-min-h-2 web:max-520:px-12px web:max-520:py-22px",
+          )}
+        >
+          <div className="mb-3 flex items-center justify-center text-3xl text-foreground">
+            <Plus className="size-5" />
           </div>
-        ) : (
-          <VerticalReorderList
-            itemIds={filtered.map((provider) => provider.id)}
-            canReorder
-            reorderLabel={t("settings.reorderProvider")}
-            reorderHint={t("settings.reorderVerticalHint")}
-            disabledHint={t("settings.reorderNeedsTwoItems")}
-            itemLabel={(providerId) => providerById.get(providerId)?.name ?? providerId}
-            onReorder={(nextIds) => onReorder(type, nextIds)}
-            className="space-y-2 pb-1"
+          <p className="text-sm font-medium">{t("settings.noProvidersHint")}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4 gap-1.5 web:max-820:w-settings-provider-empty-add-w web:max-820:min-h-40px web:max-520:w-full"
+            onClick={onAdd}
           >
-            {(providerId, _index, { dragging, dragHandle }) => {
-              const provider = providerById.get(providerId);
-              if (!provider) return null;
-              const refreshing = refreshingProviderIds.has(provider.id);
-              return (
-                <ProviderCardRow
-                  provider={provider}
-                  type={provider.type}
-                  usageDisplay={getProviderUsageCardDisplay(
-                    provider,
-                    usageByProvider[provider.id],
-                    refreshing,
-                    usageNow,
-                  )}
-                  refreshing={refreshing}
-                  usageExpanded={expandedUsageProviderIds.has(provider.id)}
-                  onToggleUsageExpanded={() => toggleUsageExpanded(provider.id)}
-                  dragging={dragging}
-                  dragHandle={dragHandle}
-                  onEdit={() => onEdit(provider)}
-                  onDelete={() => onDelete(provider.id)}
-                  onRefreshUsage={() => onRefreshUsage(provider.id)}
-                />
-              );
-            }}
-          </VerticalReorderList>
-        )}
-      </div>
+            <Plus className="size-3.5" />
+            {t("settings.addProvider")}
+          </Button>
+        </div>
+      ) : (
+        <VerticalReorderList
+          itemIds={filtered.map((provider) => provider.id)}
+          canReorder
+          reorderLabel={t("settings.reorderProvider")}
+          reorderHint={t("settings.reorderVerticalHint")}
+          disabledHint={t("settings.reorderNeedsTwoItems")}
+          itemLabel={(providerId) => providerById.get(providerId)?.name ?? providerId}
+          onReorder={(nextIds) => onReorder(kind, nextIds)}
+          className="space-y-2 pb-1"
+        >
+          {(providerId, _index, { dragging, dragHandle }) => {
+            const provider = providerById.get(providerId);
+            if (!provider) return null;
+            const refreshing = refreshingProviderIds.has(provider.id);
+            return (
+              <ProviderCardRow
+                provider={provider}
+                type={provider.type}
+                usageDisplay={getProviderUsageCardDisplay(
+                  provider,
+                  usageByProvider[provider.id],
+                  refreshing,
+                  usageNow,
+                )}
+                refreshing={refreshing}
+                usageExpanded={expandedUsageProviderIds.has(provider.id)}
+                onToggleUsageExpanded={() => toggleUsageExpanded(provider.id)}
+                dragging={dragging}
+                dragHandle={dragHandle}
+                onEdit={() => onEdit(provider)}
+                onDelete={() => onDelete(provider.id)}
+                onRefreshUsage={() => onRefreshUsage(provider.id)}
+              />
+            );
+          }}
+        </VerticalReorderList>
+      )}
     </div>
+  );
+}
+
+const PROVIDER_KIND_SECTIONS: readonly ProviderKind[] = ["chat", "image"];
+
+const PROVIDER_KIND_LABEL_KEYS: Record<ProviderKind, string> = {
+  chat: "settings.providerKindChat",
+  image: "settings.providerKindImage",
+};
+
+/** 一个类别（对话／生图）的分栏：标题 + 计数 + 该类别自己的供应商列表。 */
+function ProviderKindSection(props: {
+  kind: ProviderKind;
+  providers: CustomProvider[];
+  onAdd: () => void;
+  onEdit: (provider: CustomProvider) => void;
+  onDelete: (id: string) => void;
+  onReorder: (kind: ProviderKind, nextIds: string[]) => void;
+  usageByProvider: ProviderUsageState;
+  refreshingProviderIds: ReadonlySet<string>;
+  onRefreshUsage: (providerId: string) => void;
+}) {
+  const { t } = useLocale();
+  const { kind, providers } = props;
+  const count = providers.filter((provider) => providerListKind(provider) === kind).length;
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-foreground">
+          {t(PROVIDER_KIND_LABEL_KEYS[kind])}
+        </h3>
+        <span className="text-xs text-muted-foreground">{count}</span>
+      </div>
+      <ProviderList {...props} />
+    </section>
   );
 }
 
@@ -1007,6 +1053,7 @@ export function ProvidersSection(
   const { settings, setSettings, initialProviderId, onInitialProviderHandled } = props;
 
   const [activeTab, setActiveTab] = useState<ProviderId>("claude_code");
+  const [activeKind, setActiveKind] = useState<ProviderKind>("chat");
   const [modalOpen, setModalOpen] = useState(false);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
   const [customSettingsOpen, setCustomSettingsOpen] = useState(false);
@@ -1023,12 +1070,14 @@ export function ProvidersSection(
     if (!provider) return;
     openedInitialProviderIdRef.current = providerId;
     setActiveTab(provider.type);
+    setActiveKind(providerListKind(provider));
     setEditingProvider(provider);
     setModalOpen(true);
     onInitialProviderHandled?.();
   }, [initialProviderId, onInitialProviderHandled, settings.customProviders]);
 
-  function openAdd() {
+  function openAdd(kind: ProviderKind = activeKind) {
+    setActiveKind(kind);
     setEditingProvider(null);
     setServicePickerOpen(true);
   }
@@ -1045,6 +1094,7 @@ export function ProvidersSection(
 
   function handleSave(data: Omit<CustomProvider, "id">) {
     setActiveTab(data.type);
+    setActiveKind(data.kind ?? "chat");
     setSettings((prev) => {
       if (editingProvider) {
         const updated = prev.customProviders.map((provider) =>
@@ -1070,21 +1120,21 @@ export function ProvidersSection(
     );
   }
 
-  function handleProviderReorder(type: ProviderId | "all", nextIds: string[]) {
+  function handleProviderReorder(kind: ProviderKind, nextIds: string[]) {
     setSettings((prev) => {
-      const providersOfType = prev.customProviders.filter(
-        (provider) => type === "all" || provider.type === type,
+      const providersOfKind = prev.customProviders.filter(
+        (provider) => providerListKind(provider) === kind,
       );
-      const reordered = itemsByIdOrder(providersOfType, nextIds);
+      const reordered = itemsByIdOrder(providersOfKind, nextIds);
       const included = new Set(reordered.map((provider) => provider.id));
-      for (const provider of providersOfType) {
+      for (const provider of providersOfKind) {
         if (!included.has(provider.id)) reordered.push(provider);
       }
       let index = 0;
       return updateCustomProviders(
         prev,
         prev.customProviders.map((provider) =>
-          type === "all" || provider.type === type ? (reordered[index++] ?? provider) : provider,
+          providerListKind(provider) === kind ? (reordered[index++] ?? provider) : provider,
         ),
       );
     });
@@ -1092,44 +1142,24 @@ export function ProvidersSection(
 
   return (
     <>
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => {
-          const type = PROVIDER_TABS.find((type) => type === value);
-          if (type) setActiveTab(type);
-        }}
-        className="flex min-h-0 flex-1 flex-col gap-4"
-      >
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-          <div className="max-w-full overflow-x-auto pb-1">
-            <TabsList variant="segmented" aria-label={t("settings.providerServices")}>
-              {PROVIDER_TABS.map((type) => (
-                <TabsTrigger key={type} value={type} variant="segmented" className="gap-1.5">
-                  <span aria-hidden="true" className="flex shrink-0 items-center">
-                    <ProviderBrandIcon type={type} />
-                  </span>
-                  {getProviderLabel(type)}
-                  <span className="text-muted-foreground">
-                    {settings.customProviders.filter((provider) => provider.type === type).length}
-                  </span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
           <ProviderActionGroup
             settings={settings}
             setSettings={setSettings}
             customSettingsOpen={customSettingsOpen}
-            onAdd={openAdd}
+            onAdd={() => openAdd()}
             onOpenCustomSettings={() => setCustomSettingsOpen(true)}
           />
         </div>
-        {PROVIDER_TABS.map((type) => (
-          <TabsContent key={type} value={type} className="flex min-h-0 flex-1 flex-col">
-            <ProviderList
-              type={type}
+        {/* 两类分栏取代原协议 Tabs：对话模型与生图模型各自成段，全部可见、无需切页。 */}
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pr-1 web:max-820:pr-0 web:max-820:overscroll-y-contain web:max-820:[-webkit-overflow-scrolling:touch]">
+          {PROVIDER_KIND_SECTIONS.map((kind) => (
+            <ProviderKindSection
+              key={kind}
+              kind={kind}
               providers={settings.customProviders}
-              onAdd={openAdd}
+              onAdd={() => openAdd(kind)}
               onEdit={openEdit}
               onDelete={handleDelete}
               onReorder={handleProviderReorder}
@@ -1137,9 +1167,9 @@ export function ProvidersSection(
               refreshingProviderIds={refreshingProviderIds}
               onRefreshUsage={(providerId) => void refreshProvider(providerId)}
             />
-          </TabsContent>
-        ))}
-      </Tabs>
+          ))}
+        </div>
+      </div>
 
       {servicePickerOpen && (
         <Dialog
@@ -1155,22 +1185,39 @@ export function ProvidersSection(
                 {t("settings.providerChooseServiceHint")}
               </p>
             </DialogHeader>
-            <DialogBody className="space-y-2">
-              {PROVIDER_TABS.map((type) => (
-                <Button
-                  key={type}
-                  variant="ghost"
-                  className="h-12 w-full justify-start gap-3 bg-settings-tile px-4 hover:bg-settings-tile-hover"
-                  onClick={() => {
-                    setActiveTab(type);
-                    setServicePickerOpen(false);
-                    setModalOpen(true);
-                  }}
-                >
-                  <ProviderBrandIcon type={type} />
-                  {getProviderLabel(type)} {t("settings.compatible")}
-                </Button>
-              ))}
+            <DialogBody className="space-y-3">
+              <SettingsToggleGroup
+                value={[activeKind]}
+                onValueChange={(values) => {
+                  const next = values[0];
+                  if (next === "chat" || next === "image") setActiveKind(next);
+                }}
+                aria-label={t("settings.providerKind")}
+              >
+                {PROVIDER_KIND_SECTIONS.map((kind) => (
+                  <SettingsToggleGroupItem key={kind} value={kind}>
+                    {t(PROVIDER_KIND_LABEL_KEYS[kind])}
+                  </SettingsToggleGroupItem>
+                ))}
+              </SettingsToggleGroup>
+              <div className="space-y-2">
+                {/* 生图类别的协议子集收窄为 codex/gemini（决策 M=丙）。 */}
+                {providerTabsForKind(activeKind).map((type) => (
+                  <Button
+                    key={type}
+                    variant="ghost"
+                    className="h-12 w-full justify-start gap-3 bg-settings-tile px-4 hover:bg-settings-tile-hover"
+                    onClick={() => {
+                      setActiveTab(type);
+                      setServicePickerOpen(false);
+                      setModalOpen(true);
+                    }}
+                  >
+                    <ProviderBrandIcon type={type} />
+                    {getProviderLabel(type)} {t("settings.compatible")}
+                  </Button>
+                ))}
+              </div>
             </DialogBody>
           </DialogContent>
         </Dialog>
@@ -1178,6 +1225,7 @@ export function ProvidersSection(
       {modalOpen ? (
         <ProviderModal
           providerType={activeTab}
+          providerKind={activeKind}
           initialData={editingProvider ?? undefined}
           onSave={handleSave}
           onClose={closeModal}

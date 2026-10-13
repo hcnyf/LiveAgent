@@ -189,6 +189,7 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     promptCacheHintMode,
     promptCacheRetention,
     promptCachingEnabled,
+    providerKind,
     providerType,
     removeCustomHeader,
     removeModel,
@@ -859,35 +860,44 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                             </FormFieldDescription>
                           </FormField>
                         ) : null}
-                        <FormField>
-                          <FormFieldLabel>{t("settings.modelThinkingLevels")}</FormFieldLabel>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                            {REASONING_LEVEL_CHOICES.map((level) => (
-                              <Label
-                                key={level}
-                                className="flex cursor-pointer items-center gap-2 text-sm font-normal"
-                              >
-                                <Checkbox
-                                  checked={editingModelThinkingLevels.includes(level)}
-                                  onCheckedChange={(checked) =>
-                                    toggleEditingModelThinkingLevel(level, checked)
-                                  }
-                                />
-                                {t(THINKING_LEVEL_LABEL_KEYS[level])}
-                                {/* 决策 K：目录明确未声明支持的档位给提示但不阻断。 */}
-                                {editingModelUnsupportedThinkingLevels.includes(level) ? (
-                                  <span className="text-xs text-muted-foreground">
-                                    {t("settings.modelThinkingLevelUnsupported")}
-                                  </span>
-                                ) : null}
-                              </Label>
-                            ))}
-                          </div>
-                          <FormFieldDescription>
-                            {t("settings.modelThinkingLevelsHint")}
-                          </FormFieldDescription>
-                        </FormField>
-                        {editingModelHasCustomThinkingLevels ? (
+                        {providerKind === "image" ? (
+                          <FormField>
+                            <FormFieldDescription>
+                              {t("settings.imageProviderModelHint")}
+                            </FormFieldDescription>
+                          </FormField>
+                        ) : null}
+                        {providerKind !== "image" ? (
+                          <FormField>
+                            <FormFieldLabel>{t("settings.modelThinkingLevels")}</FormFieldLabel>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                              {REASONING_LEVEL_CHOICES.map((level) => (
+                                <Label
+                                  key={level}
+                                  className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+                                >
+                                  <Checkbox
+                                    checked={editingModelThinkingLevels.includes(level)}
+                                    onCheckedChange={(checked) =>
+                                      toggleEditingModelThinkingLevel(level, checked)
+                                    }
+                                  />
+                                  {t(THINKING_LEVEL_LABEL_KEYS[level])}
+                                  {/* 决策 K：目录明确未声明支持的档位给提示但不阻断。 */}
+                                  {editingModelUnsupportedThinkingLevels.includes(level) ? (
+                                    <span className="text-xs text-muted-foreground">
+                                      {t("settings.modelThinkingLevelUnsupported")}
+                                    </span>
+                                  ) : null}
+                                </Label>
+                              ))}
+                            </div>
+                            <FormFieldDescription>
+                              {t("settings.modelThinkingLevelsHint")}
+                            </FormFieldDescription>
+                          </FormField>
+                        ) : null}
+                        {providerKind !== "image" && editingModelHasCustomThinkingLevels ? (
                           <FormField>
                             <FormFieldLabel>
                               {t("settings.modelDefaultThinkingLevel")}
@@ -926,7 +936,7 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                             </FormFieldDescription>
                           </FormField>
                         ) : null}
-                        {providerType === "codex" ? (
+                        {providerType === "codex" && providerKind !== "image" ? (
                           <FormField>
                             <FormFieldLabel>
                               {t("settings.promptCacheHintModelOverride")}
