@@ -34,6 +34,15 @@
 
 **验收**：一份结论（通 / 不通 + 证据）。不通则 ⑤-3 改走 Gemini 的"图像 + 文本 → 图像"形态，或先调整反代。
 
+**结论（2026-10-13 实测）：通。** 证据是一份**进程内端到端**测试，不是读代码推断：
+
+- 落点 `crates/agent-gui/src-tauri/src/services/proxy.rs` → `tests::forwards_multipart_body_verbatim`（`#[tokio::test]`）。
+- 做法：进程内起两个 axum 实例——假上游（`POST /v1/images/edits`，把**收到的原始字节与 content-type** 记进 sink）与真实生产路由表（为此把路由组装抽出成 `build_proxy_router(state)`，`start_proxy_server` 与测试共用同一份，避免测试复制一份永不偏离的路由定义）；客户端按生产调用方式（`x-liveagent-proxy-token` + `x-liveagent-upstream-origin` + `content-type: multipart/form-data; boundary=…`）打一次转发。
+- 断言：body **逐字节相等**（探针故意含 `\r\n`、`0x00`、`0xff` 等二进制与换行字节，任何"按行重编码/先解析再重组"的实现都会露馅）；`content-type` 连 boundary **原样到达上游**。
+- 实测结果：`21 passed; 0 failed`（本模块 21 例全绿，`forwards_multipart_body_verbatim ... ok`），`cargo test` 仅 3 条既有警告。
+- 机理（与实测一致）：`handle_proxy` 用 `to_bytes(body, usize::MAX)` 把请求体收成字节后 `client.request(method, url).body(body_bytes)` 原样发出；`build_upstream_request_headers` 只丢 `host` / `content-length` / hop-by-hop / `x-liveagent-*`，`content-type` 在放行之列，`content-length` 由 reqwest 按新 body 重算（这正是正确行为）。
+- **对 ⑤-3 的含义**：`codex` 走 `POST /v1/images/edits` 的 multipart 链路**不需要绕道**；spec 风险 R11 解除，"至少一条协议链路可用带参考图的编辑"由 codex 与 gemini 两条都能满足。
+
 ## 批次总览
 
 | 批 | 子系统 | 任务数 | 依赖 |
@@ -51,7 +60,7 @@
 | 任务 | 状态 |
 |---|---|
 | P1 生图消费点排查 | ✅ 已完成并落地（`144c7d23`、`fa7010f0`） |
-| P2 本地反代 multipart 实测 | ⏳ 未做（阻塞 ⑤-3） |
+| P2 本地反代 multipart 实测 | ✅ 已完成：通（见上「P2」结论，`forwards_multipart_body_verbatim`） |
 | 批① 窗口 + 设置壳 | ⏳ 未开始 |
 | 批② 输入框视觉 | ✅ 已提交（`34177787`） |
 | T3.1 `kind` 数据层 + P1 落地 | ✅ 已提交（`144c7d23`、`fa7010f0`） |

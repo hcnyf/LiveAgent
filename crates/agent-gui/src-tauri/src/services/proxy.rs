@@ -109,11 +109,7 @@ pub fn start_proxy_server() -> Result<Arc<ProxyServerState>, String> {
         .map_err(|err| format!("创建本地代理 HTTP 客户端失败：{err}"))?,
     });
 
-    let app = Router::new()
-        .route("/image-proxy", get(handle_image_proxy))
-        .route("/proxy/{provider}", any(handle_proxy))
-        .route("/proxy/{provider}/{*rest}", any(handle_proxy))
-        .with_state(state.clone());
+    let app = build_proxy_router(state.clone());
 
     tauri::async_runtime::spawn(async move {
         let listener = match TokioTcpListener::from_std(listener) {
@@ -129,6 +125,18 @@ pub fn start_proxy_server() -> Result<Arc<ProxyServerState>, String> {
     });
 
     Ok(state)
+}
+
+/// 路由与 state 的组装点。抽出来是为了让测试能在进程内起一个真实的反代实例
+/// （见 `forwards_multipart_body_verbatim`）：路由表若在 `start_proxy_server`
+/// 里内联，测试就只能复制一份路由定义，而复制出来的那份永远不会偏离生产
+/// ——测试也就失去意义。
+fn build_proxy_router(state: Arc<ProxyServerState>) -> Router {
+    Router::new()
+        .route("/image-proxy", get(handle_image_proxy))
+        .route("/proxy/{provider}", any(handle_proxy))
+        .route("/proxy/{provider}/{*rest}", any(handle_proxy))
+        .with_state(state)
 }
 
 async fn handle_image_proxy(Query(query): Query<ImageProxyQuery>, headers: HeaderMap) -> Response {
@@ -1173,6 +1181,103 @@ mod tests {
         apply_cors_headers(&mut headers, &HeaderMap::new());
 
         assert_eq!(header_str(&headers, VARY), Some("*"));
+    }
+
+    /// P2 实测（生图运行时 ⑤-3 的前置）：`POST /v1/images/edits` 是 multipart，
+    /// 而全库此前只有 Go gateway 有 multipart 先例，Rust 反代是否会破坏 body
+    /// 属未实测项（spec 风险 R11）。
+    ///
+    /// 本测试不靠读代码推断，而是在进程内真的起两个 axum 实例：一个假上游记录
+    /// **收到的原始字节与 content-type**，一个是生产同一份路由表（build_proxy_router）
+    /// 的反代；客户端按生产调用方式（token + upstream-origin 头 + multipart body）
+    /// 打一次转发。断言 body 逐字节一致、boundary 原样保留。
+    #[tokio::test]
+    async fn forwards_multipart_body_verbatim() {
+        const BOUNDARY: &str = "----liveagent-multipart-probe-0f3a";
+
+        let captured: Arc<tokio::sync::Mutex<Option<(String, Vec<u8>)>>> =
+            Arc::new(tokio::sync::Mutex::new(None));
+        let sink = captured.clone();
+        let upstream_router = Router::new()
+            .route(
+                "/v1/images/edits",
+                axum::routing::post(
+                    |headers: HeaderMap, body: Body| async move {
+                        let bytes = to_bytes(body, usize::MAX).await.unwrap_or_default();
+                        let content_type = headers
+                            .get(CONTENT_TYPE)
+                            .and_then(|value| value.to_str().ok())
+                            .unwrap_or("<missing>")
+                            .to_string();
+                        *sink.lock().await = Some((content_type, bytes.to_vec()));
+                        (StatusCode::OK, "{\"ok\":true}")
+                    },
+                ),
+            );
+        let upstream_listener = TokioTcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("bind upstream");
+        let upstream_addr = upstream_listener.local_addr().expect("upstream addr");
+        tokio::spawn(async move {
+            let _ = axum::serve(upstream_listener, upstream_router).await;
+        });
+
+        let proxy_listener = TokioTcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+            .await
+            .expect("bind proxy");
+        let proxy_addr = proxy_listener.local_addr().expect("proxy addr");
+        let proxy_state = Arc::new(ProxyServerState {
+            info: ProxyServerInfo {
+                base_url: format!("http://{proxy_addr}"),
+                token: "probe-token".to_string(),
+            },
+            client: reqwest::Client::new(),
+        });
+        let proxy_router = build_proxy_router(proxy_state);
+        tokio::spawn(async move {
+            let _ = axum::serve(proxy_listener, proxy_router).await;
+        });
+
+        // 故意含 \r\n、0x00、0xff 等二进制与换行字节：任何「按行重编码」或
+        // 「先解析再重组」的转发实现都会在这里露出马脚。
+        let mut multipart = Vec::new();
+        multipart.extend_from_slice(format!("--{BOUNDARY}\r\n").as_bytes());
+        multipart.extend_from_slice(b"Content-Disposition: form-data; name=\"prompt\"\r\n\r\n");
+        multipart.extend_from_slice("一只猫\r\n第二行\n".as_bytes());
+        multipart.extend_from_slice(format!("\r\n--{BOUNDARY}\r\n").as_bytes());
+        multipart.extend_from_slice(
+            b"Content-Disposition: form-data; name=\"image[]\"; filename=\"ref.png\"\r\n\
+              Content-Type: image/png\r\n\r\n",
+        );
+        multipart.extend_from_slice(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0xff]);
+        multipart.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
+
+        let response = reqwest::Client::new()
+            .post(format!("http://{proxy_addr}/proxy/codex/v1/images/edits"))
+            .header(PROXY_TOKEN_HEADER, "probe-token")
+            .header(UPSTREAM_ORIGIN_HEADER, format!("http://{upstream_addr}"))
+            .header(CONTENT_TYPE, format!("multipart/form-data; boundary={BOUNDARY}"))
+            .body(multipart.clone())
+            .send()
+            .await
+            .expect("proxy request");
+        assert_eq!(response.status(), StatusCode::OK);
+        let _ = response.bytes().await;
+
+        let (content_type, body) = captured
+            .lock()
+            .await
+            .clone()
+            .expect("upstream must have received the forwarded request");
+        assert_eq!(
+            body, multipart,
+            "local proxy must forward the multipart body byte-for-byte"
+        );
+        assert_eq!(
+            content_type,
+            format!("multipart/form-data; boundary={BOUNDARY}"),
+            "content-type (and therefore the boundary) must reach the upstream unchanged"
+        );
     }
 
     fn vary_items(value: &str) -> Vec<String> {
