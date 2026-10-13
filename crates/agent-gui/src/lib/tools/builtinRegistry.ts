@@ -4,6 +4,7 @@ import type { SystemToolRuntimeScope } from "@liveagent/ui/lib/tools/systemToolO
 import { homeDir } from "@tauri-apps/api/path";
 import type { RuntimePlatform } from "../runtimePlatform";
 import {
+  type CustomProvider,
   type McpSettings,
   type McpSettingsOp,
   type ProviderId,
@@ -28,6 +29,7 @@ import { createConversationTools } from "./conversationTools";
 import { createCronTools } from "./cronTools";
 import { createFileToolState, type FileToolState } from "./fileToolState";
 import { createFsTools } from "./fsTools";
+import { createImageTools } from "./imageTools";
 import { createMcpManagerTools } from "./mcpManagerTools";
 import { createMcpTools } from "./mcpTools";
 import { createMemoryTools } from "./memoryTools";
@@ -186,6 +188,12 @@ type BuildBuiltinBaseToolRegistryParams = {
   };
   /** Live read of the authoritative MCP settings (never a turn-level snapshot). */
   getMcpSettings: () => McpSettings;
+  /**
+   * Live read of the authoritative provider list, for the image-generation tool.
+   * Same live-read policy as `getMcpSettings` / `getToolPolicies`: 生图供应商是
+   * 用户随时可改的配置，用 turn 级快照会让"刚加好的供应商"当轮用不上。
+   */
+  getImageProviders?: () => readonly CustomProvider[] | undefined;
   /** Id-keyed merge commit into the authoritative settings; absent in read-only scopes. */
   applyMcpOps?: (ops: McpSettingsOp[]) => void;
   onMcpLoadError?: (message: string) => void;
@@ -268,6 +276,16 @@ async function buildBaseBuiltinToolBundles(
       workdir: params.workdir,
       mode: params.memoryToolMode ?? "rw",
     }),
+    // 生图工具只在拿得到权威供应商读取器时注册：没有它就无法解析目标供应商，
+    // 注册一个必然报错的工具只会浪费模型的 token 与一次审批。
+    ...(params.getImageProviders
+      ? [
+          createImageTools({
+            workdir: params.workdir,
+            getImageProviders: params.getImageProviders,
+          }),
+        ]
+      : []),
     createTunnelManagerTools({
       enabled: params.remoteWebTunnelsEnabled === true && params.runtimeScope === "chat",
       runtimeScope: params.runtimeScope,

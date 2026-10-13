@@ -34,6 +34,8 @@ export function toolGroupPolicyKey(groupId: string): string {
  *    不能靠第 7 步的兜底 allow 隐式放行。用户在第 2 步显式表态即可盖过。
  *    该值在建工具表时依据 server 配置(含 command)算好,不在这里按 id 现查
  *    ——id 是用户可改的展示性标识,见 contracts/mcpServerDefaults.ts。
+ * 3b. 内置工具自带的静态缺省(`metadata.defaultPolicy`,如 GenerateImage 有真实
+ *    费用):同样不能被第 7 步的兜底 allow 隐式放行,用户显式配置仍优先。
  * 4. 工具组级默认(group:<groupId>,如把"所有 MCP 工具"设为 ask/deny)。
  *    2、4 都是用户对更大范围的明确表态,应盖过下面的只读缺省。
  * 5. browser 组无显式配置时缺省 ask:浏览器可出网、可交互外部站点,
@@ -58,6 +60,8 @@ export function resolveToolPolicy(
     }
   }
   if (metadata?.serverPolicyDefault) return metadata.serverPolicyDefault;
+  // 内置工具自带的静态缺省（生图等有真实副作用的工具）。
+  if (metadata?.defaultPolicy) return metadata.defaultPolicy;
   const groupId = metadata?.groupId;
   const groupPolicy = groupId ? policies?.[toolGroupPolicyKey(groupId)] : undefined;
   if (groupPolicy) return groupPolicy;

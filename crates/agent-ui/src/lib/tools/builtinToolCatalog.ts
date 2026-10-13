@@ -108,6 +108,17 @@ export const BUILTIN_TOOL_CATALOG: readonly BuiltinToolCatalogEntry[] = [
     runtimeScopes: CHAT_AND_CRON,
   },
   {
+    id: "generate_image",
+    toolName: "GenerateImage",
+    icon: "image",
+    categoryId: "intelligence",
+    isReadOnly: false,
+    runtimeScopes: CHAT_AND_CRON,
+    // 生图有真实费用与外部副作用：缺省过一次审批，与 agent-gui 侧 metadata
+    // 的 defaultPolicy 同源（见 lib/tools/toolPolicy.ts 的判定顺序）。
+    defaultPolicy: "ask",
+  },
+  {
     id: "write",
     toolName: "Write",
     icon: "filePen",

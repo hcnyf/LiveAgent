@@ -381,6 +381,10 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
   "settings.builtinTool.image.desc": "Load and inspect image files in the project",
   "settings.builtinTool.image.detail":
     "Loads image files from the project as visual content the model can understand — handy for screenshots, design mockups, and charts. Read-only.",
+  "settings.builtinTool.generate_image.name": "Generate Image",
+  "settings.builtinTool.generate_image.desc": "Generate images with a configured image provider",
+  "settings.builtinTool.generate_image.detail":
+    "Generates images from a prompt through the configured image-model provider (codex / gemini protocols). Results are shown in the chat. Generation costs real money, so it asks for your approval by default.",
   "settings.builtinTool.write.name": "Write File",
   "settings.builtinTool.write.desc": "Create new files or overwrite existing ones",
   "settings.builtinTool.write.detail":

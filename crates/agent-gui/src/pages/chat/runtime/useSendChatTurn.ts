@@ -157,6 +157,8 @@ type UseSendChatTurnParams = {
   setSettings: (updater: (prev: AppSettings) => AppSettings) => void;
   getMcpSettings: () => AppSettings["mcp"];
   getToolPolicies: () => AppSettings["system"]["toolPolicies"];
+  /** 权威实时读取供应商列表（生图工具解析目标用）。 */
+  getImageProviders: () => AppSettings["customProviders"];
   t: (key: string) => string;
   sidebarStore: SidebarStore;
   titleJobRef: MutableRefObject<TitleJobRefValue>;
@@ -233,6 +235,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
     setSettings,
     getMcpSettings,
     getToolPolicies,
+    getImageProviders,
     t,
     sidebarStore,
     titleJobRef,
@@ -1701,6 +1704,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
             agentTemplates: settings.agents,
             getMcpSettings: getEffectiveMcpSettings,
             getToolPolicies,
+            getImageProviders,
             getCuaAllowSelfTargeting: () => settings.system.cuaAllowSelfTargeting === true,
             commandSafetyMode: effectiveCommandSafetyMode,
             planModeEnabled: effectivePlanModeEnabled,

@@ -9,6 +9,8 @@ export type ChatPageProps = {
   sttProviderOverride?: SttProviderId | null;
   getMcpSettings: () => AppSettings["mcp"];
   getToolPolicies: () => AppSettings["system"]["toolPolicies"];
+  /** 权威实时读取供应商列表（生图工具解析目标用）。 */
+  getImageProviders: () => AppSettings["customProviders"];
   context: Context;
   setContext: (next: Context) => void;
   onOpenSettings: (section?: SectionId, providerId?: string) => void;

@@ -510,6 +510,8 @@ export default function App() {
   // one synchronous segment can never observe a stale snapshot.
   const getMcpSettings = useCallback(() => settingsRef.current.mcp, []);
   const getToolPolicies = useCallback(() => settingsRef.current.system.toolPolicies, []);
+  // 生图工具的目标供应商同样走权威实时读取：用户刚加的供应商当轮就该能用。
+  const getImageProviders = useCallback(() => settingsRef.current.customProviders, []);
 
   const reloadPersistedSettings = useCallback(async () => {
     await saveChainRef.current.catch(() => undefined);
@@ -767,6 +769,7 @@ export default function App() {
               sttProviderOverride={sttProviderOverride}
               getMcpSettings={getMcpSettings}
               getToolPolicies={getToolPolicies}
+              getImageProviders={getImageProviders}
               context={context}
               setContext={setContext}
               onOpenSettings={openSettings}

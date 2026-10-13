@@ -89,6 +89,7 @@ macro_rules! app_invoke_handler {
             commands::fs::fs_read_image_source,
             commands::fs::fs_read_workspace_image,
             commands::fs::fs_write_text,
+            commands::fs::fs_save_image_to_workdir,
             commands::fs::fs_edit_text,
             commands::fs::fs_delete,
             commands::fs::fs_open_workspace_path,
@@ -162,6 +163,9 @@ macro_rules! app_invoke_handler {
             commands::notifications::notification_permission_state,
             commands::notifications::request_notification_permission,
             commands::notifications::send_system_notification,
+            commands::images::image_artifact_info,
+            commands::images::image_artifact_save,
+            commands::images::image_artifact_prune,
             commands::settings::settings_save_providers,
             commands::settings::settings_list_ccswitch_providers,
             commands::settings::settings_list_cherry_studio_providers,
@@ -986,6 +990,7 @@ pub fn run() {
                 }
                 commands::system::gc_upload_staging_on_startup();
                 commands::system::start_directory_import_staging_gc();
+                services::image_artifacts::prune_expired_artifacts_on_startup();
                 app.manage(services::proxy::start_proxy_server()?);
                 if let Err(error) = services::skills::ensure_builtin_agent_skills_sync() {
                     eprintln!("failed to seed builtin skills: {error}");

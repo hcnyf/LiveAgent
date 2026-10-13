@@ -301,6 +301,8 @@ export type RunAgentConversationTurnParams = {
   getMcpSettings: () => AppSettings["mcp"];
   /** 工具审批策略的实时读取(权威 settingsRef,非 turn 级快照),缺省视为空表。 */
   getToolPolicies?: () => AppSettings["system"]["toolPolicies"];
+  /** 供应商列表的实时读取(生图工具解析目标用);缺省则不注册生图工具。 */
+  getImageProviders?: () => AppSettings["customProviders"];
   /** 允许 CUA 工具操作 LiveAgent 自身；默认 false，见 lib/tools/cuaSelfGuard.ts。 */
   getCuaAllowSelfTargeting?: () => boolean;
   /** 命令执行方式(turn 级快照):ask 全量审批 / auto 按策略 / sandbox(±断网)。 */
@@ -399,6 +401,7 @@ export async function runAgentConversationTurn(params: RunAgentConversationTurnP
     agentTemplates,
     getMcpSettings,
     getToolPolicies,
+    getImageProviders,
     getCuaAllowSelfTargeting,
     commandSafetyMode,
     planModeEnabled,
@@ -647,6 +650,7 @@ export async function runAgentConversationTurn(params: RunAgentConversationTurnP
     runtimeScope: "chat",
     currentChatModel: selectedModel,
     getMcpSettings,
+    getImageProviders,
     applyMcpOps,
     remoteWebTunnelsEnabled,
     tunnelProjectPathKey: workspaceProjectPathKey(effectiveWorkdir),

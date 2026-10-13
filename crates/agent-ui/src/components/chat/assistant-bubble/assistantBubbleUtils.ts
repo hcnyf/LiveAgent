@@ -915,6 +915,7 @@ export function isBuiltinShareToolName(name: string) {
     "Delete",
     "Edit",
     "ExitPlanMode",
+    "GenerateImage",
     "Glob",
     "Grep",
     "Image",

@@ -3164,6 +3164,216 @@ pub async fn fs_write_text(
     .await
 }
 
+/// 把应用级生图临时根里的一张图复制进工作区（「保存到工作区」）。
+///
+/// 为什么必须新增一个命令：既有写入链路（`fs_write_text` / `fs_create_dir` /
+/// `fs_rename`）的目标一律是工作区相对路径、源也必须在工作区内，**没有任何命令
+/// 能接收工作区之外的源**；而这里的源恰恰在工作区之外（应用临时根）。
+///
+/// 源侧白名单只有两项，二者都用 `fs::canonicalize` 后的路径比较（Windows 上
+/// canonicalize 会产出 `\\?\C:\...` verbatim 形式，逻辑路径直接 `starts_with`
+/// 永远不相等——这是本仓踩过的坑，见 `commands/app/system.rs` 的同类注释）：
+/// 1. 已在工作区内 → 不复制，原样返回当前位置（用户可能对一张已在工作区的图
+///    再点一次「保存」）；
+/// 2. 应用生图临时根之内 → 复制。
+/// 其余外部绝对路径一律拒绝：那会凭空开出一条「任意读 + 写工作区」的通道，
+/// 而本期需要它的唯一场景（生图产物）已经由第 2 项覆盖。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveImageToWorkdirResponse {
+    /// 工作区相对路径（正斜杠），可直接喂回 Read/Image 等工具。
+    pub path: String,
+    pub absolute_path: String,
+    pub display_path: String,
+    pub file_name: String,
+    pub mime_type: String,
+    pub size_bytes: u64,
+    pub mtime_ms: u64,
+    pub content_hash: String,
+    pub file_id: Option<String>,
+    /// true = 源本来就在工作区内，未发生复制。
+    pub already_inside_workdir: bool,
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn fs_save_image_to_workdir(
+    workdir: String,
+    source_path: String,
+    file_name: Option<String>,
+    checkpoint: Option<CheckpointCtx>,
+) -> Result<SaveImageToWorkdirResponse, FsCommandError> {
+    run_blocking_fs("fs_save_image_to_workdir", move || {
+        fs_save_image_to_workdir_sync(workdir, source_path, file_name, checkpoint)
+    })
+    .await
+}
+
+fn fs_save_image_to_workdir_sync(
+    workdir: String,
+    source_path: String,
+    file_name: Option<String>,
+    checkpoint: Option<CheckpointCtx>,
+) -> Result<SaveImageToWorkdirResponse, FsCommandError> {
+    fs_save_image_to_workdir_impl(&workdir, &source_path, file_name.as_deref(), checkpoint)
+        .map_err(|error| FsCommandError::from(error).with_workdir(Path::new(&workdir)))
+}
+
+fn fs_save_image_to_workdir_impl(
+    workdir: &str,
+    source_path: &str,
+    file_name: Option<&str>,
+    checkpoint: Option<CheckpointCtx>,
+) -> Result<SaveImageToWorkdirResponse, FsError> {
+    let root = canonicalize_workdir(workdir)?;
+
+    let raw_source = source_path.trim();
+    if raw_source.is_empty() {
+        return Err(FsError::Other(
+            "source_path is required to save an image into the workspace".to_string(),
+        ));
+    }
+    let expanded = expand_tilde_path(raw_source);
+    if !expanded.is_absolute() {
+        return Err(FsError::Other(format!(
+            "source_path must be an absolute path: {raw_source}"
+        )));
+    }
+    let source = fs::canonicalize(&expanded).map_err(|error| {
+        FsError::Other(format!("图片不存在或无法访问（{raw_source}）：{error}"))
+    })?;
+    let source_meta = fs::metadata(&source)?;
+    if !source_meta.is_file() {
+        return Err(FsError::Other(format!(
+            "source_path is not a regular file: {}",
+            display_path(&source)
+        )));
+    }
+
+    let already_inside_workdir = source.starts_with(&root);
+    let target = if already_inside_workdir {
+        source.clone()
+    } else {
+        let temp_root = fs::canonicalize(crate::services::image_artifacts::images_temp_root())
+            .map_err(|_| {
+                FsError::Other(
+                    "生图临时目录不存在：这张图不是本应用生成的，无法保存到工作区".to_string(),
+                )
+            })?;
+        if !source.starts_with(&temp_root) {
+            return Err(FsError::Other(format!(
+                "只支持保存本应用生成的图片（临时目录之外的外部路径不受支持）：{}",
+                display_path(&source)
+            )));
+        }
+
+        let requested_name = match file_name.map(str::trim).filter(|name| !name.is_empty()) {
+            Some(name) => name.to_string(),
+            None => source
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("image")
+                .to_string(),
+        };
+        // 文件名走与其它写入命令同一份消毒（拒 `..`、绝对路径、盘符与保留名）。
+        let sanitized = sanitize_rel_path_core(&requested_name)?
+            .ok_or_else(|| FsError::Other(format!("invalid file_name: {requested_name}")))?;
+        let raw_target = root.join(&sanitized);
+        let parent = ensure_parent_dir(&root, &raw_target)?;
+        let final_name = raw_target
+            .file_name()
+            .ok_or_else(|| FsError::Other("Invalid target path".to_string()))?;
+        // 同名不覆盖：用户点「保存」两次不该把第一张覆盖掉（也不该静默失败）。
+        unique_copy_target(parent.join(final_name))
+    };
+
+    if !already_inside_workdir {
+        capture_pre_image(
+            checkpoint.as_ref(),
+            &root,
+            &checkpoint_rel(&root, &target, &target),
+            PreImage::Missing,
+        );
+        fs::copy(&source, &target).map_err(|error| {
+            FsError::Other(format!(
+                "复制图片到工作区失败（{} → {}）：{error}",
+                display_path(&source),
+                display_path(&target)
+            ))
+        })?;
+    }
+
+    let canon = fs::canonicalize(&target)?;
+    if !canon.starts_with(&root) {
+        return Err(FsError::OutOfBounds(canon.display().to_string()));
+    }
+    let md = fs::metadata(&canon)?;
+    let bytes = fs::read(&canon)?;
+    let relative = rel_to_workdir_str(&root, &canon);
+    Ok(SaveImageToWorkdirResponse {
+        path: relative.clone(),
+        absolute_path: display_path(&canon),
+        display_path: relative,
+        file_name: canon
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("image")
+            .to_string(),
+        mime_type: image_mime_from_extension(&canon).to_string(),
+        size_bytes: md.len(),
+        mtime_ms: metadata_mtime_ms(&md),
+        content_hash: hash_bytes(&bytes),
+        file_id: Some(file_identity(&md, &canon)),
+        already_inside_workdir,
+    })
+}
+
+/// 同名时依次尝试 `name-2.ext`、`name-3.ext`…（与上传导入的去重命名同策略）。
+fn unique_copy_target(target: PathBuf) -> PathBuf {
+    if !target.exists() {
+        return target;
+    }
+    let stem = target
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("image")
+        .to_string();
+    let ext = target
+        .extension()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let parent = target.parent().map(Path::to_path_buf).unwrap_or_default();
+    for idx in 2..=10_000usize {
+        let name = match ext.as_deref() {
+            Some(ext) => format!("{stem}-{idx}.{ext}"),
+            None => format!("{stem}-{idx}"),
+        };
+        let candidate = parent.join(name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    target
+}
+
+fn image_mime_from_extension(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "bmp" => "image/bmp",
+        "svg" => "image/svg+xml",
+        _ => "application/octet-stream",
+    }
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EditTextResponse {

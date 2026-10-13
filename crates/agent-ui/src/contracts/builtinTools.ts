@@ -40,6 +40,15 @@ export type BuiltinToolMetadata = {
    * `contracts/mcpServerDefaults.ts`。
    */
   serverPolicyDefault?: ToolPolicy;
+  /**
+   * 内置工具在无显式配置时的审批缺省。与 `serverPolicyDefault` 的分工：
+   * 后者按 **MCP server 的配置**（含 command）算出，前者是内置工具自带的静态
+   * 缺省（如 GenerateImage 有真实费用，缺省必须过一次审批）。
+   *
+   * 该值同时声明在 agent-ui `builtinToolCatalog` 的 `defaultPolicy` 字段（设置页
+   * 据此展示真实缺省并决定何时写显式键），两处需保持同步。
+   */
+  defaultPolicy?: ToolPolicy;
 };
 
 export function createBuiltinMetadataMap(

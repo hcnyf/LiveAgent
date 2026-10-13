@@ -91,7 +91,14 @@ export function buildProviderRequestHeaders(
 export async function prepareProviderRequest(
   providerId: ProviderId,
   runtime: ProviderRuntimeConfig,
-  options?: { sessionId?: string },
+  options?: {
+    sessionId?: string;
+    /**
+     * 无状态请求（生图等一次性端点）：Codex 链路**不带** CLI 会话身份头。
+     * 与 requestFormat="openai-completions" 同一份"无状态"语义，但不改协议本身。
+     */
+    stateless?: boolean;
+  },
 ): Promise<PreparedProxyRequest> {
   const upstreamBaseUrl =
     providerId === "deepseek"
@@ -107,7 +114,7 @@ export async function prepareProviderRequest(
         providerId,
         runtime.apiKey,
         options?.sessionId,
-        runtime.requestFormat,
+        options?.stateless ? "openai-completions" : runtime.requestFormat,
       ),
       runtime.customHeaders,
     ),

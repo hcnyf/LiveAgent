@@ -72,7 +72,7 @@
 | T4.2 `defaultThinkingLevel` 接入解析链 | ✅ 本次完成（行为变更 R3） |
 | T4.3 `off` 由勾选决定 | ✅ 本次完成 |
 | 批① 窗口 + 设置壳 + 系统设置 | ✅ 已完成（T1.1 / T1.2 / T1.3 / T1.4） |
-| 批⑤ 生图运行时 | ⏳ 进行中（T5.1 已完成，T5.2–T5.5 待做） |
+| 批⑤ 生图运行时 | ⏳ 进行中（T5.1–T5.4 已完成，T5.5 待做） |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
 环境前置见附录 B（BuildTools 现落在 `D:\BuildTools`）。
@@ -299,6 +299,26 @@
 - **验收**：模型能通过工具生成 1 张图并在会话内渲染；后续请求按既有规则脱敏；清理阈值 **30 天**（决策确认）
 - **坑**：张数上限受 `MAX_DISPLAY_IMAGE_PATHS = 12` 约束
 - **段**：⑤-1
+
+**落地记录（T5.2 / T5.3 / T5.4 一起落地）**：三者的代码互相咬合（入口要同时分派两条适配器、工具要处理张数与越界），故合并为一次提交。
+
+Rust 侧：
+- 新增 `services/image_artifacts.rs`：应用级临时根 `<系统临时目录>/liveagent-images/`、**内容寻址命名** `liveagent-<fnv1a64>.<ext>`（同内容复用同一文件，命中时只刷新 mtime，保证"最近还被用到"的图不被清理）、`extension_for_mime` 白名单、单张 64 MB 防御上限、纯函数 `is_expired` 与 `prune_expired_artifacts`（只删普通文件、跳过子目录、目录不存在不算错）、启动清理（`prune_expired_artifacts_on_startup`，与上传暂存区 GC 同策略：失败只记录不阻断启动）。
+  - 内容哈希**刻意与 `commands/workspace/fs.rs::hash_bytes` 同算法**（FNV-1a 64）：全仓 `contentHash` 吃同一份口径，单测用空输入/`"a"` 的已知值把这条钉死。
+  - 清理阈值 **30 天**（spec 决策）。
+- 新增命令 `image_artifact_info` / `image_artifact_save` / `image_artifact_prune`（`commands/app/images.rs`，只做 IPC 边界，规则全在服务层）。
+
+前端：
+- `lib/images/`：`base64.ts`（分块，避免大图爆栈）、`types.ts`、`providerRequest.ts`（**复用 `createProviderRuntimeConfig` + `prepareProviderRequest`** 这一份唯一装配，并新增 `stateless: true` 选项——生图是无状态端点，不该带 Codex CLI 的会话身份头）、`imageParams.ts`（目标解析）、`generateImage.ts`（按协议分派）、`adapters/openaiImages.ts`、`adapters/geminiImages.ts`、`imageArtifacts.ts`。
+- codex：文生图 `POST /images/generations`（**不发 `response_format`**：gpt-image-1 只回 b64_json 且拒绝该字段，dall-e 默认回 url；两种形状都解析，url 形状经 hub 反代取回字节）。
+- gemini：`POST /models/{model}:generateContent` + `responseModalities: ["IMAGE"]`，**独立解析**（`candidates[0].content.parts[].inlineData`）；`imageConfig.imageSize` 只在 Gemini 3 图像模型上发送（2.5 代不认这个字段，多送会 400）；`n>1` 靠串行重复请求（协议没有批量参数）。
+- 工具 `GenerateImage`（`lib/tools/imageTools.ts`）：注册进 registry；结果**复用 `display_image` 契约**（不新增结果类型），带内联图块供 UI 渲染——模型侧仍只看到路径，因为 `requestContextSanitizer` 对 `details.kind === "display_image"` 的结果会把 content 整段替换为路径文本（与 `Image` 工具同一条既有链路）。
+- 审批缺省 `ask`：契约新增 `BuiltinToolMetadata.defaultPolicy`，`resolveToolPolicy` 在 serverPolicyDefault 之后、组缺省之前消费它；`builtinToolCatalog` 同步声明 `defaultPolicy: "ask"` 并提供三条 i18n 文案（两者必须同步，测试锁定）。
+- 张数越界**在原始入参上判定**：`resolveImageGenerationParams` 对非法值一律当"未传"（对落库配置是正确语义），若在解析后才判定，`count=20` 会静默回落到模型默认张数——正是 spec 验收 6 禁止的行为。
+- 供应商实时读取沿 `getToolPolicies` 同一条链（App → ChatPage → useSendChatTurn → runAgentConversationTurn → registry），缺省不注册生图工具。
+
+测试：`crates/agent-gui/test/images/image-generation.test.mjs` 15 例（目标解析 / 传输头 / JSON 与 multipart 两条形状 / url 形状经 hub 反代 / gemini 独立形状与串行多张 / 上游错误透出 / 未知协议拒绝 / 审批缺省与 catalog 同步 / 缺供应商与越界报错 / 结果契约 / 参考图走 edits）；Rust `services::image_artifacts` 6 例。
+验证：`typecheck:ui|gui|webui`、`check:ui-boundaries`、`lint` 全通过；`test:gui` 3479 全绿（含新增 15 例）、`test:webui` 734 全绿；`cargo check --tests` 仅 3 条既有警告，`cargo test --lib services::image_artifacts` 6 passed / 0 failed。
 
 ### T5.3 Gemini 适配器
 

@@ -361,6 +361,10 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.builtinTool.image.desc": "读取并识别项目内的图片文件",
   "settings.builtinTool.image.detail":
     "将项目内的图片文件加载为可视内容供模型理解，常用于查看截图、设计稿或图表。只读操作。",
+  "settings.builtinTool.generate_image.name": "生成图片",
+  "settings.builtinTool.generate_image.desc": "用配置的生图供应商按提示词生成图片",
+  "settings.builtinTool.generate_image.detail":
+    "调用已配置的「生图模型」供应商（协议支持 codex / gemini）按提示词生成图片，结果展示在会话中。生成会消耗真实费用，因此默认需要你审批。",
   "settings.builtinTool.write.name": "写入文件",
   "settings.builtinTool.write.desc": "创建新文件或覆盖已有文件",
   "settings.builtinTool.write.detail":
