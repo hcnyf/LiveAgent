@@ -141,6 +141,7 @@ import {
 import { skillMentionInjection } from "../lib/chat/skills/mentionInjection";
 import { tauriGitClient } from "../lib/git/tauriGitClient";
 import { buildMemoryOverviewSection } from "../lib/memory/prompts/injection";
+import { setNotificationPrefs } from "../lib/system/notifications";
 import { createProviderRuntimeConfig, toModelValue } from "../lib/providers/llm";
 import {
   applyConversationThinking,
@@ -854,7 +855,14 @@ function ChatPageContent(props: ChatPageProps) {
     }
   }, [conversationRuntimeCacheRef, runningConversationIds, sidebarStore]);
 
+  // 通知偏好是机器无关设置，随设置变化推给桌面通知模块（过滤规则在那边）。
+  useEffect(() => {
+    setNotificationPrefs(settings.system.notifications);
+  }, [settings.system.notifications]);
+
   const { addNotify } = useNotifyToasts({
+    conversationId: currentConversationId,
+    isRunning: runningConversationIds.has(currentConversationId),
     errorMessage,
     hookWarning,
     compactionStatus,

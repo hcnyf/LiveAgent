@@ -1179,6 +1179,16 @@ mod tests {
     }
 
     /// 归一后的 systemProxy 默认值（save/load 全量断言共用）。
+    /// 归一后的通知偏好默认值（全开）。
+    fn default_notification_settings_json() -> Value {
+        json!({
+            "sessionComplete": true,
+            "sessionError": true,
+            "permissionRequest": true,
+            "notifyWhenFocused": true
+        })
+    }
+
     fn default_system_proxy_json() -> Value {
         json!({
             "enabled": false,
@@ -1224,7 +1234,7 @@ mod tests {
         };
         let loaded = load_system(&conn).expect("load system");
 
-        assert_eq!(row_count, 15);
+        assert_eq!(row_count, 16);
         assert_eq!(
             keys,
             vec![
@@ -1237,6 +1247,7 @@ mod tests {
                 SYSTEM_EXECUTION_MODE_KEY.to_string(),
                 SYSTEM_HIDDEN_WORKSPACE_PROJECT_PATHS_KEY.to_string(),
                 SYSTEM_MISSING_WORKSPACE_PROJECT_PATHS_KEY.to_string(),
+                SYSTEM_NOTIFICATIONS_KEY.to_string(),
                 SYSTEM_SYSTEM_PROXY_KEY.to_string(),
                 SYSTEM_TOOL_POLICIES_KEY.to_string(),
                 SYSTEM_WORKDIR_KEY.to_string(),
@@ -1259,6 +1270,7 @@ mod tests {
                 "browserAutomationMode": "auto",
                 "defaultTimeZone": "",
                 "systemProxy": default_system_proxy_json(),
+                "notifications": default_notification_settings_json(),
                 "workdir": default_workdir.clone(),
                 "toolPolicies": { "Bash": "ask", "server:docs-mcp": "deny" },
                 "workspaceProjectGroups": null,
@@ -1595,6 +1607,7 @@ mod tests {
                 "browserAutomationMode": "auto",
                 "defaultTimeZone": "",
                 "systemProxy": default_system_proxy_json(),
+                "notifications": default_notification_settings_json(),
                 "workdir": "/tmp/liveagent-default-project",
                 "toolPolicies": null,
                 "workspaceProjectGroups": null,
@@ -1652,6 +1665,7 @@ mod tests {
                 "browserAutomationMode": "auto",
                 "defaultTimeZone": "",
                 "systemProxy": default_system_proxy_json(),
+                "notifications": default_notification_settings_json(),
                 "workdir": "/tmp/liveagent-default-project",
                 "toolPolicies": null,
                 "workspaceProjectGroups": null,
@@ -1731,6 +1745,7 @@ mod tests {
                 "browserAutomationMode": "auto",
                 "defaultTimeZone": "",
                 "systemProxy": default_system_proxy_json(),
+                "notifications": default_notification_settings_json(),
                 "workdir": "/tmp/liveagent-default-project",
                 "workspaceProjects": [
                     {

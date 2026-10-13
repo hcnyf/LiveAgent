@@ -20,6 +20,12 @@ import {
   updateCustomSettings,
   updateSystem,
 } from "@liveagent/app/lib/settings";
+import {
+  getNotificationPermissionState,
+  type NotificationPermissionState,
+  refreshNotificationPermissionState,
+  requestNotificationPermission,
+} from "@liveagent/app/lib/system/notifications";
 import type { SettingsSectionProps } from "@liveagent/app/pages/settings/types";
 import { invoke } from "@liveagent/app/shims/tauriCore";
 import { Settings2 } from "@liveagent/ui/components/IconSet";
@@ -52,6 +58,7 @@ import {
 } from "@liveagent/ui/components/ui/dialog";
 import { Input } from "@liveagent/ui/components/ui/input";
 import { Select, SelectItem, SelectValue } from "@liveagent/ui/components/ui/select";
+import { Switch } from "@liveagent/ui/components/ui/switch";
 import { type Locale, SUPPORTED_LOCALES, useLocale } from "@liveagent/ui/i18n/index";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import {
@@ -65,6 +72,34 @@ import { isGatewayWebuiRuntime } from "../../lib/runtimeEnv";
 import { SidebarShortcutsSection } from "./SidebarShortcutsSection";
 
 const FONT_SCALE_OPTIONS = [0.9, 1, 1.1, 1.2] as const;
+
+/** 通知偏好四项的文案与开关顺序（含"有焦点时是否发"这个总闸）。 */
+const NOTIFICATION_TOGGLE_FIELDS: ReadonlyArray<{
+  key: "sessionComplete" | "sessionError" | "permissionRequest" | "notifyWhenFocused";
+  labelKey: string;
+  hintKey: string;
+}> = [
+  {
+    key: "sessionComplete",
+    labelKey: "settings.notificationsSessionComplete",
+    hintKey: "settings.notificationsSessionCompleteHint",
+  },
+  {
+    key: "sessionError",
+    labelKey: "settings.notificationsSessionError",
+    hintKey: "settings.notificationsSessionErrorHint",
+  },
+  {
+    key: "permissionRequest",
+    labelKey: "settings.notificationsPermissionRequestLabel",
+    hintKey: "settings.notificationsPermissionRequestHint",
+  },
+  {
+    key: "notifyWhenFocused",
+    labelKey: "settings.notificationsWhenFocused",
+    hintKey: "settings.notificationsWhenFocusedHint",
+  },
+];
 
 /** 「跟随系统代理」时 Rust 侧读回的 OS 代理读数（桌面端专有）。 */
 type SystemProxyOsStatus = {
@@ -360,6 +395,19 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
     !systemProxy.enabled && systemProxy.mode === "manual" && !proxyConfigValid;
   const [proxyDetailsOpen, setProxyDetailsOpen] = useState(false);
   const systemProxyOsStatus = useSystemProxyOsStatus(systemProxy.mode);
+  // 通知权限：挂载时查询一次用于显示"被拒"原因；WebUI 没有系统通知，不查。
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermissionState | null>(() => getNotificationPermissionState());
+  useEffect(() => {
+    if (isGatewayWebuiRuntime()) return;
+    let cancelled = false;
+    void refreshNotificationPermissionState().then((state) => {
+      if (!cancelled) setNotificationPermission(state);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function handleProxyDialogOpenChange(open: boolean) {
     if (!open) {
@@ -740,6 +788,50 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
       </SettingsGroup>
 
       <SystemSettingsExtensions settings={settings} setSettings={setSettings} />
+
+      {isGatewayWebuiRuntime() ? null : (
+        <SettingsGroup title={t("settings.notifications")}>
+          {NOTIFICATION_TOGGLE_FIELDS.map(({ key, labelKey, hintKey }) => (
+            <SettingsRow
+              key={key}
+              title={t(labelKey)}
+              description={t(hintKey)}
+              control={
+                <Switch
+                  checked={settings.system.notifications[key]}
+                  onCheckedChange={(checked) =>
+                    setSettings((prev) =>
+                      updateSystem(prev, {
+                        notifications: {
+                          ...prev.system.notifications,
+                          [key]: checked === true,
+                        },
+                      }),
+                    )
+                  }
+                  aria-label={t(labelKey)}
+                />
+              }
+            />
+          ))}
+          {notificationPermission === "granted" ? null : (
+            <div className="px-3 pb-3 text-xs leading-relaxed text-muted-foreground">
+              {notificationPermission === "denied"
+                ? t("settings.notificationsPermissionDenied")
+                : t("settings.notificationsPermissionUnknown")}
+              <button
+                type="button"
+                className="ml-2 underline-offset-2 hover:text-foreground hover:underline"
+                onClick={() => {
+                  void requestNotificationPermission().then(setNotificationPermission);
+                }}
+              >
+                {t("settings.notificationsPermissionRequest")}
+              </button>
+            </div>
+          )}
+        </SettingsGroup>
+      )}
 
       <SettingsGroup title={t("settings.fontFamily")}>
         {FONT_FAMILY_FIELDS.map(({ key, labelKey }) => {

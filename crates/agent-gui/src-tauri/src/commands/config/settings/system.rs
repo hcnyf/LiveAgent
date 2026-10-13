@@ -319,6 +319,21 @@ fn normalize_workspace_resource_settings(raw: Option<&Value>) -> Value {
     Value::Object(out)
 }
 
+/// 通知偏好归一：四项布尔，缺省/非法一律 `true`（默认全开，符合「默认通知全开」的决策）。
+fn normalize_notification_settings_value(raw: Option<&Value>) -> Value {
+    let obj = match raw {
+        Some(Value::Object(map)) => map.clone(),
+        _ => Map::new(),
+    };
+    let flag = |key: &str| Value::Bool(obj.get(key).and_then(Value::as_bool).unwrap_or(true));
+    json!({
+        "sessionComplete": flag("sessionComplete"),
+        "sessionError": flag("sessionError"),
+        "permissionRequest": flag("permissionRequest"),
+        "notifyWhenFocused": flag("notifyWhenFocused"),
+    })
+}
+
 fn normalize_system_proxy_value(raw: Option<&Value>) -> Value {
     let obj = match raw {
         Some(Value::Object(map)) => map.clone(),
@@ -484,6 +499,10 @@ fn system_value_with_defaults(raw: Option<Value>, default_workdir: &str) -> Valu
     system.insert(
         SYSTEM_SYSTEM_PROXY_KEY.to_string(),
         normalize_system_proxy_value(system.get(SYSTEM_SYSTEM_PROXY_KEY)),
+    );
+    system.insert(
+        SYSTEM_NOTIFICATIONS_KEY.to_string(),
+        normalize_notification_settings_value(system.get(SYSTEM_NOTIFICATIONS_KEY)),
     );
     system.insert(
         SYSTEM_COMMAND_SAFETY_MODE_KEY.to_string(),
@@ -746,6 +765,7 @@ fn save_system_with_default_workdir(
         SYSTEM_ARCHIVED_WORKSPACE_PROJECT_PATHS_KEY,
         SYSTEM_WORKSPACE_RESOURCE_SETTINGS_KEY,
         SYSTEM_SYSTEM_PROXY_KEY,
+        SYSTEM_NOTIFICATIONS_KEY,
         SYSTEM_CUA_ALLOW_SELF_TARGETING_KEY,
         SYSTEM_DEFAULT_TIME_ZONE_KEY,
     ]

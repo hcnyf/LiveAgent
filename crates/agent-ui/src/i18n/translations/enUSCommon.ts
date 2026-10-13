@@ -506,6 +506,13 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.compactionFailed": "Context compaction failed: {message}",
   "chat.compactionDegraded":
     "Automatic summary unavailable; context was compacted with a simplified summary and some details may be lost. Consider starting a new conversation if replies degrade.",
+  "chat.notifySessionCompleteTitle": "Session complete",
+  "chat.notifySessionCompleteBody": "LiveAgent finished this turn.",
+  "chat.notifySessionErrorTitle": "Session error",
+  "chat.notifyApprovalTitle": "Tool call needs your approval",
+  "chat.notifyApprovalBody": "{count} tool call(s) are waiting for your approval.",
+  "chat.notifyApprovalTimeoutTitle": "Approval about to time out",
+  "chat.notifyApprovalTimeoutBody": "Unhandled tool approvals are treated as denied once they time out.",
   "chat.contextCheckpoint.title": "Context Checkpoint",
   "chat.contextCheckpoint.messageCount": "{count} msgs",
   "chat.contextCheckpoint.compressed": "Compressed",

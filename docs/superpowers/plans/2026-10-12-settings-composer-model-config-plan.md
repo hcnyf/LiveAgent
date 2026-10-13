@@ -62,7 +62,7 @@
 | T4.1 档位解析接口加覆盖参数 + 9 个调用点 | ✅ 已完成（`57261791`） |
 | T4.2 `defaultThinkingLevel` 接入解析链 | ✅ 本次完成（行为变更 R3） |
 | T4.3 `off` 由勾选决定 | ✅ 本次完成 |
-| 批① 窗口 + 设置壳 + 系统设置 | ⏳ 进行中（T1.1 ✅ / T1.2 ✅ / T1.3 ✅ / T1.4 ⏳） |
+| 批① 窗口 + 设置壳 + 系统设置 | ✅ 已完成（T1.1 / T1.2 / T1.3 / T1.4） |
 | 批⑤ 生图运行时 | ⏳ 待做（⑤-3 依赖 P2） |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
@@ -113,13 +113,25 @@
 5. **连带必改**：`normalize_system_proxy_value` 是白名单 → 补 `mode`（否则存档里的 system 会被静默抹成 manual）；`default_system_proxy_json()` 加 `"mode": "manual"`；`gateway_sync.rs` 的密码脱敏与 `backup_snapshot.rs` 把 systemProxy 排除出可移植键的行为**不变**。
 6. **测试**：Rust `system_proxy` 模块 17/17（含本次新增的 7 例）；TS 侧 `normalization.test.mjs` 的 systemProxy 全量断言补 `mode` 与三态语义，新增 `test/settings/system-proxy-mode.test.mjs` 锁 UI/桌面端分工。
 
-### T1.4 系统通知（四项设置 + 三个触发点）
+### T1.4 系统通知（四项设置 + 三个触发点）—— ✅ 已完成
 
 - **文件**：`types.ts`、`SystemSettingsForm.tsx`、新增 `crates/agent-gui/src/lib/system/notifications.ts`、`crates/agent-gui/src/pages/chat/hooks/useNotifyToasts.ts`、工具审批宿主、`backup_snapshot.rs`（白名单）、zh/en i18n
 - **做什么**：`{sessionComplete, sessionError, permissionRequest, notifyWhenFocused}` 默认全 `true`；通知偏好加入 `SYSTEM_PORTABLE_BACKUP_KEYS`；三个触发点接入；权限申请与拒绝后的提示
 - **验收**：`notifyWhenFocused=false` 且窗口有焦点时**一条都不发**（含权限请求）；点击通知聚焦窗口
 - **待定项**：**会话完成的信号源须在实现时定位 `ChatPage` 的运行态来源**，spec 已明确不得臆断
 - **验证**：`pnpm test:gui`
+
+#### 落地记录
+
+1. **信号源（按 spec 要求先定位再实现）**：`ChatPage` 的运行态真源是 `runningConversationIds`（`useState<ReadonlySet<string>>`，由侧栏 running patch 同一份数据驱动）→ "会话完成"= `runningConversationIds.has(currentConversationId)` 的**下降沿**；出错信号沿用 `useNotifyToasts` 已有的 `errorMessage`；审批信号用 `getPendingToolApprovalsSnapshot(conversationId)` + `subscribeToolApprovalsForConversation`（与 `PendingToolApprovalBar` 同一份 store）。
+2. **触发点放在 `useNotifyToasts` 而非 `ToolApprovalBar`**（与本计划初稿的差异）：该 hook 本就在 agent-gui、且已持有会话级错误与压缩态；把审批也接到这里可以避免为"共享 UI 调桌面实现"再引一套 adapter（`kernel` 侧还需要一份 web 空实现）。信号点、过滤顺序、通知内容与 spec 一致。
+3. **发送面**：新增 Rust 命令 `send_system_notification` / `notification_permission_state` / `request_notification_permission`，包住 `tauri_plugin_notification` 的 desktop API。**不直接 invoke 插件的 `plugin:notification|*`**：JS 侧插件包 `@tauri-apps/plugin-notification` 本仓库并未安装，走自家命令既不用新增 npm 依赖，参数形状与错误信息也都在 Rust 里受编译期约束。
+4. **过滤顺序**（`lib/system/notifications.ts`，唯一实现）：单项开关 → `notifyWhenFocused`（为 false 且窗口有焦点 → 全拦，含权限请求；窗口状态拿不到时按"有焦点"处理，宁可少发）→ 权限（prompt 时**只自动申请一次**，被拒后仅记录原因、不再弹）。发送失败一律静默降级。
+5. **审批超时提醒**：一批待审批"空 → 非空"时通知一次，并在该批最早 `deadlineAt` 前 60s 补一条（同一批内不重复报；pending 清空即取消定时器）。超时后审批按拒绝处理（`toolApproval.ts` 既有语义），所以提醒是"即将自动拒绝"。
+6. **权限被拒的提示**：设置页挂载时查询一次权限态；非 granted 时在通知分节下方显示原因并提供"申请权限"入口（手动，不自动反复弹）。
+7. **WebUI**：整个通知分节在 `isGatewayWebuiRuntime()` 时为 null；另补了一份 `crates/agent-gateway/web/src/lib/system/notifications.ts` 空实现（共享 UI 经 `@liveagent/app/lib/system/notifications` 引用，Web 侧必须是 no-op 而不是缺失文件）。
+8. **连带必改**：`normalize_notification_settings_value`（Rust 白名单归一，默认全 true）+ `normalizeNotificationSettings`（TS 同语义）；`SYSTEM_PORTABLE_BACKUP_KEYS` 加入 `notifications`（机器无关偏好，换设备跟随；`systemProxy` 继续排除）；`commands::config::settings::tests` 的 `row_count` 15→16、键列表加 `SYSTEM_NOTIFICATIONS_KEY`、四处全量 system payload 断言加 `notifications`。
+9. **测试**：`test/system/notifications.test.mjs`（4 例：单项开关、有焦点全拦、prompt 只申请一次且被拒后停止、授权后按本地化载荷发送）、`test/system/notification-triggers.test.mjs`（5 例：三触发点、ChatPage 接线、设置页四开关与 Web 门控、过滤规则归属、Rust 命令名与注册一致）、`normalization.test.mjs` 新增通知偏好默认/归一断言。
 
 ---
 

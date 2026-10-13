@@ -2856,6 +2856,27 @@ test("system proxy config normalizes defaults, ports, and password flags", () =>
   assert.equal(settings.normalizeSystemProxyConfig({ port: "abc" }).port, 0);
   assert.equal(settings.normalizeSystemProxyConfig({ port: "8080" }).port, 8080);
   assert.equal(settings.normalizeSystemProxyConfig({ type: "https" }).type, "http");
+});
+
+test("notification preferences default to all-on and only accept an explicit false", () => {
+  const defaults = settings.getDefaultSettings().system.notifications;
+  assert.deepEqual(defaults, {
+    sessionComplete: true,
+    sessionError: true,
+    permissionRequest: true,
+    notifyWhenFocused: true,
+  });
+  // 旧存档缺该字段 → 全开（零迁移）。
+  assert.deepEqual(settings.normalizeSystemSettings({}).notifications, defaults);
+  // 只有显式 false 关得掉；字符串/数字/null 一律按"没关"处理（与 Rust 侧同语义）。
+  assert.equal(settings.normalizeNotificationSettings({ sessionError: false }).sessionError, false);
+  assert.equal(settings.normalizeNotificationSettings({ sessionError: "false" }).sessionError, true);
+  assert.equal(
+    settings.normalizeNotificationSettings({ notifyWhenFocused: null }).notifyWhenFocused,
+    true,
+  );
+  assert.equal(settings.normalizeNotificationSettings({ permissionRequest: 0 }).permissionRequest, true);
+  assert.equal(settings.normalizeNotificationSettings(null).sessionComplete, true);
   assert.equal(
     settings.normalizeSystemProxyConfig({ password: "", passwordConfigured: true })
       .passwordConfigured,

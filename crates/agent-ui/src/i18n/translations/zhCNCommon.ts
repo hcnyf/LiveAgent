@@ -464,6 +464,13 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.compactionFailed": "上下文压缩失败：{message}",
   "chat.compactionDegraded":
     "自动摘要不可用，已改用简化摘要完成压缩，部分细节可能丢失；如回复质量下降，建议新开对话。",
+  "chat.notifySessionCompleteTitle": "会话已完成",
+  "chat.notifySessionCompleteBody": "LiveAgent 已完成本轮回复。",
+  "chat.notifySessionErrorTitle": "会话出错",
+  "chat.notifyApprovalTitle": "需要你批准工具调用",
+  "chat.notifyApprovalBody": "有 {count} 个工具调用等待你的批准。",
+  "chat.notifyApprovalTimeoutTitle": "审批即将超时",
+  "chat.notifyApprovalTimeoutBody": "尚未处理的工具审批将在超时后按拒绝处理。",
   "chat.contextCheckpoint.title": "上下文检查点",
   "chat.contextCheckpoint.messageCount": "{count} 条消息",
   "chat.contextCheckpoint.compressed": "已压缩",

@@ -390,6 +390,27 @@ export type SystemSettings = {
   archivedWorkspaceProjectPaths: string[];
   workspaceResourceSettings: Record<string, WorkspaceResourceSettings>;
   systemProxy: SystemProxyConfig;
+  /** 会话类系统通知的四项偏好（默认全开）。见 lib/system/notifications.ts。 */
+  notifications: NotificationSettings;
+};
+
+/**
+ * 会话类系统通知偏好：
+ * - `sessionComplete` / `sessionError` / `permissionRequest` 是三个触发点的单项开关；
+ * - `notifyWhenFocused` 是总闸：为 false 时窗口有焦点就一条都不发（含权限请求）。
+ */
+export type NotificationSettings = {
+  sessionComplete: boolean;
+  sessionError: boolean;
+  permissionRequest: boolean;
+  notifyWhenFocused: boolean;
+};
+
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+  sessionComplete: true,
+  sessionError: true,
+  permissionRequest: true,
+  notifyWhenFocused: true,
 };
 
 export type WorkspaceResourceSettingsMode = "inherit" | "custom" | "off";

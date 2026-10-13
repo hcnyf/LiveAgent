@@ -83,6 +83,7 @@ import type {
   ModelInputModalitiesOverride,
   ModelInputModality,
   ModelLimitsSource,
+  NotificationSettings,
   ProjectPromptStrategy,
   PromptCacheHintMode,
   ProviderFailoverSettings,
@@ -121,6 +122,7 @@ import {
   BROWSER_AUTOMATION_MODES,
   COMMAND_SAFETY_MODES,
   DEFAULT_CHAT_RUNTIME_CONTROLS,
+  DEFAULT_NOTIFICATION_SETTINGS,
   getDefaultUsageQueryConfig,
   MODEL_INPUT_MODALITIES,
   PROMPT_CACHE_HINT_MODES,
@@ -1588,6 +1590,21 @@ export function isValidSystemProxyHost(input: string): boolean {
   }
 }
 
+/**
+ * 通知偏好归一：四项布尔，缺省/非法一律 `true`（默认全开）。Rust 侧
+ * `normalize_notification_settings_value` 同语义。
+ */
+export function normalizeNotificationSettings(input: unknown): NotificationSettings {
+  const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const flag = (key: keyof NotificationSettings) => obj[key] !== false;
+  return {
+    sessionComplete: flag("sessionComplete"),
+    sessionError: flag("sessionError"),
+    permissionRequest: flag("permissionRequest"),
+    notifyWhenFocused: flag("notifyWhenFocused"),
+  };
+}
+
 export function normalizeSystemProxyConfig(input: unknown): SystemProxyConfig {
   const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const port = Number(obj.port);
@@ -1734,6 +1751,7 @@ export function normalizeSystemSettings(input: unknown): SystemSettings {
     ),
     workspaceResourceSettings: normalizeWorkspaceResourceSettings(obj.workspaceResourceSettings),
     systemProxy: normalizeSystemProxyConfig(obj.systemProxy),
+    notifications: normalizeNotificationSettings(obj.notifications),
   };
 }
 
@@ -1966,6 +1984,7 @@ export function getDefaultSettings(): AppSettings {
       sidebarPinnedOrder: [],
       workspaceResourceSettings: {},
       systemProxy: getDefaultSystemProxyConfig(),
+      notifications: { ...DEFAULT_NOTIFICATION_SETTINGS },
     },
     customProviders,
     mcp: {

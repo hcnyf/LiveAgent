@@ -159,6 +159,9 @@ macro_rules! app_invoke_handler {
             // Settings
             commands::settings::settings_load_all,
             commands::settings::system_proxy_os_status,
+            commands::notifications::notification_permission_state,
+            commands::notifications::request_notification_permission,
+            commands::notifications::send_system_notification,
             commands::settings::settings_save_providers,
             commands::settings::settings_list_ccswitch_providers,
             commands::settings::settings_list_cherry_studio_providers,
