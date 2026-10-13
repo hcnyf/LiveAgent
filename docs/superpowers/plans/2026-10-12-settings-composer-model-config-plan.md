@@ -54,10 +54,11 @@
 | P2 本地反代 multipart 实测 | ⏳ 未做（阻塞 ⑤-3） |
 | 批① 窗口 + 设置壳 | ⏳ 未开始 |
 | 批② 输入框视觉 | ✅ 已提交（`34177787`） |
-| T3.1 `kind` 数据层 + P1 落地 | ✅ 已提交（`144c7d23`、`fa7010f0`）；**UI 两类分栏仍未做** |
+| T3.1 `kind` 数据层 + P1 落地 | ✅ 已提交（`144c7d23`、`fa7010f0`） |
 | T3.2 上下文/最大输出快捷填入 | ✅ 已提交（`7ae221fa`） |
-| T3.3 输入能力多选（含 PDF 运行时） | ✅ 本次完成（见该节「落地记录」） |
-| T3.4 思考档位字段 + 表单 | ⏳ 下一步 |
+| T3.3 输入能力多选（含 PDF 运行时） | ✅ 已完成（`e51f2266`） |
+| T3.4 思考档位字段 + 表单 | ✅ 本次完成（见该节「落地记录」） |
+| T3.1 的 UI 两类分栏 | ⏳ 未做（`kind` 数据层已就绪） |
 | 批④ 思考档位端到端联动 | ⏳ 未开始（依赖 T3.4） |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
@@ -161,11 +162,20 @@
 4. **anthropic 图片门控**：`modelSupportsImageInput` 由"读 `model.input`"改为"有声明按声明，无声明 anthropic 维持内联、其余分支读 `model.input`"——否则 `claude_code` 开放后图片勾选框会变成静默空操作（`k3`/`glm` 等非目录模型的 `input` 是硬编码占位值）。工具结果图片不在本项内（`piAiAdapter` 不变），已在注释里写明边界。
 5. **Rust 侧无需改动**：`sanitize_provider_summary` 把 `models` 整段透传，模型级字段（含 `inputModalities` 新值）不受白名单影响。
 
-### T3.4 思考档位与默认档字段 + 表单
+### T3.4 思考档位与默认档字段 + 表单 —— ✅ 已完成
 
 - **文件**：`crates/agent-ui/src/lib/settings/types.ts:457-476`、`index.ts`（归一化）、`ProviderModalView.tsx`、zh/en i18n
 - **做什么**：新增 `thinkingLevels?: ReasoningLevel[]`（含 `"off"`）与 `defaultThinkingLevel?: ReasoningLevel`（须属于前者，后者未设置时该项隐藏）；新建/编辑模型时缺失则初始勾选 `low`/`high`/`max`；**偏差标注**——7 档全可勾，目录明确未声明支持的档位旁加提示且**不阻断**
 - **验收**：字段归一化对旧存档零影响；偏差提示只在目录判得出"不支持"时出现
+- **验证**：`pnpm test:gui`（3432/3432，含新 `test/settings/thinking-levels.test.mjs` 8 例）+ `pnpm test:webui` + `pnpm typecheck:ui` / `typecheck:gui` + `pnpm check:ui-boundaries`
+
+#### 落地记录（与初稿的差异，均已回写 spec ③-5）
+
+1. **"缺失 = 初始勾选 low/high/max" 只作展示，不落库**：勾选集合未自定义时表单显示 `low`/`high`/`max`（`DEFAULT_MODEL_THINKING_LEVELS`），但**只有用户真的勾选/取消才写字段**。否则打开一次旧模型就会把"目录推断"永久替换成三档勾选，静默收窄批④的可用档位——与"旧存档零影响"直接冲突。提示文案已写明"未自定义时按模型目录推断"。
+2. **取消到空集合 = 清空自定义**：两个字段一起删除，回到"按目录推断"；默认档被取消勾选时一并清掉（维持"默认档 ∈ 勾选集合"的不变量）。`normalizeThinkingLevels` 对空数组同样返回 `undefined`，所以存储层不存在"有字段但空集合"的中间态。
+3. **默认档下拉只在已自定义勾选后出现**（`editingModelHasCustomThinkingLevels`），对应"`thinkingLevels` 未设置时该项隐藏"。
+4. **偏差标注的取值规则**（`resolveUnsupportedThinkingLevels`）：`fromCatalog || fromLive` 才给提示——未被目录声明的档 + 思考不可关闭（`alwaysOn`，含 xai 的 wire 限制）时的 `off`；兜底推断（自定义/未收录模型）一律不给提示（方向单一）。
+5. **规范顺序单一真源**：`settings/index.ts` 导出 `REASONING_LEVEL_CHOICES`（`off` + 既有 6 档），归一化、表单勾选行、默认档下拉三处同序。
 
 ---
 

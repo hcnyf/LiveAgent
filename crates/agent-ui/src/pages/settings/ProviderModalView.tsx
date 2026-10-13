@@ -4,6 +4,8 @@ import {
   type CodexRequestFormat,
   PROMPT_CACHE_HINT_MODES,
   type PromptCacheHintMode,
+  REASONING_LEVEL_CHOICES,
+  type ReasoningLevel,
   type UsageQueryMode,
 } from "@liveagent/app/lib/settings";
 import {
@@ -111,6 +113,17 @@ const MODEL_MODALITY_ICONS = [
   { modality: "pdf", Icon: FileText, labelKey: "settings.modelModalityPdf" },
 ] as const;
 
+// 档位 → 标签（与会话输入框、定时任务共用 settings.reasoning.* 文案）。
+const THINKING_LEVEL_LABEL_KEYS: Record<ReasoningLevel, string> = {
+  off: "settings.reasoning.off",
+  minimal: "settings.reasoning.minimal",
+  low: "settings.reasoning.low",
+  medium: "settings.reasoning.medium",
+  high: "settings.reasoning.high",
+  xhigh: "settings.reasoning.xhigh",
+  max: "settings.reasoning.max",
+};
+
 export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewModel }) {
   const {
     activeCodingPlanProvider,
@@ -132,8 +145,12 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     customHeaders,
     editingModel,
     editingModelContextWindow,
+    editingModelDefaultThinkingLevel,
+    editingModelHasCustomThinkingLevels,
     editingModelInputModalities,
     editingModelMaxOutputToken,
+    editingModelThinkingLevels,
+    editingModelUnsupportedThinkingLevels,
     fetchError,
     fetchingModels,
     focusCustomHeader,
@@ -184,6 +201,7 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     setApiKey,
     setBaseUrl,
     setEditingModel,
+    setEditingModelDefaultThinkingLevel,
     setEditingModelInputModalities,
     setHeaderImportError,
     setHeaderImportOpen,
@@ -212,6 +230,7 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     commitStreamRetryCountInput,
     t,
     toggleEditingModelInputModalitiesItem,
+    toggleEditingModelThinkingLevel,
     toggleModel,
     toggleVisibleModelsActive,
     typeLabel,
@@ -837,6 +856,73 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                             </div>
                             <FormFieldDescription>
                               {t("settings.modelInputModalitiesHint")}
+                            </FormFieldDescription>
+                          </FormField>
+                        ) : null}
+                        <FormField>
+                          <FormFieldLabel>{t("settings.modelThinkingLevels")}</FormFieldLabel>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                            {REASONING_LEVEL_CHOICES.map((level) => (
+                              <Label
+                                key={level}
+                                className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+                              >
+                                <Checkbox
+                                  checked={editingModelThinkingLevels.includes(level)}
+                                  onCheckedChange={(checked) =>
+                                    toggleEditingModelThinkingLevel(level, checked)
+                                  }
+                                />
+                                {t(THINKING_LEVEL_LABEL_KEYS[level])}
+                                {/* 决策 K：目录明确未声明支持的档位给提示但不阻断。 */}
+                                {editingModelUnsupportedThinkingLevels.includes(level) ? (
+                                  <span className="text-xs text-muted-foreground">
+                                    {t("settings.modelThinkingLevelUnsupported")}
+                                  </span>
+                                ) : null}
+                              </Label>
+                            ))}
+                          </div>
+                          <FormFieldDescription>
+                            {t("settings.modelThinkingLevelsHint")}
+                          </FormFieldDescription>
+                        </FormField>
+                        {editingModelHasCustomThinkingLevels ? (
+                          <FormField>
+                            <FormFieldLabel>
+                              {t("settings.modelDefaultThinkingLevel")}
+                            </FormFieldLabel>
+                            <Select
+                              value={
+                                editingModelDefaultThinkingLevel ?? editingModelThinkingLevels[0]
+                              }
+                              onValueChange={(value) => {
+                                if ((REASONING_LEVEL_CHOICES as string[]).includes(value)) {
+                                  setEditingModelDefaultThinkingLevel(value as ReasoningLevel);
+                                }
+                              }}
+                            >
+                              <SelectTrigger variant="plain" className="h-8 shadow-none">
+                                {/* value≠label：闭合态必须显式渲染本地化标签。 */}
+                                <SelectValue>
+                                  {t(
+                                    THINKING_LEVEL_LABEL_KEYS[
+                                      editingModelDefaultThinkingLevel ??
+                                        editingModelThinkingLevels[0]
+                                    ],
+                                  )}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {editingModelThinkingLevels.map((level) => (
+                                  <SelectItem key={level} value={level}>
+                                    {t(THINKING_LEVEL_LABEL_KEYS[level])}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormFieldDescription>
+                              {t("settings.modelDefaultThinkingLevelHint")}
                             </FormFieldDescription>
                           </FormField>
                         ) : null}

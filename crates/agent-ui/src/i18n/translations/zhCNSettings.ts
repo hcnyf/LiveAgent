@@ -704,6 +704,12 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.modelInputModalitiesPdf": "PDF",
   "settings.modelInputModalitiesHint":
     "勾选即声明该端点接受的输入类型：勾了 PDF 的附件走原生内联，没勾则退回 Read 抽文本；“自动推断”按内置目录与官方端点规则决定。",
+  "settings.modelThinkingLevels": "思考档位",
+  "settings.modelThinkingLevelsHint":
+    "勾选即该模型在会话里可选的档位（含“关闭思考”）。未自定义时按模型目录推断；目录未声明支持的档位仍可勾选，请求期由目录钳制。",
+  "settings.modelThinkingLevelUnsupported": "目录未声明支持",
+  "settings.modelDefaultThinkingLevel": "默认档位",
+  "settings.modelDefaultThinkingLevelHint": "未单独选过档位的会话默认用这一档。",
   "settings.modelModalityImage": "支持图片输入",
   "settings.modelModalityAudio": "支持音频输入",
   "settings.modelModalityVideo": "支持视频输入",

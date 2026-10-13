@@ -365,6 +365,12 @@ export function isAgentDevMode(mode: ExecutionMode): boolean {
 
 const REASONING_LEVELS: ReasoningLevel[] = ["minimal", "low", "medium", "high", "xhigh", "max"];
 
+/**
+ * 档位的规范顺序全集（含 "off"）。表单勾选、默认档下拉与归一化共用同一顺序，
+ * 避免同义配置产生持久化差异。
+ */
+export const REASONING_LEVEL_CHOICES: ReasoningLevel[] = ["off", ...REASONING_LEVELS];
+
 export function normalizeReasoningLevel(input: unknown): ReasoningLevel {
   return typeof input === "string" && (REASONING_LEVELS as string[]).includes(input)
     ? (input as ReasoningLevel)
@@ -971,6 +977,14 @@ export function normalizeProviderModelConfig(
   const promptCacheHintMode =
     providerId === "codex" ? normalizePromptCacheHintMode(obj.promptCacheHintMode) : undefined;
   const inputModalities = normalizeInputModalities(obj.inputModalities);
+  const thinkingLevels = normalizeThinkingLevels(obj.thinkingLevels);
+  // 默认档必须属于勾选集合，否则丢弃（两字段是同一份用户意图的两种视图）。
+  const defaultThinkingLevel =
+    thinkingLevels &&
+    typeof obj.defaultThinkingLevel === "string" &&
+    (thinkingLevels as string[]).includes(obj.defaultThinkingLevel)
+      ? (obj.defaultThinkingLevel as ReasoningLevel)
+      : undefined;
   return {
     id,
     ...(typeof obj.displayName === "string"
@@ -989,6 +1003,9 @@ export function normalizeProviderModelConfig(
     // normalizeInputModalities 归一化后透传（可能过滤非法值/补齐 text/
     // 重排为规范顺序），合法声明永不被自动删除。
     ...(inputModalities ? { inputModalities } : {}),
+    // 用户勾选的思考档位与默认档；两者同进同出（默认档不属于勾选集合时丢弃）
+    ...(thinkingLevels ? { thinkingLevels } : {}),
+    ...(defaultThinkingLevel ? { defaultThinkingLevel } : {}),
   };
 }
 
@@ -1016,6 +1033,23 @@ export function normalizeInputModalities(input: unknown): ModelInputModalitiesOv
   if (hasPdf) return ["text", "pdf"];
   return ["text"];
 }
+/**
+ * 思考档位勾选集合的运行时归一化（设置加载与表单共用的唯一校验）：
+ * - 非数组/空数组/全部非法 -> undefined（等价于"未自定义，按目录推断"）；
+ * - 过滤非法项与重复项，并重排为 REASONING_LEVEL_CHOICES 的规范顺序（含 "off"）。
+ */
+export function normalizeThinkingLevels(input: unknown): ReasoningLevel[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  const valid = new Set<string>(
+    input.filter(
+      (item): item is ReasoningLevel =>
+        typeof item === "string" && (REASONING_LEVEL_CHOICES as string[]).includes(item),
+    ),
+  );
+  if (valid.size === 0) return undefined;
+  return REASONING_LEVEL_CHOICES.filter((level) => valid.has(level));
+}
+
 export function normalizeProviderModelConfigs(
   input: unknown,
   providerId: ProviderId,

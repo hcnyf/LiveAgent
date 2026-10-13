@@ -495,6 +495,18 @@ export type ProviderModelConfig = {
    * 读取前须经 normalizeInputModalities 归一化。
    */
   inputModalities?: ModelInputModalitiesOverride;
+  /**
+   * 用户勾选的思考档位（含 "off"）：勾选集合即该模型在会话里可选的档位，
+   * 规范顺序同 REASONING_LEVEL_CHOICES（off → minimal → … → max）。
+   * 缺失 = 按目录能力推断（读档位时"有勾选用勾选，无勾选回落目录"）。
+   * 只影响会话可选项与 UI；请求期仍由目录能力钳制（见 ④-4）。
+   */
+  thinkingLevels?: ReasoningLevel[];
+  /**
+   * 默认档：必须属于 thinkingLevels（normalizer 会丢弃不属于者）。
+   * 参与 ChatRuntimeControls 的档位解析链（模型桶 → 默认档 → 供应商桶 → 全局）。
+   */
+  defaultThinkingLevel?: ReasoningLevel;
 };
 
 export type ChatRuntimeControls = {

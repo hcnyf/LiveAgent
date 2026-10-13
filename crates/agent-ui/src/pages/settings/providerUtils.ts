@@ -3,8 +3,11 @@ import {
   type ModelInputModalitiesOverride,
   normalizeInputModalities,
   normalizeProviderModelConfigs,
+  normalizeThinkingLevels,
   type ProviderId,
   type ProviderModelConfig,
+  REASONING_LEVEL_CHOICES,
+  type ReasoningLevel,
   USAGE_QUERY_TIMEOUT_DEFAULT_SECS,
   USAGE_QUERY_TIMEOUT_MAX_SECS,
   USAGE_QUERY_TIMEOUT_MIN_SECS,
@@ -13,6 +16,7 @@ import {
   type UsageQueryMode,
 } from "@liveagent/app/lib/settings";
 import { invoke } from "@liveagent/app/shims/tauriCore";
+import { resolveModelThinking } from "../../lib/models/modelThinking";
 import { type CustomHeader, mergeCustomHeaders } from "../../lib/providers/customHeaders";
 import { prepareProxyRequest } from "../../lib/providers/proxy";
 import { isGatewayWebuiRuntime } from "../../lib/runtimeEnv";
@@ -105,6 +109,76 @@ export function toggleModelInputModalitiesItem(
   if (hasImage) return ["text", "image"];
   if (hasPdf) return ["text", "pdf"];
   return ["text"];
+}
+
+/** 思考档位未自定义时的初始勾选（新建/编辑模型的展示默认值，不落库）。 */
+export const DEFAULT_MODEL_THINKING_LEVELS: ReasoningLevel[] = ["low", "high", "max"];
+
+/** 展示用的勾选集合：未自定义时回落初始勾选（只读展示，不写回模型）。 */
+export function getModelThinkingLevelsSelection(model: ProviderModelConfig): ReasoningLevel[] {
+  return normalizeThinkingLevels(model.thinkingLevels) ?? [...DEFAULT_MODEL_THINKING_LEVELS];
+}
+
+/** 是否已自定义过勾选集合（缺失 = 按模型目录推断）。 */
+export function hasModelThinkingLevelsOverride(model: ProviderModelConfig): boolean {
+  return normalizeThinkingLevels(model.thinkingLevels) !== undefined;
+}
+
+/**
+ * 勾选/取消一档。
+ * - 取消到空集合 = 清空自定义（两个字段一起删除，回到"按目录推断"）；
+ * - 原默认档仍在集合内则保留，被取消掉则一并清掉（维持"默认档 ∈ 勾选集合"）。
+ */
+export function applyModelThinkingLevelToggle(
+  model: ProviderModelConfig,
+  level: ReasoningLevel,
+  checked: boolean,
+): ProviderModelConfig {
+  const current = getModelThinkingLevelsSelection(model);
+  const next = REASONING_LEVEL_CHOICES.filter((item) =>
+    item === level ? checked : current.includes(item),
+  );
+  const modelWithoutThinking = { ...model };
+  delete modelWithoutThinking.thinkingLevels;
+  delete modelWithoutThinking.defaultThinkingLevel;
+  if (next.length === 0) return modelWithoutThinking;
+  return {
+    ...modelWithoutThinking,
+    thinkingLevels: next,
+    ...(model.defaultThinkingLevel && next.includes(model.defaultThinkingLevel)
+      ? { defaultThinkingLevel: model.defaultThinkingLevel }
+      : {}),
+  };
+}
+
+/** 设置默认档：该档会被并入勾选集合，保证不变量成立。 */
+export function applyModelDefaultThinkingLevel(
+  model: ProviderModelConfig,
+  level: ReasoningLevel,
+): ProviderModelConfig {
+  const current = getModelThinkingLevelsSelection(model);
+  const next = REASONING_LEVEL_CHOICES.filter((item) => item === level || current.includes(item));
+  return { ...model, thinkingLevels: next, defaultThinkingLevel: level };
+}
+
+/**
+ * 目录明确未声明支持的档位（表单偏差标注，决策 K：提示但不阻断）。
+ * - 目录命中或运行期补充判出的能力 → 不在 capability.levels 里的档，加上
+ *   思考不可关闭（含 xai 的 wire 限制）时的 "off"；
+ * - 兜底推断（自定义/未收录模型，fromCatalog=false 且无 fromLive）→ 空数组：
+ *   方向单一的"目录判不出"不给提示。
+ */
+export function resolveUnsupportedThinkingLevels(
+  providerId: ProviderId,
+  modelId: string,
+): ReasoningLevel[] {
+  const capability = resolveModelThinking(providerId, modelId);
+  if (!capability.fromCatalog && !capability.fromLive) return [];
+  return REASONING_LEVEL_CHOICES.filter((level) =>
+    level === "off"
+      ? capability.alwaysOn || !capability.reasoning
+      : !capability.reasoning || !capability.levels.includes(level),
+  );
 }
 
 // KEEP IN SYNC:general/newapi 预设与桌面端 Rust services/provider_usage.rs 的

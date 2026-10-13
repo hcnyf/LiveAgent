@@ -10,6 +10,7 @@ import {
   type ProviderId,
   type ProviderModelConfig,
   type ProviderRetryPolicy,
+  type ReasoningLevel,
 } from "@liveagent/app/lib/settings";
 import { useConfirmDialog } from "@liveagent/ui/components/ui/confirm-dialog";
 import { useLocale } from "@liveagent/ui/i18n/index";
@@ -33,8 +34,10 @@ import {
   findNewModelIds,
 } from "@liveagent/ui/lib/providers/modelVendor";
 import {
+  applyModelDefaultThinkingLevel,
   applyModelInputModalitiesSelection,
   applyModelsActiveState,
+  applyModelThinkingLevelToggle,
   applyProviderModelDraft,
   applyUsageQueryModePreset,
   buildProviderModelsFetchKey,
@@ -44,13 +47,16 @@ import {
   detectCodingPlanProvider,
   fetchModelsFromApi,
   getModelInputModalitiesSelection,
+  getModelThinkingLevelsSelection,
   getPersistedUsageQueryProviderId,
+  hasModelThinkingLevelsOverride,
   isGatewayWebuiRuntime,
   type ModelInputModalitiesSelection,
   matchBalanceProviders,
   mergeFetchedModels,
   providerSupportsModelInputModalitiesOverride,
   requiresCustomUsageQueryConfirmation,
+  resolveUnsupportedThinkingLevels,
   serializeUsageQueryDraft,
   toggleModelInputModalitiesItem,
 } from "@liveagent/ui/pages/settings/providerUtils";
@@ -599,6 +605,30 @@ function useProviderModalController({
     });
   }
 
+  // 思考档位：勾选集合与默认档都挂在模型草稿上（用户不动就不落库 → 旧存档零影响）。
+  const editingModelThinkingLevels = editingModel
+    ? getModelThinkingLevelsSelection(editingModel.model)
+    : [];
+  const editingModelHasCustomThinkingLevels = editingModel
+    ? hasModelThinkingLevelsOverride(editingModel.model)
+    : false;
+  const editingModelUnsupportedThinkingLevels = editingModel
+    ? resolveUnsupportedThinkingLevels(providerType, editingModel.model.id)
+    : [];
+  const editingModelDefaultThinkingLevel = editingModel?.model.defaultThinkingLevel ?? null;
+
+  function toggleEditingModelThinkingLevel(level: ReasoningLevel, checked: boolean) {
+    setEditingModel((prev) =>
+      prev ? { ...prev, model: applyModelThinkingLevelToggle(prev.model, level, checked) } : prev,
+    );
+  }
+
+  function setEditingModelDefaultThinkingLevel(level: ReasoningLevel) {
+    setEditingModel((prev) =>
+      prev ? { ...prev, model: applyModelDefaultThinkingLevel(prev.model, level) } : prev,
+    );
+  }
+
   function modelsWithEditingDraft(): ProviderModelConfig[] | null {
     if (!editingModel) return models;
     return applyProviderModelDraft(
@@ -919,8 +949,12 @@ function useProviderModalController({
     customHeaders,
     editingModel,
     editingModelContextWindow,
+    editingModelDefaultThinkingLevel,
+    editingModelHasCustomThinkingLevels,
     editingModelInputModalities,
     editingModelMaxOutputToken,
+    editingModelThinkingLevels,
+    editingModelUnsupportedThinkingLevels,
     fetchError,
     fetchingModels,
     focusCustomHeader,
@@ -970,6 +1004,7 @@ function useProviderModalController({
     setApiKey,
     setBaseUrl,
     setEditingModel,
+    setEditingModelDefaultThinkingLevel,
     setEditingModelInputModalities,
     setHeaderImportError,
     setHeaderImportOpen,
@@ -998,6 +1033,7 @@ function useProviderModalController({
     commitStreamRetryCountInput,
     t,
     toggleEditingModelInputModalitiesItem,
+    toggleEditingModelThinkingLevel,
     toggleModel,
     toggleVisibleModelsActive,
     typeLabel,

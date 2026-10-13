@@ -738,6 +738,12 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
   "settings.modelInputModalitiesPdf": "PDF",
   "settings.modelInputModalitiesHint":
     "Checked items declare what this endpoint accepts: a checked PDF is inlined natively, an unchecked one falls back to Read text extraction. Auto-detect follows the built-in catalog and official-endpoint rules.",
+  "settings.modelThinkingLevels": "Thinking levels",
+  "settings.modelThinkingLevelsHint":
+    "Checked levels become the ones selectable for this model in chat (including “turn thinking off”). Leave untouched to follow the model catalog; levels the catalog does not declare stay checkable but are clamped by the catalog at request time.",
+  "settings.modelThinkingLevelUnsupported": "Not in catalog",
+  "settings.modelDefaultThinkingLevel": "Default level",
+  "settings.modelDefaultThinkingLevelHint": "Sessions that never picked a level use this one.",
   "settings.modelModalityImage": "Supports image input",
   "settings.modelModalityAudio": "Supports audio input",
   "settings.modelModalityVideo": "Supports video input",
