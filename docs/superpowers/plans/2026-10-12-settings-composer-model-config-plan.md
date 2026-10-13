@@ -62,7 +62,7 @@
 | T4.1 档位解析接口加覆盖参数 + 9 个调用点 | ✅ 已完成（`57261791`） |
 | T4.2 `defaultThinkingLevel` 接入解析链 | ✅ 本次完成（行为变更 R3） |
 | T4.3 `off` 由勾选决定 | ✅ 本次完成 |
-| 批① 窗口 + 设置壳 + 系统设置 | ⏳ 进行中（T1.1 ✅ / T1.2 ✅ / T1.3 ⏳ / T1.4 ⏳） |
+| 批① 窗口 + 设置壳 + 系统设置 | ⏳ 进行中（T1.1 ✅ / T1.2 ✅ / T1.3 ✅ / T1.4 ⏳） |
 | 批⑤ 生图运行时 | ⏳ 待做（⑤-3 依赖 P2） |
 | 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
 
@@ -97,12 +97,21 @@
 
 **落地记录**：顶部块（`px-3 pb-2 pt-4`）改为"已保存指示器 + 搜索框"（指示器在搜索之上，即原返回按钮的位置），底部新增返回对话块（`px-3 pb-3 pt-2`，保留 `.settings-back-button` 类名与 `aria-keyshortcuts`，Esc 行为不变）；导航列表的 `pb-6` 收成 `pb-3`（底部不再需要它让位）。Web 端两处零变化：窄屏首行返回按钮与标题行右侧指示器都未动，且桌面顶部块/底部块都带 `web:max-820:hidden`。新增 `test/settings/settings-shell-rail-order.test.mjs` 锁住"顶部=已保存+搜索、底部=返回对话"的源码顺序与 padding。
 
-### T1.3 应用代理支持「使用系统代理」
+### T1.3 应用代理支持「使用系统代理」—— ✅ 已完成
 
 - **文件**：`crates/agent-ui/src/lib/settings/types.ts`、`crates/agent-ui/src/lib/settings/index.ts`（归一化）、`crates/agent-ui/src/pages/settings/SystemSettingsForm.tsx`、`crates/agent-gui/src-tauri/src/services/system_proxy.rs`、`crates/agent-gui/src-tauri/src/commands/config/settings/system.rs`、`.../gateway_sync.rs`、`.../backup_snapshot.rs`、`.../tests.rs`
 - **做什么**：新增 `mode: "manual" | "system"`（旧存档缺 → `manual`）；Rust `ProxyMode` 扩 `System` 分支且不产出 `proxy_url`；系统模式按平台读 OS 代理；例外列表取「OS ∪ `NO_PROXY_DEFAULT`」；PAC 检测 → 提示 + 直连（**不解析脚本**）
 - **验收**：system 模式下 shell env 与 reqwest 均走 OS 代理；PAC 存在时给出提示；`default_system_proxy_json()` 全量断言同步（这是加字段的固定成本）
 - **验证**：`cargo test` + `pnpm test:gui`
+
+#### 落地记录
+
+1. **platform 策略（经确认：方案 A）**：Windows 读注册表 `Internet Settings`（`ProxyEnable` / `ProxyServer` / `ProxyOverride` / `AutoConfigURL`，用已在依赖树且已开 `Win32_System_Registry` 特性的 `windows-sys`）；Linux 走 `gsettings`（`mode=manual` 读 http/https/socks host+port，`mode=auto` 按 PAC 处理，schema 不可用则回落进程环境变量）；**macOS 只读进程环境变量**——本机没有 macOS 编译环境，盲写 CoreFoundation/SCDynamicStore 无法验证，会在文档与设置页文案里写明这一限制。所有解析（`ProxyServer` 两种形态、`ProxyOverride` 的 `<local>`、gsettings 列表、`no_proxy` 并集、PAC 优先）都是纯函数，**7 例单测在本机可验证**。
+2. **reqwest 侧**：`System` 模式不调 `.no_proxy()`，改用 reqwest 默认的 OS 代理探测（`async/blocking/os_proxy_fallback` 三个 builder 同步处理）；`current_config()` / `current_proxy_url()` 对 System 返回 `None`（自建 TCP 隧道与 updater 走各自的默认探测，需要显式 URL 的路径仍只认手动配置）。
+3. **读数缓存**：OS 代理读数按 30s 缓存（shell 每执行一条命令都会问一次代理，不能每次都读注册表/起进程）；`set_config` 一旦切模式立即失效缓存，用户刚改过系统代理也能马上生效。
+4. **UI**：对话框顶部加来源开关；跟随系统时隐藏手填四字段并显示读到的代理 / PAC 提示 / "系统未配代理" 三态；护栏 A（host/port 无效禁止开启）改为只在手动模式生效。OS 读数经新命令 `system_proxy_os_status` 取，**仅桌面端请求**（WebUI 的浏览器进程读不到宿主 OS 代理）。
+5. **连带必改**：`normalize_system_proxy_value` 是白名单 → 补 `mode`（否则存档里的 system 会被静默抹成 manual）；`default_system_proxy_json()` 加 `"mode": "manual"`；`gateway_sync.rs` 的密码脱敏与 `backup_snapshot.rs` 把 systemProxy 排除出可移植键的行为**不变**。
+6. **测试**：Rust `system_proxy` 模块 17/17（含本次新增的 7 例）；TS 侧 `normalization.test.mjs` 的 systemProxy 全量断言补 `mode` 与三态语义，新增 `test/settings/system-proxy-mode.test.mjs` 锁 UI/桌面端分工。
 
 ### T1.4 系统通知（四项设置 + 三个触发点）
 
@@ -403,6 +412,19 @@ C 盘一度 **0 字节可用**，`cargo test` 直接以 `rustc-LLVM ERROR: IO fa
 - `CARGO_TARGET_DIR=D:\cargo-target`（`setx` 持久化，机器级用户变量）——所有 cargo 产物（含 `tauri build` 的安装包输出目录）落在 D 盘。
 - 工作区原 `target/`（10.5 GB，纯 debug）已清理，C 盘回到约 10 GB 可用。
 - 影响：打包产物路径随之变为 `D:\cargo-target\release\bundle\...`（此前是 `<repo>\target\release\bundle\...`）。
+
+### Rust 测试基线（2026-10-13 实测）
+
+`cargo test -p liveagent --lib` = **1062 passed / 20 failed / 4 ignored**，20 个失败全部是本机环境造成、与本仓改动无关（不要当回归）：
+
+| 组 | 数量 | 症状 |
+|---|---|---|
+| `runtime::shell_session::*` | 5 | 测试跑 POSIX 命令（`printf`/`sleep`），本机无 Git Bash → 状态 `Failed` |
+| `runtime::sandbox::tests::resolve_program_*` / `resolve_bwrap_*` | 4 | 断言 POSIX 路径（`/bin/sh`、`/opt/nix/bin/bwrap`） |
+| `commands::workspace_commands::git::tests::git_*worktree*` | 10 | `git worktree add` 的 verbatim 路径 `//?/C:/Users/.../Temp/...` 被本机 git 拒绝 |
+| `runtime::terminal::tests::canonicalize_workdir_within_*` | 1 | 断言 `/etc` 为绝对路径 |
+
+因此 Rust 侧门禁仍是 `cargo check --tests`（不新增警告，基线 3 条）＋按模块跑目标测试；全量 `cargo test --lib` 只作参考。
 
 ### Rust 工具链
 
