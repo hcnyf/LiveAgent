@@ -494,11 +494,32 @@ for (const batch of splitTestFilesIntoBatches(files)) {
 
 ### 打包与安装注意
 
-- **只用 MSI 包**（`targets: "all"` 会同时产出 NSIS，NSIS 默认装到 `%LOCALAPPDATA%` 并与 MSI 并存出两套卸载项）。
+**版本号必须是纯数字（MSI 硬约束，实测踩过）**：`crates/agent-gui/package.json` 的 `version` 就是 MSI 版本（`tauri.conf.json` 的 `version: "../package.json"`）。原先的 `1.3.0-dev.0` 会让 **msi 打包直接失败**：
+
+```
+failed to bundle project: `optional pre-release identifier in app version must be numeric-only
+and cannot be greater than 65535 for msi target`
+```
+
+WiX 要求 pre-release 段纯数字且 ≤ 65535，而 `dev.0` 含字母。**NSIS 不受影响**（它把版本当字符串），所以现象是"nsis 包出来了、msi 没有"——很容易误判成别的失败。已改为 `1.3.8`（`package.json` 与 `src-tauri/Cargo.toml` 同步）。
+
+**实测结论（2026-10-13 实跑 `pnpm tauri build`）**：打包成功，产物
+
+| 产物 | 值 |
+|---|---|
+| `D:\cargo-target\release\bundle\msi\LiveAgent N_1.3.8_x64_en-US.msi` | 28 MB |
+| `D:\cargo-target\release\bundle\nsis\LiveAgent N_1.3.8_x64-setup.exe` | 21.8 MB（不要用） |
+
+MSI 元数据实测：`ProductName = LiveAgent N`、`ProductVersion = 1.3.8`、`Manufacturer = noongyf`（由 identifier 第二段派生）、`UpgradeCode = {2C0C8FBA-A571-5466-868C-211CF25026F5}`。
+
+**与已装 1.3.7 对比：UpgradeCode 不同**（1.3.7 是 `{D5650E3D-9962-4539-1A67-C8101FB21AA9}`）→ **确认是并存安装，不会替换 1.3.7**。此前这条只能靠"UpgradeCode 是 identifier 的函数"推断，现已实测坐实。
+
+其余安装注意：
+
+- **只用 MSI 包**（NSIS 默认装到 `%LOCALAPPDATA%` 并与 MSI 并存出两套卸载项）。
 - MSI 默认路径是 `C:\Program Files\LiveAgent N`（C 盘）→ 安装时手动改到 D 盘。
 - 装前退出正在运行的 1.3.7（它独占 `config.sqlite`，实测读文件头被拒）。
-- `%LOCALAPPDATA%\tauri` 不存在 → 首次打包需联网下载 WiX。
-- 版本号不必高于 1.3.7（新 identifier 不与旧链比较版本），但建议给个明确版本以便区分。
+- 首次打包需联网下载 WiX/NSIS（本机已缓存于 `%LOCALAPPDATA%\tauri`，后续离线可打）。
 
 ---
 

@@ -1,7 +1,9 @@
 [package]
 name = "liveagent"
 # Release builds override this development version from the Git tag workflow.
-version = "1.3.0-dev.0"
+# 注意：MSI(WiX) 要求版本的 pre-release 段只能是数字且 ≤ 65535，`1.3.0-dev.0`
+# 这类含字母的 pre-release 会让 msi 打包直接失败（nsis 不受影响，所以容易漏）。
+version = "1.3.8"
 description = "LiveAgent desktop application"
 authors = ["you"]
 edition = "2021"
