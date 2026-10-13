@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "LiveAgent N",
   "version": "../package.json",
-  "identifier": "com.xiaofei.liveagent.n",
+  "identifier": "com.noongyf.liveagent",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",

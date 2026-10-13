@@ -446,6 +446,19 @@ for (const batch of splitTestFilesIntoBatches(files)) {
 
 **需求**：把本工作区打出的包装成**另一个应用**（与机器上已装的 `LiveAgent 1.3.7` 并存），但**共用数据目录**。
 
+**最终取值**（`crates/agent-gui/src-tauri/tauri.conf.json`）：
+
+```json
+"productName": "LiveAgent N",
+"identifier": "com.noongyf.liveagent"
+```
+
+> 旧值（已装 1.3.7）是 `productName: LiveAgent` + `identifier: com.xiaofei.liveagent`。identifier 与旧值不同 = 不同应用身份 = 并存；productName 决定安装目录/开始菜单/卸载项与应用内显示名。
+>
+> ⚠️ **`com.noongyf.liveagent` 从命名上看像"正式的 LiveAgent"**：将来若要再出一个 productName 为 `LiveAgent` 的正式版，**不能复用这个 identifier**——同 identifier = 同 UpgradeCode = 会**替换**本 N 版而不是并存，且单实例锁相同导致两者不能同时运行。正式版需另起（如 `com.noongyf.liveagent.desktop`）。
+
+**identifier 不需要在代码里跟着改**（已核实）：全仓生产代码没有硬编码 identifier，唯一读它的地方是 CUA「已安装应用」列表剔除自身——`services/gateway/envelope_handler.rs:1045` 的 `self.app_handle.config().identifier.clone()`，**运行时取自 tauri 配置**，改配置即自动跟随。`cua_driver/installed_apps.rs:709` 里那处 `com.xiaofei.liveagent` 是 Windows 单测值，而该参数在 Windows 上不参与逻辑（宿主按当前 exe 路径剔除，见该函数文档注释）。
+
 ### 机制（逐条实测/查证）
 
 | 层面 | 由什么决定 | 改 productName + identifier 后 |
