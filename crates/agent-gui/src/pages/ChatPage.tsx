@@ -243,6 +243,7 @@ import {
 } from "./chat/runtime/useManualCompaction";
 import { useProjectToolTextGenerationClient } from "./chat/runtime/useProjectToolTextGenerationClient";
 import { useSendChatTurn } from "./chat/runtime/useSendChatTurn";
+import { useSessionImageTransfer } from "./chat/runtime/useSessionImageTransfer";
 import { ChatSidebarContainer } from "./chat/sidebar/ChatSidebarContainer";
 import {
   type ConversationPaneBinding,
@@ -1680,6 +1681,17 @@ function ChatPageContent(props: ChatPageProps) {
     resolveManualCompactionPromptInputs,
   });
   manualCompactActionRef.current = handleManualCompact;
+
+  // 生图临时图的「保存到工作区」：把共享 UI 的回调接到本会话的运行时缓存与持久化上。
+  useSessionImageTransfer({
+    settings,
+    t,
+    currentConversationId,
+    currentConversationWorkdir: displayedConversationWorkdir,
+    conversationRuntimeCacheRef,
+    updateConversationRuntimeEntry,
+    persistConversation,
+  });
   const conversationSurfaceProject = useMemo(
     () => ({
       projectId: activeWorkspaceProject?.id ?? `conversation:${currentConversationId}`,

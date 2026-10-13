@@ -1,8 +1,14 @@
 import { deferLargeToolImages } from "@liveagent/adapters/assistantBubble";
+import {
+  saveSessionImage,
+  supportsSessionImageSaveToWorkspace,
+} from "@liveagent/adapters/sessionImageSave";
 import { ImagePreview, type ImagePreviewSlide } from "@liveagent/ui/components/chat/ImagePreview";
 import {
   ImagePreviewActionFeedback,
   ImagePreviewContextMenu,
+  ImagePreviewMenuItem,
+  runImagePreviewAction,
 } from "@liveagent/ui/components/chat/ImagePreviewMenu";
 import { useLocale } from "@liveagent/ui/i18n/index";
 import type {
@@ -15,7 +21,8 @@ import type {
 import { prepareImageProxyUrl } from "@liveagent/ui/lib/providers/proxy";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Eye, ImageOff, Loader2 } from "../../IconSet";
+import { Eye, ImageOff, Loader2, Save } from "../../IconSet";
+import { toast } from "../../ui/toast-manager";
 import { getBuiltinResultKind } from "./assistantBubbleUtils";
 
 export function getToolResultImages(result?: ToolResultMessage) {
@@ -78,6 +85,52 @@ function displayImageFileName(detail: DisplayImageItemDetails, index: number, mi
   const path = detail.path?.trim() ?? "";
   const baseName = path.replace(/\\/g, "/").split("/").pop()?.trim() ?? "";
   return baseName || `image-${index + 1}.${imageFileExtension(mimeType)}`;
+}
+
+/**
+ * 「保存到工作区」菜单项。
+ *
+ * 按 `display_image` **契约**分派（spec R16）：任何在会话里展示出来的本地图片
+ * 都能另存，不按工具名特判。远端图（url / proxy 渲染）不提供——那需要先下载，
+ * 与"把临时图转存到工作区"是两件事。
+ *
+ * 转存成功后宿主会改写会话引用（把临时路径换成工作区路径），因此这里的文案用
+ * 保存后的工作区相对路径回报，让用户看到引用确实换到了哪里。
+ */
+function SaveImageToWorkspaceMenuItem(props: {
+  detail: DisplayImageItemDetails;
+  onActionError: (message: string) => void;
+}) {
+  const { t } = useLocale();
+  if (!supportsSessionImageSaveToWorkspace) return null;
+  const path = props.detail.path?.trim() ?? "";
+  if (!path || props.detail.renderMode === "proxy" || props.detail.sourceType === "url")
+    return null;
+  return (
+    <ImagePreviewMenuItem
+      onClick={() =>
+        void runImagePreviewAction({
+          fallback: t("chat.imageViewer.saveToWorkspaceFailed"),
+          onActionError: props.onActionError,
+          action: async () => {
+            const outcome = await saveSessionImage(path);
+            if (outcome.status === "unsupported") {
+              throw new Error(t("chat.imageViewer.saveToWorkspaceUnsupported"));
+            }
+            if (outcome.status === "no-workspace") {
+              throw new Error(t("chat.imageViewer.saveToWorkspaceNoWorkspace"));
+            }
+            toast.success(
+              t("chat.imageViewer.saveToWorkspaceDone").replace("{path}", outcome.saved.path),
+            );
+          },
+        })
+      }
+    >
+      <Save className="size-3.5" />
+      {t("chat.imageViewer.saveToWorkspace")}
+    </ImagePreviewMenuItem>
+  );
 }
 
 function isDisplayImageItemDetails(value: unknown): value is DisplayImageItemDetails {
@@ -531,10 +584,13 @@ function NativeDisplayImageTile(props: {
   loading: "lazy" | "eager";
   onPreview: () => void;
   slide?: ImagePreviewSlide;
+  /** 该格的展示契约明细（「保存到工作区」按它分派）。 */
+  detail: DisplayImageItemDetails;
   onActionError: (message: string) => void;
   readOnly?: boolean;
 }) {
-  const { source, alt, isGallery, isSvgImage, loading, onPreview, slide, onActionError } = props;
+  const { source, alt, isGallery, isSvgImage, loading, onPreview, slide, detail, onActionError } =
+    props;
   const { t } = useLocale();
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [imageStatus, setImageStatus] = useState<ToolImageLoadState>(() =>
@@ -627,7 +683,9 @@ function NativeDisplayImageTile(props: {
           {content}
         </button>
       }
-    />
+    >
+      <SaveImageToWorkspaceMenuItem detail={detail} onActionError={onActionError} />
+    </ImagePreviewContextMenu>
   );
 }
 
@@ -680,6 +738,7 @@ export const NativeDisplayImageBlock = memo(function NativeDisplayImageBlock(pro
               loading={isGallery ? "eager" : "lazy"}
               onPreview={() => setPreviewIndex(index)}
               slide={slide}
+              detail={entry.detail}
               onActionError={setActionError}
               readOnly={readOnly}
             />

@@ -72,8 +72,7 @@
 | T4.2 `defaultThinkingLevel` 接入解析链 | ✅ 本次完成（行为变更 R3） |
 | T4.3 `off` 由勾选决定 | ✅ 本次完成 |
 | 批① 窗口 + 设置壳 + 系统设置 | ✅ 已完成（T1.1 / T1.2 / T1.3 / T1.4） |
-| 批⑤ 生图运行时 | ⏳ 进行中（T5.1–T5.4 已完成，T5.5 待做） |
-| 批⑤ 生图运行时 | ⏳ 未开始（⑤-3 依赖 P2） |
+| 批⑤ 生图运行时 | ✅ 已完成（T5.1 / T5.2 / T5.3 / T5.4 / T5.5） |
 
 环境前置见附录 B（BuildTools 现落在 `D:\BuildTools`）。
 
@@ -340,6 +339,18 @@ Rust 侧：
 - **验收**：能带参考图编辑；转存后不受清理影响；未转存的图被清理后表现为明确失效提示而非碎图
 - **坑**：转存动作按 `display_image` **契约**分派（任意来源图片都可另存，spec R16），工作区写入必须走既有路径校验链路
 - **段**：⑤-3
+
+**落地记录**：
+
+- 参考图编辑（前半）：工具参数 `reference_images`（本地图片路径）→ `fs_read_image_source` 读成 base64 → codex 走 `POST /images/edits`（multipart，P2 已实测逐字节转发）、gemini 作为 `inlineData` part 与文本一起送。生图**没有用户发起的入口**（spec 决策 Q=甲），因此参考图由模型从会话里已有的图片路径给出，不新增上传 UI。
+- 转存（后半）：
+  - Rust 新增命令 `fs_save_image_to_workdir`（`commands/workspace/fs.rs`）。既有写入链路**没有任何命令能接收工作区之外的源**，所以必须新增；但路径校验、文件名消毒（`sanitize_rel_path_core`）、去重命名、`fs::copy` 全部复用既有实现。源侧白名单只有两项、且都用 `fs::canonicalize` 后比较（Windows verbatim 路径陷阱）：①已在工作区内（不复制，原样返回）；②应用生图临时根之内。其余外部绝对路径一律拒绝——那会凭空开出一条"任意读 + 写工作区"的通道，而本期需要它的唯一场景已被 ② 覆盖（**这是对 spec R16"任意来源图片都可另存"的有意收窄，已在此记录**）。同名不覆盖（`name-2.ext` 递延），并捕获 checkpoint 前像以便 rewind 能撤销这次复制。
+  - 引用改写：`lib/images/rewriteDisplayImagePaths.ts`（纯函数）。**必须产生新的 message 对象**——共享 UI 的 `displayImagePayloadCache` 按 `ToolResultMessage` 的**对象引用**缓存，原地 mutate 会继续渲染旧路径与旧文件名；改写走 `replaceActiveSegmentMessages`（仓库里"改写 active segment 既有消息"的既有写法，见 compaction/controller.ts），并同步首图相关的顶层冗余字段与文本块里的路径。
+  - 宿主接线：`pages/chat/runtime/useSessionImageTransfer.ts` 注册模块级槽位（`lib/images/sessionImageTransfer.ts`），改写后经 `updateConversationRuntimeEntry` + `persistConversation` 落盘（先落运行时缓存让 UI 立刻刷新，写库成功后必须再落**带 revision** 的那份状态，否则 CAS 令牌会被清空）。
+  - 共享 UI：`ToolImages.tsx` 的图片右键菜单新增「保存到工作区」，按 `display_image` 契约分派（不按工具名特判），远端图（url / proxy 渲染）不提供该动作。跨宿主走新 adapter `@liveagent/adapters/sessionImageSave`（桌面实现真实动作，WebUI 声明不支持 → 菜单项不出现）。
+  - 目标工作区取**当前聚焦会话**的工作区：用户是对着眼前那张图点的动作。
+- 测试：`crates/agent-gui/test/images/session-image-transfer.test.mjs` 8 例（新对象与字段同步 / 路径归一化比较 / 无关结果零改写 / 空路径与非法 kind 的 no-op / 转存后回调改写 / 无工作区 / 已在工作区不重复改写 / 桌面 adapter 声明支持）。
+- 验证：`typecheck:ui|gui|webui`、`check:ui-boundaries`、`lint` 全通过；`test:gui` 3487 全绿（含新增 8 例）、`test:webui` 734 全绿。
 
 ---
 
