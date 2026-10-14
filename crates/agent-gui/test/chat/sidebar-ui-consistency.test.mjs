@@ -50,3 +50,14 @@ test("right dock controls reuse standard buttons and segmented selectors", () =>
     assert.doesNotMatch(readUi(path), /<button\s/);
   }
 });
+
+test("a workspace row switches folders without collapsing; the left control owns collapsing", () => {
+  const rows = readUi("components/chat/ChatHistorySidebarRows.tsx");
+  // 行点击只切换新对话的工作目录；展开/折叠由左侧独立的 disclosure 按钮承担。
+  // 折叠入口必须恰好一处——同时挂在行点击上就是这次要修的行为。
+  assert.equal((rows.match(/props\.onToggleExpanded\?\.\(project\)/g) ?? []).length, 1);
+  assert.match(rows, /data-project-disclosure=""/);
+  assert.match(rows, /aria-expanded=\{props\.expanded\}/);
+  assert.match(rows, /aria-label=\{t\("chat\.workspaceToggle"\)\}/);
+  assert.doesNotMatch(rows, /aria-expanded=\{props\.onToggleExpanded \? props\.expanded : undefined\}/);
+});

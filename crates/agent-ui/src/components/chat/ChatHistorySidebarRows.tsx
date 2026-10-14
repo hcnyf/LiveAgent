@@ -1522,109 +1522,137 @@ export const ProjectRow = memo(function ProjectRow(props: {
       )}
     >
       <SidebarDropIndicator position={props.dropPosition} />
-      <Tooltip disabled={isInteractionDisabled || props.isDragging}>
-        <TooltipTrigger
-          delay={0}
-          closeOnClick
-          render={
-            <SidebarMenuButton
-              isActive={isActive}
-              type="button"
-              aria-current={isActive ? "page" : undefined}
-              aria-disabled={isArchived || undefined}
-              aria-expanded={props.onToggleExpanded ? props.expanded : undefined}
-              draggable={false}
+      <div className="flex min-w-0 items-center">
+        {props.onToggleExpanded ? (
+          <button
+            type="button"
+            data-project-disclosure=""
+            aria-expanded={props.expanded}
+            aria-label={t("chat.workspaceToggle")}
+            title={t("chat.workspaceToggle")}
+            disabled={isInteractionDisabled}
+            className={cn(
+              "flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground",
+              "outline-hidden transition-colors hover:text-foreground",
+              "focus-visible:ring-2 focus-visible:ring-ring",
+              "disabled:pointer-events-none disabled:opacity-40",
+            )}
+            onClick={() => props.onToggleExpanded?.(project)}
+          >
+            <ChevronRight
+              aria-hidden="true"
               className={cn(
-                "flex sidebar-list-row min-w-0 items-center gap-2 rounded-md px-2 py-0",
-                "bg-transparent hover:bg-transparent active:bg-transparent data-active:bg-transparent",
-                "text-left outline-hidden transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                isMissing
-                  ? "hover:text-destructive focus-visible:bg-destructive/10"
-                  : isArchived
-                    ? "cursor-default"
-                    : "hover:text-foreground focus-visible:bg-foreground/[0.06]",
+                "size-3.5 transition-transform duration-200",
+                props.expanded && "rotate-90",
               )}
-              onClick={() => {
-                // Archived workspaces cannot be selected, so no new
-                // conversations can start in them.
-                if (!isArchived) {
-                  props.onToggleExpanded?.(project);
-                  onSelectProject(project);
-                }
-              }}
-              onPointerDown={(event) => {
-                if (
-                  props.onReorderPointerDown &&
-                  props.reorderKey &&
-                  !event.altKey &&
-                  !isArchived &&
-                  !isInteractionDisabled &&
-                  !menuOpen &&
-                  pendingAction === null &&
-                  event.pointerType !== "touch" &&
-                  event.button === 0
-                ) {
-                  props.onReorderPointerDown(props.reorderKey, event);
-                  return;
-                }
-                if (
-                  !onWorkbenchDragIntent ||
-                  isArchived ||
-                  isMissing ||
-                  isInteractionDisabled ||
-                  menuOpen ||
-                  pendingAction !== null ||
-                  event.pointerType === "touch" ||
-                  event.button !== 0
-                ) {
-                  return;
-                }
-                onWorkbenchDragIntent(project, {
-                  pointerId: event.pointerId,
-                  clientX: event.clientX,
-                  clientY: event.clientY,
-                  currentTarget: event.currentTarget,
-                });
-              }}
-              onDoubleClick={(event) => {
-                event.preventDefault();
-                if (!isInteractionDisabled) {
-                  onConfigureProject(project);
-                }
-              }}
-              disabled={isInteractionDisabled}
-            >
-              <ProjectFolderIcon
+            />
+          </button>
+        ) : null}
+        <Tooltip disabled={isInteractionDisabled || props.isDragging}>
+          <TooltipTrigger
+            delay={0}
+            closeOnClick
+            render={
+              <SidebarMenuButton
+                isActive={isActive}
+                type="button"
+                aria-current={isActive ? "page" : undefined}
+                aria-disabled={isArchived || undefined}
+                draggable={false}
                 className={cn(
-                  "size-4 shrink-0 transition-colors",
+                  "flex sidebar-list-row min-w-0 items-center gap-2 rounded-md px-2 py-0",
+                  "bg-transparent hover:bg-transparent active:bg-transparent data-active:bg-transparent",
+                  "text-left outline-hidden transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                   isMissing
-                    ? "text-destructive"
+                    ? "hover:text-destructive focus-visible:bg-destructive/10"
                     : isArchived
-                      ? "text-muted-foreground/40"
-                      : "text-foreground/65",
+                      ? "cursor-default"
+                      : "hover:text-foreground focus-visible:bg-foreground/[0.06]",
                 )}
-              />
-              <span
-                className={cn(
-                  "[mask-image:var(--mask-image-sidebar-project-name-fade)] min-w-0 flex-1 overflow-hidden whitespace-nowrap text-sm font-normal leading-5",
-                  isMissing ? "text-destructive" : undefined,
-                )}
+                onClick={() => {
+                  // 点行只切换新对话的工作目录；收起/展开交给左侧那个独立的
+                  // disclosure 按钮（见 data-project-disclosure），否则一次点击会
+                  // 同时改工作目录又把目录折起来。
+                  // Archived workspaces cannot be selected, so no new
+                  // conversations can start in them.
+                  if (!isArchived) {
+                    onSelectProject(project);
+                  }
+                }}
+                onPointerDown={(event) => {
+                  if (
+                    props.onReorderPointerDown &&
+                    props.reorderKey &&
+                    !event.altKey &&
+                    !isArchived &&
+                    !isInteractionDisabled &&
+                    !menuOpen &&
+                    pendingAction === null &&
+                    event.pointerType !== "touch" &&
+                    event.button === 0
+                  ) {
+                    props.onReorderPointerDown(props.reorderKey, event);
+                    return;
+                  }
+                  if (
+                    !onWorkbenchDragIntent ||
+                    isArchived ||
+                    isMissing ||
+                    isInteractionDisabled ||
+                    menuOpen ||
+                    pendingAction !== null ||
+                    event.pointerType === "touch" ||
+                    event.button !== 0
+                  ) {
+                    return;
+                  }
+                  onWorkbenchDragIntent(project, {
+                    pointerId: event.pointerId,
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    currentTarget: event.currentTarget,
+                  });
+                }}
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  if (!isInteractionDisabled) {
+                    onConfigureProject(project);
+                  }
+                }}
+                disabled={isInteractionDisabled}
               >
-                {project.name}
-              </span>
-            </SidebarMenuButton>
-          }
-        />
-        <TooltipContent
-          anchor={rowRef}
-          side="right"
-          sideOffset={10}
-          className="w-64 rounded-xl px-3 py-2.5"
-        >
-          <p className="truncate text-sm font-semibold leading-5">{project.name}</p>
-          <p className="mt-1 break-all text-xs leading-4 text-muted-foreground">{project.path}</p>
-        </TooltipContent>
-      </Tooltip>
+                <ProjectFolderIcon
+                  className={cn(
+                    "size-4 shrink-0 transition-colors",
+                    isMissing
+                      ? "text-destructive"
+                      : isArchived
+                        ? "text-muted-foreground/40"
+                        : "text-foreground/65",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "[mask-image:var(--mask-image-sidebar-project-name-fade)] min-w-0 flex-1 overflow-hidden whitespace-nowrap text-sm font-normal leading-5",
+                    isMissing ? "text-destructive" : undefined,
+                  )}
+                >
+                  {project.name}
+                </span>
+              </SidebarMenuButton>
+            }
+          />
+          <TooltipContent
+            anchor={rowRef}
+            side="right"
+            sideOffset={10}
+            className="w-64 rounded-xl px-3 py-2.5"
+          >
+            <p className="truncate text-sm font-semibold leading-5">{project.name}</p>
+            <p className="mt-1 break-all text-xs leading-4 text-muted-foreground">{project.path}</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
       <div
         className={cn(
           "relative flex items-center justify-end overflow-hidden transition-[max-width,opacity] duration-200 ease-out",

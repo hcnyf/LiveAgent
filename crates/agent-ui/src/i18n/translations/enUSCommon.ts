@@ -166,6 +166,7 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.workspaceGroupDeleteConfirmDescription":
     "Workspaces in the group move back to ungrouped; the workspaces themselves are not deleted.",
   "chat.workspaceGroupToggle": "Toggle group",
+  "chat.workspaceToggle": "Toggle workspace",
   "chat.workspaceGroupActions": "Group actions",
   "chat.workspaceGroupMove": "Move to group",
   "chat.workspaceGroupUngroup": "Ungroup",

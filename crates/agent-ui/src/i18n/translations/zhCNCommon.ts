@@ -155,6 +155,7 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.workspaceGroupDeleteConfirmDescription":
     "组内工作空间将回到未分组，工作空间本身不会被删除。",
   "chat.workspaceGroupToggle": "展开/折叠分组",
+  "chat.workspaceToggle": "展开/折叠工作空间",
   "chat.workspaceGroupActions": "分组操作",
   "chat.workspaceGroupMove": "移动到分组",
   "chat.workspaceGroupUngroup": "移出分组",
