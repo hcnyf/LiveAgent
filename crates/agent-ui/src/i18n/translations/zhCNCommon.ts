@@ -763,7 +763,7 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "sidebar.readingHistory": "正在读取历史记录...",
   "sidebar.autoShowLater": "稍后会自动显示最近保存的对话。",
   "sidebar.loadingMoreHistory": "正在加载更多历史记录...",
-  "sidebar.continueLoadingHistory": "继续加载会话",
+  "sidebar.continueLoadingHistory": "加载更多会话",
   "chat.pinnedSection": "置顶",
   "chat.workspaceHistoryToggle": "展开/折叠会话",
   "chat.workspaceHistoryRetry": "重试加载会话",

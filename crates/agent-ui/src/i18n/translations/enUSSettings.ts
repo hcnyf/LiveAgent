@@ -262,6 +262,12 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
   "settings.autoCompactThreshold": "Auto-compaction threshold",
   "settings.autoCompactThresholdHint":
     "Compact automatically once context usage reaches this percentage (10–99, default 80). The effective line never falls behind the algorithm's own safety margin.",
+  "settings.workTraceDisclosure": "Processing detail disclosure",
+  "settings.workTraceDisclosureHint":
+    "While a turn is running, the reasoning and tool calls between two outputs collapse into one summary row. This decides its default state; all three can still be toggled by hand.",
+  "settings.workTraceDisclosureActive": "Expand while active, collapse when done",
+  "settings.workTraceDisclosureExpanded": "Always expanded",
+  "settings.workTraceDisclosureCollapsed": "Always collapsed",
   "settings.systemProxyEnable": "Enable app proxy",
   "settings.systemProxyMode": "Proxy source",
   "settings.systemProxyModeManual": "Manual",

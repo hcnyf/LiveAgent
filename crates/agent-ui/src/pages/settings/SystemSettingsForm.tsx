@@ -14,6 +14,7 @@ import {
   type FontScaleSettings,
   isValidSystemProxyHost,
   normalizeAutoCompactThresholdPercent,
+  normalizeWorkTraceDisclosure,
   resolveDefaultTimeZone,
   type SystemProxyConfig,
   type SystemProxyMode,
@@ -22,6 +23,7 @@ import {
   type Theme,
   updateCustomSettings,
   updateSystem,
+  type WorkTraceDisclosure,
 } from "@liveagent/app/lib/settings";
 import {
   getNotificationPermissionState,
@@ -237,6 +239,18 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
   };
 
   const executionMode = settings.system.executionMode;
+
+  const workTraceDisclosure = normalizeWorkTraceDisclosure(settings.system.workTraceDisclosure);
+  const workTraceDisclosureOptions: Array<{
+    value: WorkTraceDisclosure;
+    label: string;
+  }> = [
+    { value: "active", label: t("settings.workTraceDisclosureActive") },
+    { value: "expanded", label: t("settings.workTraceDisclosureExpanded") },
+    { value: "collapsed", label: t("settings.workTraceDisclosureCollapsed") },
+  ];
+  const activeWorkTraceDisclosureLabel =
+    workTraceDisclosureOptions.find((option) => option.value === workTraceDisclosure)?.label ?? "";
 
   const executionModeOptions: Array<{
     value: ExecutionMode;
@@ -882,6 +896,33 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
               />
               <span className="text-sm text-muted-foreground">%</span>
             </div>
+          }
+        />
+        <SettingsRow
+          title={t("settings.workTraceDisclosure")}
+          description={t("settings.workTraceDisclosureHint")}
+          control={
+            <Select
+              value={workTraceDisclosure}
+              onValueChange={(value) =>
+                setSettings((prev) =>
+                  updateSystem(prev, {
+                    workTraceDisclosure: normalizeWorkTraceDisclosure(value),
+                  }),
+                )
+              }
+            >
+              <SettingsSelectTrigger className="min-w-36 justify-between">
+                <SelectValue>{activeWorkTraceDisclosureLabel}</SelectValue>
+              </SettingsSelectTrigger>
+              <SettingsSelectContent>
+                {workTraceDisclosureOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SettingsSelectContent>
+            </Select>
           }
         />
       </SettingsGroup>

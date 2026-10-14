@@ -1,5 +1,6 @@
 import type { Context } from "@earendil-works/pi-ai";
 import { AppErrorBoundary } from "@liveagent/ui/components/AppErrorBoundary";
+import { WorkTraceDisclosureProvider } from "@liveagent/ui/components/chat/WorkTraceDisclosureContext";
 import { Pin } from "@liveagent/ui/components/IconSet";
 import { useConfirmDialog } from "@liveagent/ui/components/ui/confirm-dialog";
 import { Toaster } from "@liveagent/ui/components/ui/toaster";
@@ -751,93 +752,95 @@ export default function App() {
 
   return (
     <LocaleContext.Provider value={localeContextValue}>
-      <Toaster />
-      <AppChrome>
-        {backgroundHostsReady ? (
-          <Suspense fallback={null}>
-            <CronPromptRunner settings={settings} />
-            <PlanningSubscriptionRunner />
-            <MemoryOrganizerHost settings={settings} setSettings={setSettings} />
-          </Suspense>
-        ) : null}
-        <AppErrorBoundary fallbackHeader={<WindowsTitleBar />}>
-          <Suspense
-            fallback={<AppBootShell loadingLabel={translate("app.loading", settings.locale)} />}
-          >
-            <ChatPage
-              settings={settings}
-              setSettings={setSettings}
-              sttProviderOverride={sttProviderOverride}
-              getMcpSettings={getMcpSettings}
-              getToolPolicies={getToolPolicies}
-              getImageProviders={getImageProviders}
-              context={context}
-              setContext={setContext}
-              onOpenSettings={openSettings}
-              onToggleTheme={toggleTheme}
-              appUpdate={appUpdate}
-              onRunningConversationCountChange={handleRunningConversationCountChange}
-            />
-          </Suspense>
-        </AppErrorBoundary>
-        {visible && (
-          <div
-            className={cn(
-              "absolute inset-0 z-50 flex flex-col transition-all duration-300 ease-out",
-              active ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6",
-            )}
-            onTransitionEnd={handleTransitionEnd}
-          >
-            {/* The overlay owns its title bar so the chat subtree below keeps a
+      <WorkTraceDisclosureProvider value={settings.system.workTraceDisclosure}>
+        <Toaster />
+        <AppChrome>
+          {backgroundHostsReady ? (
+            <Suspense fallback={null}>
+              <CronPromptRunner settings={settings} />
+              <PlanningSubscriptionRunner />
+              <MemoryOrganizerHost settings={settings} setSettings={setSettings} />
+            </Suspense>
+          ) : null}
+          <AppErrorBoundary fallbackHeader={<WindowsTitleBar />}>
+            <Suspense
+              fallback={<AppBootShell loadingLabel={translate("app.loading", settings.locale)} />}
+            >
+              <ChatPage
+                settings={settings}
+                setSettings={setSettings}
+                sttProviderOverride={sttProviderOverride}
+                getMcpSettings={getMcpSettings}
+                getToolPolicies={getToolPolicies}
+                getImageProviders={getImageProviders}
+                context={context}
+                setContext={setContext}
+                onOpenSettings={openSettings}
+                onToggleTheme={toggleTheme}
+                appUpdate={appUpdate}
+                onRunningConversationCountChange={handleRunningConversationCountChange}
+              />
+            </Suspense>
+          </AppErrorBoundary>
+          {visible && (
+            <div
+              className={cn(
+                "absolute inset-0 z-50 flex flex-col transition-all duration-300 ease-out",
+                active ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6",
+              )}
+              onTransitionEnd={handleTransitionEnd}
+            >
+              {/* The overlay owns its title bar so the chat subtree below keeps a
                 constant height across open/close. */}
-            <WindowsTitleBar />
-            <div className="relative min-h-0 flex-1 overflow-hidden">
-              <AppErrorBoundary>
-                <Suspense
-                  fallback={
-                    <div className="flex size-full items-center justify-center bg-background text-sm text-muted-foreground">
-                      {translate("app.loading", settings.locale)}
-                    </div>
-                  }
-                >
-                  <SettingsPage
-                    settings={settings}
-                    setSettings={setSettings}
-                    saveState={settingsSaveState}
-                    onBack={closeSettings}
-                    initialSection={settingsSection}
-                    initialProviderId={settingsProviderId}
-                    appUpdate={appUpdate}
-                    releaseAnnouncement={releaseAnnouncement}
-                    sttSettingsService={desktopSttSettingsService}
-                    onSttProviderChange={setSttProviderOverride}
-                    reloadSettings={reloadPersistedSettings}
-                  />
-                </Suspense>
-              </AppErrorBoundary>
+              <WindowsTitleBar />
+              <div className="relative min-h-0 flex-1 overflow-hidden">
+                <AppErrorBoundary>
+                  <Suspense
+                    fallback={
+                      <div className="flex size-full items-center justify-center bg-background text-sm text-muted-foreground">
+                        {translate("app.loading", settings.locale)}
+                      </div>
+                    }
+                  >
+                    <SettingsPage
+                      settings={settings}
+                      setSettings={setSettings}
+                      saveState={settingsSaveState}
+                      onBack={closeSettings}
+                      initialSection={settingsSection}
+                      initialProviderId={settingsProviderId}
+                      appUpdate={appUpdate}
+                      releaseAnnouncement={releaseAnnouncement}
+                      sttSettingsService={desktopSttSettingsService}
+                      onSttProviderChange={setSttProviderOverride}
+                      reloadSettings={reloadPersistedSettings}
+                    />
+                  </Suspense>
+                </AppErrorBoundary>
+              </div>
             </div>
-          </div>
-        )}
-        {windowPinned && (
-          <button
-            type="button"
-            onClick={() => {
-              void invoke("app_toggle_window_pin").catch(() => {});
-            }}
-            title={translate("app.windowPinnedHint", settings.locale)}
-            className={cn(
-              "layer-toast absolute top-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5",
-              "rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1",
-              "text-xs font-medium text-primary shadow-sm backdrop-blur transition-colors hover:bg-primary/20",
-            )}
-          >
-            <Pin className="size-3" />
-            {translate("app.windowPinned", settings.locale)}
-          </button>
-        )}
-        <ReleaseAnnouncementDialog controller={releaseAnnouncement} />
-        {restartConfirmDialog}
-      </AppChrome>
+          )}
+          {windowPinned && (
+            <button
+              type="button"
+              onClick={() => {
+                void invoke("app_toggle_window_pin").catch(() => {});
+              }}
+              title={translate("app.windowPinnedHint", settings.locale)}
+              className={cn(
+                "layer-toast absolute top-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5",
+                "rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1",
+                "text-xs font-medium text-primary shadow-sm backdrop-blur transition-colors hover:bg-primary/20",
+              )}
+            >
+              <Pin className="size-3" />
+              {translate("app.windowPinned", settings.locale)}
+            </button>
+          )}
+          <ReleaseAnnouncementDialog controller={releaseAnnouncement} />
+          {restartConfirmDialog}
+        </AppChrome>
+      </WorkTraceDisclosureProvider>
     </LocaleContext.Provider>
   );
 }

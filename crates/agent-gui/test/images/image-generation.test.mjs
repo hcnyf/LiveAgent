@@ -278,7 +278,7 @@ test("codex edits post a FormData body so fetch owns the multipart boundary", as
   }
 });
 
-test("agnes text-to-image sends its stricter body: tier size, no quality, no n", async () => {
+test("agnes text-to-image sends its stricter body: tier size + ratio, no quality, no n", async () => {
   const stub = withFetchStub(async () => jsonResponse({ data: [{ b64_json: "QUJD" }] }));
   try {
     const images = await generateImage.generateImages({
@@ -294,8 +294,8 @@ test("agnes text-to-image sends its stricter body: tier size, no quality, no n",
     const call = stub.calls[0];
     assert.equal(call.url, `${PROXY_BASE}/proxy/codex/v1/images/generations`);
     const body = JSON.parse(call.init.body);
-    // `auto` 不是 Agnes 的合法 size：换成最小档 + 1:1。
-    assert.equal(body.size, "1K");
+    // `auto` 不是 Agnes 的合法取值：size 落到档位（auto→2K），ratio 落到它的默认 1:1。
+    assert.equal(body.size, "2K");
     assert.equal(body.ratio, "1:1");
     // 它的参数表里没有 quality / n，发了就是 400。
     assert.equal("quality" in body, false);
@@ -306,24 +306,44 @@ test("agnes text-to-image sends its stricter body: tier size, no quality, no n",
   }
 });
 
-test("agnes keeps exact sizes verbatim and asks for N images with N requests", async () => {
+test("agnes translates the codex size vocabulary into its tier + ratio and asks N times", async () => {
   const stub = withFetchStub(async () => jsonResponse({ data: [{ b64_json: "QUJD" }] }));
   try {
     const images = await generateImage.generateImages({
       provider: AGNES_IMAGE_PROVIDER,
       model: "agnes-image-2.1-flash",
       prompt: "a red panda",
-      size: "1024x1024",
-      quality: "auto",
+      size: "1536x1024",
+      quality: "medium",
       count: 3,
     });
     assert.equal(images.length, 3);
     assert.equal(stub.calls.length, 3);
     for (const call of stub.calls) {
       const body = JSON.parse(call.init.body);
-      assert.equal(body.size, "1024x1024");
-      assert.equal("ratio" in body, false);
+      // codex 的精确尺寸按真实比例翻成 Agnes 的宽高比；质量就是它的分辨率档。
+      assert.equal(body.size, "2K");
+      assert.equal(body.ratio, "3:2");
     }
+  } finally {
+    stub.restore();
+  }
+});
+
+test("agnes passes its own vocabulary straight through (official 2K + 16:9 shape)", async () => {
+  const stub = withFetchStub(async () => jsonResponse({ data: [{ b64_json: "QUJD" }] }));
+  try {
+    await generateImage.generateImages({
+      provider: AGNES_IMAGE_PROVIDER,
+      model: "agnes-image-2.5-flash",
+      prompt: "cinematic wallpaper",
+      size: "16:9",
+      quality: "2K",
+      count: 1,
+    });
+    const body = JSON.parse(stub.calls[0].init.body);
+    assert.equal(body.size, "2K");
+    assert.equal(body.ratio, "16:9");
   } finally {
     stub.restore();
   }
@@ -345,9 +365,12 @@ test("agnes image-to-image reuses /images/generations instead of the edits multi
     assert.equal(call.url, `${PROXY_BASE}/proxy/codex/v1/images/generations`);
     assert.equal(typeof call.init.body, "string", "agnes edits must be JSON, not multipart");
     const body = JSON.parse(call.init.body);
-    assert.deepEqual(body.image, ["data:image/png;base64,cmVm"]);
+    // 官方示例与「重要说明」一致：输入图只放 extra_body.image，
+    // base64 输出用 extra_body.response_format；顶层不能放 response_format。
+    assert.equal("image" in body, false);
     assert.deepEqual(body.extra_body.image, ["data:image/png;base64,cmVm"]);
     assert.equal(body.extra_body.response_format, "b64_json");
+    assert.equal("response_format" in body, false);
   } finally {
     stub.restore();
   }

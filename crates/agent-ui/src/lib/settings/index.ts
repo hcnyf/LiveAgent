@@ -166,6 +166,8 @@ export type {
   ResolvedImageGenerationParams,
 } from "./imageGeneration";
 export {
+  AGNES_IMAGE_RATIOS,
+  AGNES_IMAGE_TIERS,
   CODEX_IMAGE_QUALITIES,
   CODEX_IMAGE_SIZES,
   DEFAULT_IMAGE_COUNT,
@@ -178,6 +180,7 @@ export {
   IMAGE_GENERATION_PROVIDER_IDS,
   imageQualityOptions,
   imageSizeOptions,
+  isAgnesImageEndpoint,
   isImageGenerationProviderId,
   normalizeImageCount,
   normalizeImageQuality,
@@ -215,6 +218,9 @@ export {
   subscribeToSystemThemePreference,
 } from "./themeAndMemory";
 export * from "./types";
+
+import { WORK_TRACE_DISCLOSURE_DEFAULT, type WorkTraceDisclosure } from "./types";
+
 export {
   normalizeArchivedWorkspaceProjectPaths,
   normalizeHiddenWorkspaceProjectPaths,
@@ -1368,6 +1374,13 @@ export function normalizeAutoCompactThresholdPercent(input: unknown): number {
   );
 }
 
+/** 过程概括条展开策略：只认三个字面量，其余一律回退默认（`active`）。 */
+export function normalizeWorkTraceDisclosure(input: unknown): WorkTraceDisclosure {
+  return input === "active" || input === "expanded" || input === "collapsed"
+    ? input
+    : WORK_TRACE_DISCLOSURE_DEFAULT;
+}
+
 function normalizeUsageQueryConfig(input: unknown): UsageQueryConfig {
   const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const apiKey = normalizeApiKey(typeof obj.apiKey === "string" ? obj.apiKey : "");
@@ -1835,6 +1848,7 @@ export function normalizeSystemSettings(input: unknown): SystemSettings {
     autoCompactThresholdPercent: normalizeAutoCompactThresholdPercent(
       obj.autoCompactThresholdPercent,
     ),
+    workTraceDisclosure: normalizeWorkTraceDisclosure(obj.workTraceDisclosure),
   };
 }
 
@@ -2077,6 +2091,7 @@ export function getDefaultSettings(): AppSettings {
       systemProxy: getDefaultSystemProxyConfig(),
       notifications: { ...DEFAULT_NOTIFICATION_SETTINGS },
       autoCompactThresholdPercent: AUTO_COMPACT_THRESHOLD_PERCENT_DEFAULT,
+      workTraceDisclosure: WORK_TRACE_DISCLOSURE_DEFAULT,
     },
     customProviders,
     mcp: {

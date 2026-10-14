@@ -26,6 +26,9 @@ const {
   DEFAULT_IMAGE_COUNT,
   CODEX_IMAGE_SIZES,
   GEMINI_IMAGE_ASPECT_RATIOS,
+  AGNES_IMAGE_RATIOS,
+  AGNES_IMAGE_TIERS,
+  isAgnesImageEndpoint,
 } = loader.loadModule("src/lib/settings/index.ts");
 
 const BASE_MODEL = { id: "img-1", contextWindow: 4096, maxOutputToken: 1024 };
@@ -41,9 +44,21 @@ test("image generation is limited to codex and gemini", () => {
   assert.deepEqual(imageSizeOptions("codex"), [...CODEX_IMAGE_SIZES]);
   assert.deepEqual(imageSizeOptions("gemini"), [...GEMINI_IMAGE_ASPECT_RATIOS]);
   assert.equal(normalizeImageSize("gemini", "1024x1024"), undefined);
-  assert.equal(normalizeImageSize("codex", "16:9"), undefined);
-  assert.equal(normalizeImageQuality("codex", "2K"), undefined);
   assert.equal(normalizeImageQuality("gemini", "high"), undefined);
+  // Agnes 例外：它挂在 codex 协议下，但词汇表是「档位 + 宽高比」。归一化按并集收，
+  // 否则落库的 Agnes 取值会在下次读设置时被静默抹掉（真正的门是界面的选项表）。
+  assert.equal(normalizeImageSize("codex", "16:9"), "16:9");
+  assert.equal(normalizeImageQuality("codex", "2K"), "2K");
+  // 界面按端点换表：Agnes 端点给官方词汇表，别的 codex 端点仍是 WxH。
+  assert.deepEqual(imageSizeOptions("codex", "https://apihub.agnes-ai.com/v1"), [
+    ...AGNES_IMAGE_RATIOS,
+  ]);
+  assert.deepEqual(imageQualityOptions("codex", "https://apihub.agnes-ai.com/v1"), [
+    ...AGNES_IMAGE_TIERS,
+  ]);
+  assert.deepEqual(imageSizeOptions("codex", "https://api.openai.com/v1"), [...CODEX_IMAGE_SIZES]);
+  assert.equal(isAgnesImageEndpoint("https://apihub.agnes-ai.com/v1"), true);
+  assert.equal(isAgnesImageEndpoint("https://api.openai.com/v1"), false);
 });
 
 test("image params survive a normalize round trip only for image providers", () => {
@@ -114,12 +129,18 @@ test("resolveImageGenerationParams prefers call overrides, then model, then prot
     quality: "low",
     count: 5,
   });
-  // 非法调用参数按"未传"处理，回落到模型配置。
-  assert.deepEqual(resolveImageGenerationParams("codex", model, { size: "16:9", count: 99 }), {
+  // 非法调用参数按"未传"处理，回落到模型配置（16:9 现在是 Agnes 的合法取值，
+  // 所以这里改用两套词汇表都不认的值）。
+  assert.deepEqual(resolveImageGenerationParams("codex", model, { size: "17:9", count: 99 }), {
     size: "1024x1024",
     quality: "low",
     count: 2,
   });
+  // Agnes 端点：词汇表换成它自己的档位/宽高比，缺省值也跟着换（2K + 1:1）。
+  assert.deepEqual(
+    resolveImageGenerationParams("codex", {}, undefined, "https://apihub.agnes-ai.com/v1"),
+    { size: "1:1", quality: "2K", count: DEFAULT_IMAGE_COUNT },
+  );
   // 模型未配置 → 协议默认值（codex 用上游自己的 auto 语义，不替用户猜具体尺寸）。
   assert.deepEqual(resolveImageGenerationParams("codex", {}, undefined), {
     size: "auto",

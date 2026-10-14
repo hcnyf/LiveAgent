@@ -50,6 +50,39 @@ export const GEMINI_IMAGE_ASPECT_RATIOS = [
 /** gemini 的分辨率档（`generationConfig.imageConfig.imageSize`）。 */
 export const GEMINI_IMAGE_RESOLUTIONS = ["1K", "2K"] as const;
 
+/**
+ * Agnes（`apihub.agnes-ai.com`）图像端点的官方词汇表。
+ *
+ * 它虽然挂在 OpenAI Images 形状的 codex 协议下（`POST /v1/images/generations`），
+ * 但尺寸是「档位 + 宽高比」两个字段：`size` 只认 1K/2K/3K/4K（历史精确尺寸会被
+ * 标准化），`ratio` 单独给宽高比。codex 那套 `1024x1024/1536x1024/auto` 表达不出
+ * 官方的 `size:"2K" + ratio:"16:9"`，所以按端点识别、给这两张表。
+ */
+export const AGNES_IMAGE_TIERS = ["1K", "2K", "3K", "4K"] as const;
+
+export const AGNES_IMAGE_RATIOS = [
+  "1:1",
+  "3:4",
+  "4:3",
+  "16:9",
+  "9:16",
+  "2:3",
+  "3:2",
+  "21:9",
+] as const;
+
+/** 是否是 Agnes 图像端点（按主机名判定，与生图适配器同一口径）。 */
+export function isAgnesImageEndpoint(baseUrl: string | undefined): boolean {
+  const trimmed = (baseUrl ?? "").trim();
+  if (!trimmed) return false;
+  try {
+    return /(^|\.)agnes-ai\.com$/i.test(new URL(trimmed).hostname);
+  } catch {
+    const match = /(?:^|\/\/)([^/?#]+)/.exec(trimmed);
+    return /(^|\.)agnes-ai\.com$/i.test(match?.[1]?.split(":")[0] ?? "");
+  }
+}
+
 const IMAGE_SIZE_OPTIONS: Record<ImageGenerationProviderId, readonly string[]> = {
   codex: CODEX_IMAGE_SIZES,
   gemini: GEMINI_IMAGE_ASPECT_RATIOS,
@@ -60,12 +93,23 @@ const IMAGE_QUALITY_OPTIONS: Record<ImageGenerationProviderId, readonly string[]
   gemini: GEMINI_IMAGE_RESOLUTIONS,
 };
 
-export function imageSizeOptions(providerId: ImageGenerationProviderId): readonly string[] {
-  return IMAGE_SIZE_OPTIONS[providerId];
+/**
+ * 选项表按「协议 + 端点」取：Agnes 虽然走 codex 协议，但它的 `size`/`ratio` 与
+ * gemini 的 `imageSize`/`aspectRatio` 同构，所以按端点换成 Agnes 自己的两张表，
+ * 用户才能在界面上直接选到官方的 `2K` + `16:9`。
+ */
+export function imageSizeOptions(
+  providerId: ImageGenerationProviderId,
+  baseUrl?: string,
+): readonly string[] {
+  return isAgnesImageEndpoint(baseUrl) ? AGNES_IMAGE_RATIOS : IMAGE_SIZE_OPTIONS[providerId];
 }
 
-export function imageQualityOptions(providerId: ImageGenerationProviderId): readonly string[] {
-  return IMAGE_QUALITY_OPTIONS[providerId];
+export function imageQualityOptions(
+  providerId: ImageGenerationProviderId,
+  baseUrl?: string,
+): readonly string[] {
+  return isAgnesImageEndpoint(baseUrl) ? AGNES_IMAGE_TIERS : IMAGE_QUALITY_OPTIONS[providerId];
 }
 
 /**
@@ -91,20 +135,32 @@ const DEFAULT_IMAGE_QUALITY: Record<ImageGenerationProviderId, string> = {
   gemini: "1K",
 };
 
-export function defaultImageSize(providerId: ImageGenerationProviderId): string {
-  return DEFAULT_IMAGE_SIZE[providerId];
+export function defaultImageSize(providerId: ImageGenerationProviderId, baseUrl?: string): string {
+  return isAgnesImageEndpoint(baseUrl) ? "1:1" : DEFAULT_IMAGE_SIZE[providerId];
 }
 
-export function defaultImageQuality(providerId: ImageGenerationProviderId): string {
-  return DEFAULT_IMAGE_QUALITY[providerId];
+export function defaultImageQuality(
+  providerId: ImageGenerationProviderId,
+  baseUrl?: string,
+): string {
+  // Agnes 的档位即它的「质量」：默认 2K 与官方示例同档，1K 太小、3K/4K 偏慢。
+  return isAgnesImageEndpoint(baseUrl) ? "2K" : DEFAULT_IMAGE_QUALITY[providerId];
 }
 
+/**
+ * 归一化按「协议词汇表 ∪ Agnes 词汇表」收。
+ *
+ * 落库的模型配置在归一化时拿不到端点（`normalizeProviderModelConfig` 只认协议），
+ * 所以这里放宽一格：Agnes 的值不会被静默抹掉。真正的门是界面——只有 Agnes 端点
+ * 才会把 Agnes 的档位/宽高比列出来；手工塞进别的 codex 供应商会在上游报 400。
+ */
 export function normalizeImageSize(
   providerId: ImageGenerationProviderId,
   input: unknown,
 ): string | undefined {
   if (typeof input !== "string") return undefined;
   const value = input.trim();
+  if ((AGNES_IMAGE_RATIOS as readonly string[]).includes(value)) return value;
   return (IMAGE_SIZE_OPTIONS[providerId] as readonly string[]).includes(value) ? value : undefined;
 }
 
@@ -114,6 +170,7 @@ export function normalizeImageQuality(
 ): string | undefined {
   if (typeof input !== "string") return undefined;
   const value = input.trim();
+  if ((AGNES_IMAGE_TIERS as readonly string[]).includes(value)) return value;
   return (IMAGE_QUALITY_OPTIONS[providerId] as readonly string[]).includes(value)
     ? value
     : undefined;
@@ -146,6 +203,7 @@ export function resolveImageGenerationParams(
   providerId: ImageGenerationProviderId,
   modelDefaults: { imageSize?: string; imageQuality?: string; imageCount?: number },
   callOverrides?: { size?: unknown; quality?: unknown; count?: unknown },
+  baseUrl?: string,
 ): ResolvedImageGenerationParams {
   const callSize = normalizeImageSize(providerId, callOverrides?.size);
   const callQuality = normalizeImageQuality(providerId, callOverrides?.quality);
@@ -154,11 +212,11 @@ export function resolveImageGenerationParams(
     size:
       callSize ??
       normalizeImageSize(providerId, modelDefaults.imageSize) ??
-      DEFAULT_IMAGE_SIZE[providerId],
+      defaultImageSize(providerId, baseUrl),
     quality:
       callQuality ??
       normalizeImageQuality(providerId, modelDefaults.imageQuality) ??
-      DEFAULT_IMAGE_QUALITY[providerId],
+      defaultImageQuality(providerId, baseUrl),
     count: callCount ?? normalizeImageCount(modelDefaults.imageCount) ?? DEFAULT_IMAGE_COUNT,
   };
 }

@@ -282,10 +282,10 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
   const imageGenerationProviderId = isImageGenerationProviderId(providerType)
     ? providerType
     : "codex";
-  const imageSizeChoices = imageSizeOptions(imageGenerationProviderId);
-  const imageQualityChoices = imageQualityOptions(imageGenerationProviderId);
-  const imageSizeDefault = defaultImageSize(imageGenerationProviderId);
-  const imageQualityDefault = defaultImageQuality(imageGenerationProviderId);
+  const imageSizeChoices = imageSizeOptions(imageGenerationProviderId, baseUrl);
+  const imageQualityChoices = imageQualityOptions(imageGenerationProviderId, baseUrl);
+  const imageSizeDefault = defaultImageSize(imageGenerationProviderId, baseUrl);
+  const imageQualityDefault = defaultImageQuality(imageGenerationProviderId, baseUrl);
   return (
     <Dialog
       open={dialogOpen}

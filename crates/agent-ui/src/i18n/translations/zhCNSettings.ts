@@ -248,6 +248,12 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.autoCompactThreshold": "自动压缩触发线",
   "settings.autoCompactThresholdHint":
     "上下文占用达到该百分比时自动压缩（10–99，默认 80）。实际触发线不会晚于算法自身的安全线。",
+  "settings.workTraceDisclosure": "处理过程展开方式",
+  "settings.workTraceDisclosureHint":
+    "回合处理中，两次输出之间的思考与工具调用会收成一条概括条。这一项决定它的默认展开状态，三档都可以手动点击切换。",
+  "settings.workTraceDisclosureActive": "进行中展开，完成后收起",
+  "settings.workTraceDisclosureExpanded": "全部展开",
+  "settings.workTraceDisclosureCollapsed": "全部收起",
   "settings.systemProxyEnable": "启用应用代理",
   "settings.systemProxyMode": "代理来源",
   "settings.systemProxyModeManual": "手动填写",

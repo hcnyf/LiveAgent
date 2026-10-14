@@ -81,5 +81,6 @@ export function resolveTargetImageParams(
     target.provider.type as Parameters<typeof resolveImageGenerationParams>[0],
     target.modelConfig,
     callOverrides,
+    target.provider.baseUrl,
   );
 }

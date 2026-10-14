@@ -1,5 +1,6 @@
 import type { CustomProvider } from "@liveagent/app/lib/settings";
 import { prepareUpstreamProxyRequest } from "@liveagent/ui/lib/providers/proxy";
+import { AGNES_IMAGE_RATIOS } from "@liveagent/ui/lib/settings";
 import { decodeBase64ToBytes, encodeBytesToBase64 } from "../base64";
 import {
   buildImageRequestTransport,
@@ -52,11 +53,50 @@ function hostOfBaseUrl(baseUrl: string): string {
 }
 
 /**
- * Agnes 的 `size`：`auto`（我们的 codex 协议默认值）不是它的合法取值，换成最小档
- * `1K` + `1:1`；其余精确尺寸原样透传（Agnes 会归一化到最近的档位/比例）。
+ * Agnes 的 `size` 只认档位（1K/2K/3K/4K），宽高比走独立的 `ratio`：官方的
+ * 「2K + 16:9」就是 `size:"2K" + ratio:"16:9"`。我们的界面按端点换成 Agnes 自己的
+ * 选项表（宽高比 + 档位），所以这里两件事分开翻译：
+ * - 值已经是 Agnes 的宽高比 → 原样当 `ratio`；
+ * - 值还是 codex 的精确尺寸 → 按它真实的比例映射（1024x1024→1:1 等）；
+ * - `auto` 或认不出的值 → 1:1（Agnes 自己的默认）。
  */
-function agnesImageSize(size: string): { size: string; ratio?: string } {
-  return size.trim().toLowerCase() === "auto" ? { size: "1K", ratio: "1:1" } : { size };
+function agnesImageParams(size: string, quality: string): { size: string; ratio: string } {
+  const tier = agnesTier(quality);
+  const trimmed = size.trim();
+  if ((AGNES_IMAGE_RATIOS as readonly string[]).includes(trimmed)) {
+    return { size: tier, ratio: trimmed };
+  }
+  return { size: tier, ratio: AGNES_RATIO_BY_EXACT_SIZE[trimmed.toLowerCase()] ?? "1:1" };
+}
+
+/** 精确尺寸 → 宽高比；Agnes 会把不支持的精确尺寸标准化，所以这里按实际比例给。 */
+const AGNES_RATIO_BY_EXACT_SIZE: Record<string, string> = {
+  "1024x1024": "1:1",
+  "1536x1024": "3:2",
+  "1024x1536": "2:3",
+};
+
+/**
+ * Agnes 里「质量」就是分辨率档：codex 的 low/medium/high 与 gemini 的 1K/2K 都
+ * 收敛到它自己的 1K/2K/3K/4K。`auto` 取 2K——与官方示例同档，1K 太小、3K/4K 偏慢。
+ */
+function agnesTier(quality: string): string {
+  switch (quality.trim().toLowerCase()) {
+    case "low":
+      return "1K";
+    case "high":
+      return "4K";
+    case "1k":
+      return "1K";
+    case "2k":
+      return "2K";
+    case "3k":
+      return "3K";
+    case "4k":
+      return "4K";
+    default:
+      return "2K";
+  }
 }
 
 function toDataUri(image: GeneratedImage): string {
@@ -112,6 +152,7 @@ async function generateAgnesImages(params: {
   model: string;
   prompt: string;
   size: string;
+  quality: string;
   count: number;
   signal?: AbortSignal;
 }): Promise<GeneratedImage[]> {
@@ -123,7 +164,7 @@ async function generateAgnesImages(params: {
   const body: Record<string, unknown> = {
     model: params.model,
     prompt: params.prompt,
-    ...agnesImageSize(params.size),
+    ...agnesImageParams(params.size, params.quality),
     // 文档给文生图的口径：要 base64 就发顶层 `return_base64`。这样也省掉一次
     // 「拿到 URL 再去下载」——那个下载不带鉴权头，对需要鉴权的图床会 401。
     return_base64: true,
@@ -136,6 +177,7 @@ async function editAgnesImages(params: {
   model: string;
   prompt: string;
   size: string;
+  quality: string;
   count: number;
   referenceImages: readonly GeneratedImage[];
   signal?: AbortSignal;
@@ -149,10 +191,9 @@ async function editAgnesImages(params: {
   const body: Record<string, unknown> = {
     model: params.model,
     prompt: params.prompt,
-    ...agnesImageSize(params.size),
-    // 文档的 API 参考表把 `image` 列在顶层，正文与示例又都写在 `extra_body.image`。
-    // 两处都给：未知字段一般被忽略，不会因为重复而报错，而漏掉哪一处都会 400。
-    image: referenceImages,
+    ...agnesImageParams(params.size, params.quality),
+    // 官方示例与「重要说明」一致：输入图放 `extra_body.image`（Data URI 或 URL），
+    // base64 输出用 `extra_body.response_format`；顶层只能放 `return_base64`。
     extra_body: { image: referenceImages, response_format: "b64_json" },
   };
   return postAgnesImageRequests(transport, body, params.count, params);

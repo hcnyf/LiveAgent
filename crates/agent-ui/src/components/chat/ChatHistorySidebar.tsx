@@ -123,6 +123,30 @@ const PROJECT_LIST_COLLAPSED_MAX = 30;
 const EMPTY_PROJECT_PATH_KEYS = new Set<string>();
 const EMPTY_APPROVAL_CONVERSATION_IDS = new Set<string>();
 const EMPTY_QUESTION_CONVERSATION_IDS = new Set<string>();
+
+// 工作目录的展开/折叠状态：纯 UI 偏好，存本地即可（与楼层书签同一路数）。
+// 没有存档 = 首次运行，此时默认把已加载的目录全部展开。
+const EXPANDED_PROJECTS_STORAGE_KEY = "liveagent.sidebar.expandedProjects";
+
+function readStoredExpandedProjectIds(): ReadonlySet<string> | null {
+  try {
+    const raw = window.localStorage.getItem(EXPANDED_PROJECTS_STORAGE_KEY);
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return new Set(parsed.filter((value): value is string => typeof value === "string"));
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredExpandedProjectIds(ids: ReadonlySet<string>) {
+  try {
+    window.localStorage.setItem(EXPANDED_PROJECTS_STORAGE_KEY, JSON.stringify([...ids]));
+  } catch {
+    // 隐私模式 / 配额满：偏好存不下就只影响下次启动，不影响本次交互。
+  }
+}
 const HISTORY_LOADING_SKELETON_ROWS = [
   { title: "w-36", meta: "w-20" },
   { title: "w-44", meta: "w-24" },
@@ -290,9 +314,14 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
   const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(null);
   const [isMobileMenuLayout, setIsMobileMenuLayout] = useState(isMobileSidebarLayout);
   const sidebarSelectedProjectRef = useRef<string | null>(null);
-  const [expandedProjectIds, setExpandedProjectIds] = useState<ReadonlySet<string>>(
-    () => new Set(activeProjectId ? [activeProjectId] : []),
-  );
+  const [expandedProjectIds, setExpandedProjectIds] = useState<ReadonlySet<string>>(() => {
+    // 恢复上一次的展开状态（用户手动切换过才写盘）；没有存档就沿用「只有当前
+    // 工作目录展开」——「首次全展开」会撞上「点一下切换、再点收起」的既有语义
+    // （首次点击会把已经展开的目录收起来），所以取的是用户说的「保持上次状态」。
+    const stored = readStoredExpandedProjectIds();
+    if (stored) return stored;
+    return new Set(activeProjectId ? [activeProjectId] : []);
+  });
   useEffect(() => {
     // A title click already chose whether to expand or collapse this folder.
     // Selecting that workspace must not undo the same click's collapse.
@@ -327,6 +356,8 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
       const next = new Set(current);
       if (next.has(project.id)) next.delete(project.id);
       else next.add(project.id);
+      // 只在用户手动切换时写盘：渲染期写会让同一进程里的多个测试互相污染。
+      writeStoredExpandedProjectIds(next);
       return next;
     });
   };
@@ -1269,12 +1300,13 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
               "text-left text-sm font-normal leading-5 text-foreground/60",
               "hover:bg-foreground/[0.06] hover:text-foreground/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
             )}
+            aria-busy={state?.loading}
           >
-            {state?.loading
-              ? t("sidebar.loadingMoreHistory")
-              : state?.error
-                ? t("chat.workspaceHistoryRetry")
-                : t("sidebar.continueLoadingHistory")}
+            {/* 同主列表：后台每 60s 的对账也会把 loading 置真，换文案会周期性闪。 */}
+            {state?.loading ? (
+              <Loader2 aria-hidden="true" className="mr-1 inline size-3 animate-spin" />
+            ) : null}
+            {state?.error ? t("chat.workspaceHistoryRetry") : t("sidebar.continueLoadingHistory")}
           </button>
         ) : null}
       </div>
@@ -2164,10 +2196,14 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
                       "text-center text-xs leading-5 text-muted-foreground",
                       "hover:bg-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-ring",
                     )}
+                    aria-busy={isLoadingMore}
                   >
-                    {isLoadingMore
-                      ? t("sidebar.loadingMoreHistory")
-                      : t("sidebar.continueLoadingHistory")}
+                    {/* 加载态只叠一枚转圈，不换文案：本地一页数据往往 1~2 帧就回来，
+                        换文案会闪成「正在加载更多历史记录…」再变回来。 */}
+                    {isLoadingMore ? (
+                      <Loader2 aria-hidden="true" className="mr-1 inline size-3 animate-spin" />
+                    ) : null}
+                    {t("sidebar.continueLoadingHistory")}
                   </button>
                 ) : null}
               </div>

@@ -413,7 +413,22 @@ export type SystemSettings = {
    * `crates/agent-gui/src/lib/chat/compaction/policy.ts` 的 resolveCompactionLimits。
    */
   autoCompactThresholdPercent?: number;
+  /**
+   * 运行中的「过程概括条」（`WorkProcessRow`）展开策略。
+   *
+   * - `active`（默认）：当前进行中的那一段展开，落定后自动收起
+   * - `expanded`：默认展开，不自动收起
+   * - `collapsed`：默认收起
+   *
+   * 三档都保留手动点击切换；手动点过之后以手动为准，不再被策略收回。
+   */
+  workTraceDisclosure?: WorkTraceDisclosure;
 };
+
+/** 过程概括条展开策略；见 `system.workTraceDisclosure`。 */
+export type WorkTraceDisclosure = "active" | "expanded" | "collapsed";
+
+export const WORK_TRACE_DISCLOSURE_DEFAULT: WorkTraceDisclosure = "active";
 
 /** 上下文自动压缩触发线占比（%）：与 `system.autoCompactThresholdPercent` 同口径。 */
 export const AUTO_COMPACT_THRESHOLD_PERCENT_MIN = 10;
