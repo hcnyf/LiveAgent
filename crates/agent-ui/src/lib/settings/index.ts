@@ -117,6 +117,7 @@ import type {
   SystemProxyConfig,
   SystemSettings,
   ToolPolicy,
+  UpdateMode,
   UpdateSettings,
   UsageQueryCodingPlanProvider,
   UsageQueryConfig,
@@ -132,12 +133,14 @@ import {
   COMMAND_SAFETY_MODES,
   DEFAULT_CHAT_RUNTIME_CONTROLS,
   DEFAULT_NOTIFICATION_SETTINGS,
+  DEFAULT_UPDATE_MODE,
   getDefaultUsageQueryConfig,
   MODEL_INPUT_MODALITIES,
   PROMPT_CACHE_HINT_MODES,
   PROVIDER_RETRY_MAX_RETRIES_LIMITS,
   RIGHT_DOCK_BACKGROUND_TASKS_TAB_ID,
   RIGHT_DOCK_TOOL_KINDS,
+  UPDATE_MODES,
   USAGE_QUERY_TIMEOUT_DEFAULT_SECS,
   USAGE_QUERY_TIMEOUT_MAX_SECS,
   USAGE_QUERY_TIMEOUT_MIN_SECS,
@@ -2042,7 +2045,15 @@ export function normalizeUpdateSettings(input: unknown): UpdateSettings {
   const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   return {
     includePrereleases: obj.includePrereleases === true,
+    mode: normalizeUpdateMode(obj.mode),
   };
+}
+
+/** 未知 / 缺失的更新方式一律收敛到默认 `check`（旧存档零迁移）。 */
+export function normalizeUpdateMode(input: unknown): UpdateMode {
+  return typeof input === "string" && (UPDATE_MODES as readonly string[]).includes(input)
+    ? (input as UpdateMode)
+    : DEFAULT_UPDATE_MODE;
 }
 
 export function getDefaultSettings(): AppSettings {

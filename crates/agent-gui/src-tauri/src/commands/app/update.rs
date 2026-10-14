@@ -8,7 +8,13 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Url};
 use tauri_plugin_updater::UpdaterExt;
 
-const DEFAULT_UPDATE_REPOSITORY: &str = "Stack-Cairn/LiveAgent";
+/// 默认更新源**刻意留空**：开发阶段不做真实检查。
+///
+/// 正式发布由 CI 注入 `LIVEAGENT_UPDATE_REPOSITORY=${{ github.repository }}`（编译期
+/// `option_env!`），所以只有「本地构建」会走到这里、拿到空源并显示「未配置更新源」。
+/// 不写死上游仓库还有一个安全理由：N 版与上游共用 identifier，若默认指向
+/// `Stack-Cairn/LiveAgent`，"检查更新"会把官方包装上去、直接顶掉 N 版安装。
+const DEFAULT_UPDATE_REPOSITORY: &str = "";
 const UPDATE_MANIFEST_ASSET: &str = "latest.json";
 
 #[derive(Debug, Clone, Serialize)]
@@ -430,6 +436,34 @@ async fn manifest_exists(client: &reqwest::Client, manifest_url: &str) -> Result
     ))
 }
 
+/// 未配置更新源（`LIVEAGENT_UPDATE_REPOSITORY` 为空，见 DEFAULT_UPDATE_REPOSITORY）：
+/// 不报错、不联网，前端据此显示「未配置更新源」而不是「检查失败」。
+fn unconfigured_update_response(app: &AppHandle, channel: AppUpdateChannel) -> AppUpdateCheckResponse {
+    AppUpdateCheckResponse {
+        configured: false,
+        available: false,
+        current_version: current_version(app),
+        version: None,
+        date: None,
+        body: None,
+        channel,
+        release_tag: None,
+        release_name: None,
+        release_url: None,
+        repository: String::new(),
+        message: None,
+        manual_download: false,
+    }
+}
+
+fn channel_for(include_prerelease: bool) -> AppUpdateChannel {
+    if include_prerelease {
+        AppUpdateChannel::Prerelease
+    } else {
+        AppUpdateChannel::Stable
+    }
+}
+
 fn no_update_response(
     app: &AppHandle,
     repository: String,
@@ -596,6 +630,9 @@ pub async fn app_release_announcement(
     app: AppHandle,
 ) -> Result<Option<AppReleaseAnnouncementResponse>, String> {
     let repository = update_repository();
+    if repository.is_empty() {
+        return Ok(None);
+    }
     let current_version = current_version(&app);
     let Some(release) = fetch_current_release(&repository, &current_version).await? else {
         return Ok(None);
@@ -619,6 +656,9 @@ pub async fn app_release_announcement_preview(
     #[cfg(debug_assertions)]
     {
         let repository = update_repository();
+        if repository.is_empty() {
+            return Ok(None);
+        }
         let Some(selected_release) = select_release_manifest(&repository, true).await? else {
             return Ok(None);
         };
@@ -641,16 +681,15 @@ pub async fn app_update_check(
     include_prerelease: bool,
 ) -> Result<AppUpdateCheckResponse, String> {
     let repository = update_repository();
+    if repository.is_empty() {
+        return Ok(unconfigured_update_response(&app, channel_for(include_prerelease)));
+    }
 
     let Some(release) = select_release_manifest(&repository, include_prerelease).await? else {
         return Ok(no_update_response(
             &app,
             repository,
-            if include_prerelease {
-                AppUpdateChannel::Prerelease
-            } else {
-                AppUpdateChannel::Stable
-            },
+            channel_for(include_prerelease),
         ));
     };
     let updater = build_updater(&app, &release.manifest_url)?;
@@ -685,16 +724,15 @@ pub async fn app_update_install(
     include_prerelease: bool,
 ) -> Result<AppUpdateCheckResponse, String> {
     let repository = update_repository();
+    if repository.is_empty() {
+        return Ok(unconfigured_update_response(&app, channel_for(include_prerelease)));
+    }
 
     let Some(release) = select_release_manifest(&repository, include_prerelease).await? else {
         return Ok(no_update_response(
             &app,
             repository,
-            if include_prerelease {
-                AppUpdateChannel::Prerelease
-            } else {
-                AppUpdateChannel::Stable
-            },
+            channel_for(include_prerelease),
         ));
     };
     let updater = build_updater(&app, &release.manifest_url)?;
@@ -766,6 +804,10 @@ pub fn app_restart(app: AppHandle) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    /// 测试用的固定仓库：`DEFAULT_UPDATE_REPOSITORY` 刻意留空（开发阶段不检查更新），
+    /// 所以 URL 相关的断言必须自带一个 owner/repository。
+    const TEST_REPOSITORY: &str = "Stack-Cairn/LiveAgent";
+
     fn feed_entry(tag_name: &str) -> ReleaseFeedEntry {
         ReleaseFeedEntry {
             tag_name: tag_name.to_string(),
@@ -807,7 +849,7 @@ mod tests {
     #[test]
     fn stable_channel_ignores_semver_prerelease_candidates() {
         let selected = selected_release_candidates_from_entries(
-            DEFAULT_UPDATE_REPOSITORY,
+            TEST_REPOSITORY,
             vec![feed_entry("v0.1.2-beta.1")],
             false,
         )
@@ -819,7 +861,7 @@ mod tests {
     #[test]
     fn prerelease_channel_can_select_prerelease_manifest() {
         let selected = selected_release_candidates_from_entries(
-            DEFAULT_UPDATE_REPOSITORY,
+            TEST_REPOSITORY,
             vec![feed_entry("v0.1.2-beta.1")],
             true,
         )
@@ -849,7 +891,7 @@ mod tests {
     #[test]
     fn stable_channel_selects_next_stable_manifest_after_prerelease() {
         let selected = selected_release_candidates_from_entries(
-            DEFAULT_UPDATE_REPOSITORY,
+            TEST_REPOSITORY,
             vec![feed_entry("v0.1.2-beta.1"), feed_entry("v0.1.1")],
             false,
         )
@@ -872,8 +914,17 @@ mod tests {
     #[test]
     fn current_release_api_url_escapes_the_tag() {
         assert_eq!(
-            release_api_url(DEFAULT_UPDATE_REPOSITORY, "v1.3.6 beta").unwrap(),
+            release_api_url(TEST_REPOSITORY, "v1.3.6 beta").unwrap(),
             "https://api.github.com/repos/Stack-Cairn/LiveAgent/releases/tags/v1.3.6%20beta"
         );
+    }
+
+    #[test]
+    fn an_empty_repository_is_rejected_instead_of_building_a_bogus_url() {
+        // 开发阶段默认源为空：必须报错（前端显示"未配置更新源"），不能拼出
+        // https://api.github.com/repos//releases/tags/... 这种请求。
+        assert!(release_api_url("", "v1.3.6").is_err());
+        assert!(release_api_url("/", "v1.3.6").is_err());
+        assert!(release_api_url("only-owner", "v1.3.6").is_err());
     }
 }

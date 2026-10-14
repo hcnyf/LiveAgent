@@ -161,6 +161,12 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "settings.aboutPrereleaseTitle": "接收预发布版本",
     "settings.aboutPrereleaseToggle": "接收预发布版本",
     "settings.aboutPrereleaseDesc": "开启后也会检查 beta、rc 等预发布版本。",
+    "settings.aboutUpdateMode": "更新方式",
+    "settings.aboutUpdateModeDesc":
+      "自动更新会在后台检查并自动下载安装；只检查只提示新版本、不自动下载也不自动安装；手动检查不后台检查，只在你点「检查更新」时才查。",
+    "settings.aboutUpdateModeAuto": "自动更新",
+    "settings.aboutUpdateModeCheck": "只检查",
+    "settings.aboutUpdateModeManual": "手动检查",
     "settings.systemProxyDesc":
       "生效范围：本地命令环境变量（Bash / 后台任务 / 自动化脚本）、勾选“使用应用代理”的供应商请求、Hook / Cron HTTP 任务、聊天图片加载、更新检查与技能下载。",
     "settings.closeWindowBehavior": "关闭窗口",
@@ -490,6 +496,12 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "settings.aboutPrereleaseTitle": "Receive Pre-releases",
     "settings.aboutPrereleaseToggle": "Receive pre-release versions",
     "settings.aboutPrereleaseDesc": "Also check beta, rc, and other pre-release versions.",
+    "settings.aboutUpdateMode": "Update mode",
+    "settings.aboutUpdateModeDesc":
+      "Automatic checks in the background and downloads + installs new versions; Check only reports new versions without downloading or installing; Manual never checks in the background and only runs when you click Check for updates.",
+    "settings.aboutUpdateModeAuto": "Automatic",
+    "settings.aboutUpdateModeCheck": "Check only",
+    "settings.aboutUpdateModeManual": "Manual",
     "settings.systemProxyDesc":
       "Applies to: local command environment (Bash / background tasks / automation scripts), providers with “Use app proxy” checked, Hook / Cron HTTP tasks, chat image loading, update checks and skill downloads.",
     "settings.closeWindowBehavior": "Close Window",

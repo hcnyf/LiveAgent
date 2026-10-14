@@ -13,7 +13,9 @@ const confirmDialogSource = readFileSync(
 const {
   APP_UPDATE_CHECK_INTERVAL_MS,
   requestAppRestart,
+  shouldAutoInstallUpdate,
   shouldRunAutomaticAppUpdateCheck,
+  shouldRunBackgroundUpdateCheck,
   shouldShowAppUpdateButton,
   shouldShowRestartRequiredNotice,
 } = loader.loadModule("src/lib/appUpdates.ts");
@@ -96,16 +98,39 @@ function createAppUpdateControllerHarness(options = {}) {
     installedResult,
     resolveCheck,
     resolveInstall,
-    render() {
+    render(overrides = {}) {
       stateIndex = 0;
       refIndex = 0;
-      return useAppUpdateController({ enabled: true, includePrereleases: false });
+      return useAppUpdateController({
+        enabled: true,
+        includePrereleases: false,
+        ...overrides,
+      });
     },
   };
 }
 
 test("checks for application updates every 20 minutes", () => {
   assert.equal(APP_UPDATE_CHECK_INTERVAL_MS, 20 * 60 * 1000);
+});
+
+test("update mode decides background checking and automatic installation", () => {
+  // 只检查 / 自动更新都后台定期检查；手动检查只认按钮。
+  assert.equal(shouldRunBackgroundUpdateCheck("auto"), true);
+  assert.equal(shouldRunBackgroundUpdateCheck("check"), true);
+  assert.equal(shouldRunBackgroundUpdateCheck("manual"), false);
+
+  const available = { configured: true, available: true };
+  const upToDate = { configured: true, available: false };
+  const unconfigured = { configured: false, available: false };
+  // 只有 auto + 已配置 + 有可用版本才自动下载安装。
+  assert.equal(shouldAutoInstallUpdate("auto", available), true);
+  assert.equal(shouldAutoInstallUpdate("auto", upToDate), false);
+  assert.equal(shouldAutoInstallUpdate("auto", unconfigured), false);
+  assert.equal(shouldAutoInstallUpdate("auto", undefined), false);
+  // 只检查 / 手动检查永不自动安装。
+  assert.equal(shouldAutoInstallUpdate("check", available), false);
+  assert.equal(shouldAutoInstallUpdate("manual", available), false);
 });
 
 test("tray checks cannot interrupt an update installation", async () => {

@@ -201,7 +201,21 @@ export type CustomSettings = {
 
 export type UpdateSettings = {
   includePrereleases: boolean;
+  /**
+   * 更新方式，缺省 `check`（与既有行为一致：后台定期检查，但下载与安装都要用户点）。
+   * - `auto`：后台检查到新版本即自动下载并安装（仍需重启才生效）。
+   * - `check`：后台定期检查，不自动下载也不自动安装。
+   * - `manual`：不后台检查，只能手动点「检查更新」。
+   */
+  mode: UpdateMode;
 };
+
+/** 软件更新方式：自动更新 / 只检查 / 手动检查。 */
+export type UpdateMode = "auto" | "check" | "manual";
+
+export const UPDATE_MODES: readonly UpdateMode[] = ["auto", "check", "manual"];
+
+export const DEFAULT_UPDATE_MODE: UpdateMode = "check";
 
 /**
  * cc-switch style automatic provider failover: an ordered fallback queue of

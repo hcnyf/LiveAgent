@@ -1,3 +1,4 @@
+import type { UpdateMode } from "@liveagent/ui/lib/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -72,6 +73,8 @@ export type AppUpdateController = {
 type UseAppUpdateControllerOptions = {
   enabled: boolean;
   includePrereleases: boolean;
+  /** 更新方式：auto 自动下载安装 / check 只检查 / manual 不后台检查。 */
+  mode?: UpdateMode;
   messages?: Partial<AppUpdateMessages>;
   beforeRestart?: BeforeAppRestart;
 };
@@ -150,9 +153,26 @@ export function shouldRunAutomaticAppUpdateCheck(state: AppUpdateState) {
   );
 }
 
+/** 该更新方式下是否做后台定期检查：`manual` 只认「检查更新」按钮。 */
+export function shouldRunBackgroundUpdateCheck(mode: UpdateMode): boolean {
+  return mode !== "manual";
+}
+
+/**
+ * 自动更新方式下，这次检查结果是否应当直接进入下载 + 安装。
+ * 未配置更新源（`configured: false`）时永远为 false —— 开发阶段不该有任何动作。
+ */
+export function shouldAutoInstallUpdate(
+  mode: UpdateMode,
+  result?: AppUpdateCheckResult | null,
+): boolean {
+  return mode === "auto" && result?.configured === true && result.available === true;
+}
+
 export function useAppUpdateController({
   enabled,
   includePrereleases,
+  mode = "check",
   messages,
   beforeRestart,
 }: UseAppUpdateControllerOptions): AppUpdateController {
@@ -229,25 +249,6 @@ export function useAppUpdateController({
     return () => window.clearTimeout(timeoutId);
   }, [notice]);
 
-  useEffect(() => {
-    if (!enabled) {
-      setUpdateState({ status: "idle" });
-      return undefined;
-    }
-    const checkForUpdates = () => {
-      if (!shouldRunAutomaticAppUpdateCheck(stateRef.current)) {
-        return;
-      }
-
-      void runCheck().catch(() => undefined);
-    };
-
-    checkForUpdates();
-    const intervalId = window.setInterval(checkForUpdates, APP_UPDATE_CHECK_INTERVAL_MS);
-
-    return () => window.clearInterval(intervalId);
-  }, [enabled, runCheck, setUpdateState]);
-
   const installOnly = useCallback(async () => {
     const current = stateRef.current;
     const result = getAppUpdateStateResult(current);
@@ -271,6 +272,36 @@ export function useAppUpdateController({
       throw error;
     }
   }, [includePrereleases, setUpdateState]);
+
+  // 后台定期检查。放在 installOnly 之后：auto 档要在检查到可用版本后直接调它。
+  // manual 档既不装定时器也不做启动检查，只认「检查更新」按钮。
+  useEffect(() => {
+    if (!enabled) {
+      setUpdateState({ status: "idle" });
+      return undefined;
+    }
+    if (!shouldRunBackgroundUpdateCheck(mode)) {
+      return undefined;
+    }
+    const checkForUpdates = () => {
+      if (!shouldRunAutomaticAppUpdateCheck(stateRef.current)) {
+        return;
+      }
+
+      void runCheck()
+        .then((result) => {
+          // 自动更新：检查到可用版本就直接下载并安装（重启仍由用户决定）。
+          if (!shouldAutoInstallUpdate(mode, result)) return;
+          void installOnly().catch(() => undefined);
+        })
+        .catch(() => undefined);
+    };
+
+    checkForUpdates();
+    const intervalId = window.setInterval(checkForUpdates, APP_UPDATE_CHECK_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [enabled, mode, runCheck, installOnly, setUpdateState]);
 
   const restart = useCallback(() => {
     if (restartRequestRef.current) {

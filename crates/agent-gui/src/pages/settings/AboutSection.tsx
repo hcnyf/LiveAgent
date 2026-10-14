@@ -5,6 +5,10 @@ import {
   SettingsRow,
   SettingsSection,
 } from "@liveagent/ui/components/settings/SettingsLayout";
+import {
+  SettingsToggleGroup,
+  SettingsToggleGroupItem,
+} from "@liveagent/ui/components/settings/SettingsToggleGroup";
 import { Button, RefreshButton } from "@liveagent/ui/components/ui/button";
 import {
   Dialog,
@@ -25,9 +29,16 @@ import { APP_DISPLAY_NAME } from "../../lib/appIdentity";
 import type { AppUpdateController } from "../../lib/appUpdates";
 import type { ReleaseAnnouncementController } from "../../lib/releaseAnnouncement";
 import { releaseNotesBody, releaseTitle } from "../../lib/releaseNotes";
-import { updateUpdateSettings } from "../../lib/settings";
+import { UPDATE_MODES, type UpdateMode, updateUpdateSettings } from "../../lib/settings";
 import { formatReleaseDate } from "./aboutDate";
 import type { SettingsSectionProps } from "./types";
+
+/** 更新方式 → 文案键（与设置项的 UPDATE_MODES 一一对应）。 */
+const UPDATE_MODE_LABEL_KEYS: Record<UpdateMode, string> = {
+  auto: "settings.aboutUpdateModeAuto",
+  check: "settings.aboutUpdateModeCheck",
+  manual: "settings.aboutUpdateModeManual",
+};
 
 type AboutSectionProps = SettingsSectionProps & {
   appUpdate: AppUpdateController;
@@ -315,6 +326,28 @@ export function AboutSection(props: AboutSectionProps) {
                   </Button>
                 ) : null}
               </div>
+            }
+          />
+
+          <SettingsRow
+            title={t("settings.aboutUpdateMode")}
+            description={t("settings.aboutUpdateModeDesc")}
+            control={
+              <SettingsToggleGroup
+                value={[settings.updates.mode]}
+                aria-label={t("settings.aboutUpdateMode")}
+                onValueChange={(values) => {
+                  const next = values[0];
+                  if (!(UPDATE_MODES as readonly string[]).includes(next ?? "")) return;
+                  setSettings((prev) => updateUpdateSettings(prev, { mode: next as UpdateMode }));
+                }}
+              >
+                {UPDATE_MODES.map((mode) => (
+                  <SettingsToggleGroupItem key={mode} value={mode}>
+                    {t(UPDATE_MODE_LABEL_KEYS[mode])}
+                  </SettingsToggleGroupItem>
+                ))}
+              </SettingsToggleGroup>
             }
           />
 

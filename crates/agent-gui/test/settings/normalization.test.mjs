@@ -2894,6 +2894,21 @@ test("auto-compaction threshold normalizes to 10–99 with an 80 default", () =>
   assert.equal(settings.normalizeAutoCompactThresholdPercent(undefined), 80);
 });
 
+test("update mode normalizes to check by default and rejects unknown values", () => {
+  assert.deepEqual(settings.getDefaultSettings().updates, {
+    includePrereleases: false,
+    mode: "check",
+  });
+  // 旧存档缺 mode → check（与既有"后台检查、手动安装"行为一致，零迁移）。
+  assert.equal(settings.normalizeUpdateSettings({}).mode, "check");
+  assert.equal(settings.normalizeUpdateSettings({ includePrereleases: true }).mode, "check");
+  assert.equal(settings.normalizeUpdateSettings({ mode: "auto" }).mode, "auto");
+  assert.equal(settings.normalizeUpdateSettings({ mode: "manual" }).mode, "manual");
+  assert.equal(settings.normalizeUpdateSettings({ mode: "nope" }).mode, "check");
+  assert.equal(settings.normalizeUpdateMode(undefined), "check");
+  assert.deepEqual(settings.UPDATE_MODES, ["auto", "check", "manual"]);
+});
+
 test("notification preferences default to all-on and only accept an explicit false", () => {
   const defaults = settings.getDefaultSettings().system.notifications;
   assert.deepEqual(defaults, {

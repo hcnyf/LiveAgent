@@ -674,6 +674,7 @@ export default function App() {
   const appUpdate = useAppUpdateController({
     enabled: settingsReady,
     includePrereleases: settings.updates.includePrereleases,
+    mode: settings.updates.mode,
     messages: appUpdateMessages,
     beforeRestart: beforeAppRestart,
   });
