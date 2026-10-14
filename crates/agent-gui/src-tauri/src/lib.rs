@@ -427,6 +427,38 @@ fn show_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// 启动看门狗：`app_frontend_ready` 是窗口显形的唯一正常通道，一旦前端异常
+/// （打包缺资源、JS 抛错）始终不上报，窗口就会永久隐藏，用户会以为应用没启动。
+/// 超时后无条件显示主窗口作为兜底；正常路径下前端约在 3 秒内 ready，线程随即退出。
+fn spawn_frontend_ready_watchdog(app: &tauri::AppHandle) {
+    const READY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+    const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + READY_TIMEOUT;
+        while std::time::Instant::now() < deadline {
+            let ready = app
+                .try_state::<Arc<commands::app::FrontendReadyState>>()
+                .is_some_and(|state| state.0.load(Ordering::SeqCst));
+            if ready {
+                return;
+            }
+            std::thread::sleep(POLL_INTERVAL);
+        }
+        eprintln!(
+            "frontend did not report ready within {}s; showing main window anyway",
+            READY_TIMEOUT.as_secs()
+        );
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Some(window) = handle.get_webview_window(MAIN_WINDOW_LABEL) {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        });
+    });
+}
+
 fn toggle_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         let visible = window.is_visible().unwrap_or(false);
@@ -980,6 +1012,8 @@ pub fn run() {
                 // 窗口几何须在托盘/装饰配置之前定好：这两步都不改坐标，
                 // 但"先还原再钳制"越早越不容易闪出屏外位置。
                 clamp_restored_window_geometry(app)?;
+                // 窗口几何定好后再挂显示兜底，避免看门狗与还原逻辑互相插队。
+                spawn_frontend_ready_watchdog(app.handle());
                 configure_system_tray(app)?;
                 #[cfg(target_os = "windows")]
                 configure_windows_window_chrome(app)?;

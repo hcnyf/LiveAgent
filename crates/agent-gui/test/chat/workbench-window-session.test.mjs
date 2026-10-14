@@ -110,6 +110,14 @@ test("startup paints theme and shell before progressively hydrating pane content
     new URL("../../src-tauri/tauri.macos.conf.json", import.meta.url),
     "utf8",
   );
+  const tauriWindowsConfigSource = readFileSync(
+    new URL("../../src-tauri/tauri.windows.conf.json", import.meta.url),
+    "utf8",
+  );
+  const tauriWindowsReleaseConfigSource = readFileSync(
+    new URL("../../src-tauri/tauri.windows.release.conf.json", import.meta.url),
+    "utf8",
+  );
   const appCommandSource = readFileSync(
     new URL("../../src-tauri/src/commands/app/app.rs", import.meta.url),
     "utf8",
@@ -207,6 +215,11 @@ test("startup paints theme and shell before progressively hydrating pane content
   assert.match(htmlSource, /setTimeout\(revealOnce, 250\)/);
   assert.match(tauriConfigSource, /"visible": false/);
   assert.match(tauriMacConfigSource, /"visible": false/);
+  // 平台覆盖配置按 RFC 7396 整体替换 app.windows（数组不合并），基础配置里的
+  // visible:false 会被静默丢掉 → 窗口创建即可见，先以未渲染的白色 WebView 出现在
+  // 系统默认位置，再被 setup() 的还原逻辑"跳"到记忆位置。每个覆盖配置都必须自带。
+  assert.match(tauriWindowsConfigSource, /"visible": false/);
+  assert.match(tauriWindowsReleaseConfigSource, /"visible": false/);
   assert.match(appCommandSource, /pub fn app_frontend_ready/);
   assert.match(appCommandSource, /ready_state\.0\.store\(true, Ordering::SeqCst\)/);
   assert.match(tauriLibSource, /commands::app::app_frontend_ready/);
@@ -215,6 +228,9 @@ test("startup paints theme and shell before progressively hydrating pane content
   assert.match(tauriLibSource, /PageLoadEvent::Started/);
   assert.match(tauriLibSource, /ready_state\.0\.store\(false, Ordering::SeqCst\)/);
   assert.match(tauriLibSource, /window\.hide\(\)/);
+  // 前端若始终不上报 ready，窗口会永久隐藏；必须有超时兜底把它显示出来。
+  assert.match(tauriLibSource, /fn spawn_frontend_ready_watchdog/);
+  assert.match(tauriLibSource, /spawn_frontend_ready_watchdog\(app\.handle\(\)\)/);
   assert.match(appSource, /chatPageModule \?\?= import\("\.\/pages\/ChatPage"\)/);
   assert.match(
     appSource,
