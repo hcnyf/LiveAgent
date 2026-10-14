@@ -899,21 +899,24 @@ export function getBuiltinResultKind(result?: ToolResultMessage) {
 }
 
 /**
- * work 区块里是否有可预览的图片（`display_image` 工具结果：Image / GenerateImage）。
+ * work 层里可预览的产物（`display_image` 工具结果：Image / GenerateImage）。
  *
- * 用途：`AssistantWorkTrace` 在有最终回答时会把「处理中」区块自动收起，图片预览
- * 会连同一起被卸载。调用方据此跳过自动收起——有图片时保持展开，收起由用户手动点。
+ * 这些区块原先只活在 work trace 里：回合结束收起后连图片预览灯箱一起被卸载。
+ * 现在由 `PreviewArtifactsRow` 在答案下方独立一行重新呈现，所以这里只负责**收集**，
+ * 不再用它去门控 work trace 的自动收起（那样会让思考过程永远不收起）。
  */
-export function workEntriesHavePreviewableImages(
+export function collectWorkPreviewItems(
   entries: readonly AssistantTurnLayoutEntry[],
-): boolean {
-  const hasImage = (item: ToolTraceItem) =>
-    getBuiltinResultKind(item.toolResult) === "display_image";
-  return entries.some((entry) => {
-    if (entry.block.kind === "tool") return hasImage(entry.block.item);
-    if (entry.block.kind === "toolGroup") return entry.block.items.some(hasImage);
-    return false;
-  });
+): ToolTraceItem[] {
+  const items: ToolTraceItem[] = [];
+  const push = (item: ToolTraceItem) => {
+    if (getBuiltinResultKind(item.toolResult) === "display_image") items.push(item);
+  };
+  for (const entry of entries) {
+    if (entry.block.kind === "tool") push(entry.block.item);
+    else if (entry.block.kind === "toolGroup") entry.block.items.forEach(push);
+  }
+  return items;
 }
 
 export function isBuiltinShareToolName(name: string) {

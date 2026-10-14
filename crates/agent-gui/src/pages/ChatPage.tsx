@@ -1411,12 +1411,21 @@ function ChatPageContent(props: ChatPageProps) {
       activeSelectedModel?.model ?? sidebarStore.peek(currentConversationId)?.model ?? "pending";
 
     const pendingConversationTitle = t("chat.pendingTitle");
+    // 已定稿的标题优先：回退值只是"标题还没生成出来"时的临时显示。用回退值覆盖生成
+    // 好的标题，就是"任务进行中切走再切回、标题又变回消息文本"的那个 bug——生成过的
+    // 标题一旦定稿就不再改写。
+    const existingTitle = sidebarStore.peek(currentConversationId)?.title?.trim() ?? "";
+    const finalizedTitle =
+      existingTitle && existingTitle !== pendingConversationTitle && existingTitle !== fallbackTitle
+        ? existingTitle
+        : "";
     const pendingItem = createPendingHistoryItem({
       conversationId: currentConversationId,
       title:
-        fallbackTitle && fallbackTitle !== pendingConversationTitle
+        finalizedTitle ||
+        (fallbackTitle && fallbackTitle !== pendingConversationTitle
           ? fallbackTitle
-          : pendingConversationTitle,
+          : pendingConversationTitle),
       providerId,
       model,
       sessionId: currentConversationSessionId,

@@ -18,8 +18,12 @@ const workTraceSource = readSource("../../../agent-ui/src/components/chat/Assist
 const guiBubbleSource = readSource("../../src/pages/chat/components/AssistantBubble.tsx");
 const activityRowSource = readSource("../../src/pages/chat/transcript/AssistantActivityRow.tsx");
 const rowModelSource = readSource("../../src/pages/chat/transcript/rowModel.ts");
+const renderUnitSource = readSource("../../src/pages/chat/transcript/AssistantRenderUnit.tsx");
 const utilsSource = readSource(
   "../../../agent-ui/src/components/chat/assistant-bubble/assistantBubbleUtils.ts",
+);
+const previewArtifactsSource = readSource(
+  "../../../agent-ui/src/components/chat/PreviewArtifactsRow.tsx",
 );
 
 test("reasoning renders as expandable disclosures instead of vanishing status text", () => {
@@ -78,21 +82,30 @@ test("a settled turn with a final answer collapses its work trace on both surfac
   // Shared AssistantTurnContent (WebUI path) and the GUI's own bubble unit
   // bypass each other, so the auto-collapse wiring must exist in both.
   assert.match(workTraceSource, /if \(!running && !attentionRequired && collapseAfterAnswer\)/);
-  assert.match(
-    roundContentSource,
-    /collapseAfterAnswer=\{\s*layout\.answer\.length > 0 && !workEntriesHavePreviewableImages\(layout\.work\),?\s*\}/,
-  );
-  assert.match(
-    guiBubbleSource,
-    /collapseAfterAnswer=\{\s*unit\.hasAnswer && !workEntriesHavePreviewableImages\(workEntries\),?\s*\}/,
-  );
+  assert.match(roundContentSource, /collapseAfterAnswer=\{layout\.answer\.length > 0\}/);
+  assert.match(guiBubbleSource, /collapseAfterAnswer=\{unit\.hasAnswer\}/);
   assert.match(rowModelSource, /hasAnswer: layout\.answer\.length > 0/);
 });
 
-test("a settled turn keeps its work trace open while it holds image previews", () => {
-  // 有 png/jpg/svg 预览时不再自动收起：收起会把图片连同预览灯箱一起卸载。
-  assert.match(utilsSource, /export function workEntriesHavePreviewableImages\(/);
+test("a settled turn re-homes image previews into an artifact row instead of staying expanded", () => {
+  // 思考过程照旧收起（见上一条断言）；可预览产物改由答案下方独立一行承载，
+  // 否则收起会把图片连同预览灯箱一起卸载。
+  assert.match(utilsSource, /export function collectWorkPreviewItems\(/);
   assert.match(utilsSource, /getBuiltinResultKind\(item\.toolResult\) === "display_image"/);
+  assert.match(previewArtifactsSource, /export const PreviewArtifactsRow = memo\(/);
+  assert.match(previewArtifactsSource, /<NativeDisplayImageBlock/);
+  // 两个表面都要挂上这一行：共享面（RoundContent）+ GUI 自有面（footer unit）。
+  assert.match(
+    roundContentSource,
+    /const settledWithAnswer = !running && layout\.answer\.length > 0/,
+  );
+  assert.match(
+    roundContentSource,
+    /<PreviewArtifactsRow items=\{previewArtifacts\} readOnly=\{readOnly\} \/>/,
+  );
+  assert.match(rowModelSource, /hasPreviewableArtifactCandidate: previewArtifactCandidate/);
+  assert.match(rowModelSource, /PREVIEW_ARTIFACTS_ROW_ESTIMATE_PX/);
+  assert.match(renderUnitSource, /<PreviewArtifactsRow items=\{previewArtifacts\} \/>/);
 });
 
 test("GUI transcript keeps live interaction content outside the work trace", () => {

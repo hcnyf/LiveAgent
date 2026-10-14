@@ -9,6 +9,7 @@
         "minWidth": 480,
         "minHeight": 600,
         "visible": false,
+        "shadow": false,
         "backgroundThrottling": "disabled",
         "decorations": false
       }

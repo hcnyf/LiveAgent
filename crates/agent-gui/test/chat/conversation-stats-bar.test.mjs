@@ -307,8 +307,15 @@ test("approvalBar 可见时状态栏让位（ChatComposerBar 插槽互斥）", (
   );
   assert.match(
     composerSource,
-    /\{statsBar && approvalBar == null && contextDisplayMode !== "ring" \? statsBar : null\}/,
+    /\{statsBar && approvalBar == null && contextDisplayMode !== "ring" \? \(/,
     "statsBar 插槽必须保持 approvalBar 互斥，且只在 ring 展示模式下不挂载（§4.7 三档）",
+  );
+  // 状态栏整体下移：插槽自带 6px 上边距（图层底 padding 由 pb-4 收到 pb-2.5），
+  // 让读数落在卡片与底栏之间偏中的位置。
+  assert.match(
+    composerSource,
+    /<div className="mt-1\.5">\{statsBar\}<\/div>/,
+    "statsBar 必须包在带 mt-1.5 的插槽里（与卡片留 6px、与底栏留 10px）",
   );
 });
 

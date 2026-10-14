@@ -461,6 +461,8 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.changedFiles.deleted": "已删除",
   "chat.changedFiles.collapse": "折叠文件列表",
   "chat.changedFiles.expand": "再显示 {count} 个文件",
+  "chat.previewArtifacts.title": "{count} 个可预览产物",
+  "chat.previewArtifacts.toggle": "展开/折叠产物预览",
   "chat.compactingContext": "正在压缩上下文",
   "chat.compactingContextWait": "正在压缩上下文，请稍候...",
   "chat.compactionFailed": "上下文压缩失败：{message}",

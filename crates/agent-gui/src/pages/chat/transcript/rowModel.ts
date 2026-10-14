@@ -1,5 +1,7 @@
 import {
+  type AssistantTurnLayout,
   type AssistantTurnLayoutEntry,
+  collectWorkPreviewItems,
   type GroupedRoundBlock,
   resolveAssistantTurnLayout,
 } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
@@ -15,6 +17,7 @@ import {
   estimateAssistantRowHeight,
   estimateUserRowHeight,
   measureEstimateText,
+  PREVIEW_ARTIFACTS_ROW_ESTIMATE_PX,
 } from "@liveagent/ui/lib/transcript-virtual/rowEstimates";
 import type {
   RenderAssistantGroup,
@@ -172,6 +175,8 @@ export type AssistantFooterRenderUnit = {
   retryTarget: RenderUserMessage | null;
   rounds: ReplyRound[];
   hasChangedFilesCandidate: boolean;
+  /** 回合已落定且 work 层有 display_image：footer 追加一条产物预览行。 */
+  hasPreviewableArtifactCandidate: boolean;
 };
 
 export type AssistantRenderUnit =
@@ -262,6 +267,14 @@ function hasChangedFilesCandidate(rounds: readonly ReplyRound[]) {
         Boolean(block.item.toolResult && !block.item.toolResult.isError),
     ),
   );
+}
+
+/**
+ * work 层是否有可预览产物（`display_image`）。条件与 work trace 的自动收起对齐
+ * （回合落定 + 已有总结文案），保证「思考过程收起」与「产物预览出现」同时发生。
+ */
+function hasPreviewableArtifactCandidate(layout: AssistantTurnLayout, live: boolean) {
+  return !live && layout.answer.length > 0 && collectWorkPreviewItems(layout.work).length > 0;
 }
 
 type BlockMeasurement = { estimate: number; renderCost: number };
@@ -568,20 +581,23 @@ function buildAssistantUnits(input: BuildAssistantUnitsInput): AssistantUnitRow[
     }
   } else {
     const changedFilesCandidate = hasChangedFilesCandidate(rounds);
+    const previewArtifactCandidate = hasPreviewableArtifactCandidate(layout, live);
     const contentTailIndex = rows.length - 1;
     const contentTail = rows[contentTailIndex];
     if (contentTail) {
       rows[contentTailIndex] = {
         ...contentTail,
-        gapAfter: changedFilesCandidate ? ASSISTANT_UNIT_GAP_PX : 0,
+        gapAfter: changedFilesCandidate || previewArtifactCandidate ? ASSISTANT_UNIT_GAP_PX : 0,
       };
     }
     rows.push({
       kind: "assistant-unit",
       key: `${replyKey}:footer`,
       replyKey,
-      estimate: changedFilesCandidate ? 272 : 32,
-      renderCost: changedFilesCandidate ? 2 : 1,
+      estimate:
+        (changedFilesCandidate ? 272 : 32) +
+        (previewArtifactCandidate ? PREVIEW_ARTIFACTS_ROW_ESTIMATE_PX : 0),
+      renderCost: (changedFilesCandidate ? 2 : 1) + (previewArtifactCandidate ? 2 : 0),
       gapAfter: TRANSCRIPT_ROW_GAP_PX,
       anchorUserKey,
       live: false,
@@ -595,6 +611,7 @@ function buildAssistantUnits(input: BuildAssistantUnitsInput): AssistantUnitRow[
         retryTarget,
         rounds: rounds as ReplyRound[],
         hasChangedFilesCandidate: changedFilesCandidate,
+        hasPreviewableArtifactCandidate: previewArtifactCandidate,
       },
     });
   }

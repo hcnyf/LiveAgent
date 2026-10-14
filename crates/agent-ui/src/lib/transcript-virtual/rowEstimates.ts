@@ -88,3 +88,6 @@ export function measureEstimateText(text: string): EstimateTextMeasurement {
 
 // Collapsed checkpoint/summary card.
 export const CHECKPOINT_ROW_ESTIMATE_PX = 88;
+
+// 回合落定后的产物预览行（PreviewArtifactsRow）：标题条 + 一块图片预览。
+export const PREVIEW_ARTIFACTS_ROW_ESTIMATE_PX = 220;

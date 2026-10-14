@@ -502,6 +502,8 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.changedFiles.deleted": "Deleted",
   "chat.changedFiles.collapse": "Collapse file list",
   "chat.changedFiles.expand": "Show {count} more files",
+  "chat.previewArtifacts.title": "{count} previewable artifacts",
+  "chat.previewArtifacts.toggle": "Toggle artifact previews",
   "chat.compactingContext": "Compressing context",
   "chat.compactingContextWait": "Compressing context, please wait...",
   "chat.compactionFailed": "Context compaction failed: {message}",

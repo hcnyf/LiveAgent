@@ -1112,7 +1112,9 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: ChatComposer
         surface === "desktop"
           ? cn(
               "pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center px-5",
-              "pb-4",
+              // 底内距刻意比卡片与状态栏之间的间距小 6px：状态栏因此落在「工具栏—底栏」
+              // 之间偏中的位置，而不是贴在卡片下缘（见下方 statsBar 插槽的 mt）。
+              "pb-2.5",
             )
           : cn(
               "gateway-composer-layer pointer-events-none absolute inset-x-0 bottom-0 z-20 grid max-h-full",
@@ -1800,9 +1802,12 @@ export const ChatComposerBar = memo(function ChatComposerBar(props: ChatComposer
           </div>
           {fileDropOverlay}
         </div>
-        {/* 会话统计状态栏插槽：贴卡片下缘，与卡片同宽；审批面板可见时让位；
-            只在 "ring" 展示模式下不挂载——"statsBar" 与 "both" 都渲染（§4.7）。 */}
-        {statsBar && approvalBar == null && contextDisplayMode !== "ring" ? statsBar : null}
+        {/* 会话统计状态栏插槽：与卡片之间留 6px，与底栏之间留 10px（图层 pb-2.5），
+            即落在两者之间偏中的位置；审批面板可见时让位；只在 "ring" 展示模式下
+            不挂载——"statsBar" 与 "both" 都渲染（§4.7）。 */}
+        {statsBar && approvalBar == null && contextDisplayMode !== "ring" ? (
+          <div className="mt-1.5">{statsBar}</div>
+        ) : null}
       </div>
     </div>
   );

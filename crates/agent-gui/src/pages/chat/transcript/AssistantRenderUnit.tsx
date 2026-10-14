@@ -1,4 +1,9 @@
+import {
+  collectWorkPreviewItems,
+  resolveAssistantTurnLayout,
+} from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import { ChangedFilesCard } from "@liveagent/ui/components/chat/ChangedFilesCard";
+import { PreviewArtifactsRow } from "@liveagent/ui/components/chat/PreviewArtifactsRow";
 import { collectChangedFiles } from "@liveagent/ui/lib/chat/changedFiles";
 import type { ChatFileLink } from "@liveagent/ui/lib/chat/chatFileLinks";
 import type { ConversationMentionReference } from "@liveagent/ui/lib/chat/mentionReferences";
@@ -47,6 +52,15 @@ const AssistantFooterUnit = memo(function AssistantFooterUnit(props: {
     () => (unit.hasChangedFilesCandidate ? collectChangedFiles(unit.rounds) : null),
     [unit.hasChangedFilesCandidate, unit.rounds],
   );
+  // 回合落定后思考过程照旧收起；可预览产物（display_image）在答案下方另起一行，
+  // 与共享面（RoundContent）同序：产物预览在前、文件改动卡在后。
+  const previewArtifacts = useMemo(
+    () =>
+      unit.hasPreviewableArtifactCandidate
+        ? collectWorkPreviewItems(resolveAssistantTurnLayout(unit.rounds, { live: false }).work)
+        : [],
+    [unit.hasPreviewableArtifactCandidate, unit.rounds],
+  );
   const usageEntries = useMemo(
     () =>
       showUsage
@@ -63,6 +77,13 @@ const AssistantFooterUnit = memo(function AssistantFooterUnit(props: {
       data-assistant-row
       className={cn("group/assistant w-full max-w-full", compacted && "opacity-70")}
     >
+      {previewArtifacts.length > 0 ? (
+        <div className="mb-2 w-full max-w-full">
+          <div className="min-w-0">
+            <PreviewArtifactsRow items={previewArtifacts} />
+          </div>
+        </div>
+      ) : null}
       {changedFiles ? (
         <div className="w-full max-w-full">
           <div className="min-w-0">

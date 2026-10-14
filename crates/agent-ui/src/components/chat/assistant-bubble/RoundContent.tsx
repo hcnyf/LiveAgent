@@ -4,20 +4,21 @@ import { HostedSearchGroupView } from "@liveagent/ui/components/chat/HostedSearc
 import { LiveSparkle } from "@liveagent/ui/components/chat/LiveSparkle";
 import { StreamingSplitMarkdown } from "@liveagent/ui/components/chat/StreamingSplitMarkdown";
 import { Markdown } from "@liveagent/ui/components/Markdown";
-import type { UiRound } from "@liveagent/ui/lib/chat/assistantBubbleAdapter";
+import type { ToolTraceItem, UiRound } from "@liveagent/ui/lib/chat/assistantBubbleAdapter";
 import { normalizeLiveToolStatus } from "@liveagent/ui/lib/chat/assistantStatus";
 import type { ChatFileLink } from "@liveagent/ui/lib/chat/chatFileLinks";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import { memo, type ReactNode, useMemo } from "react";
+import { PreviewArtifactsRow } from "../PreviewArtifactsRow";
 import {
   type AssistantTurnLayoutEntry,
+  collectWorkPreviewItems,
   type GroupedRoundBlock,
   hasActiveUserInteraction,
   isBuiltinShareToolName,
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
   resolveAssistantTurnLayout,
-  workEntriesHavePreviewableImages,
 } from "./assistantBubbleUtils";
 import { CompactionSeamRow } from "./CompactionSeamRow";
 import { ThinkingDisclosure } from "./ThinkingDisclosure";
@@ -26,6 +27,9 @@ import { getNativeDisplayImagePayload, NativeDisplayImageBlock } from "./ToolIma
 import { ToolTraceGroup } from "./ToolTraceGroup";
 
 const EMPTY_RUNNING_TOOL_CALL_IDS: string[] = [];
+
+/** 稳定空引用：让 `previewArtifacts` 的 useMemo 不会每次渲染都换新数组。 */
+const EMPTY_PREVIEW_ITEMS: ToolTraceItem[] = [];
 
 export const RoundBlockContent = memo(function RoundBlockContent(props: {
   block: GroupedRoundBlock;
@@ -242,6 +246,13 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
   const activeThinkingKey = running ? resolveActiveThinkingEntryKey(layout.work) : null;
   const collapsedTailEntry = running ? resolveActiveWorkEntry(layout.work) : null;
   const showWorkTrace = running || layout.work.length > 0;
+  // 回合落定后思考过程照旧收起；可预览产物改由答案下方独立一行承载（见
+  // PreviewArtifactsRow）。运行中不渲染：那时 work trace 是展开的，产物就在里面。
+  const settledWithAnswer = !running && layout.answer.length > 0;
+  const previewArtifacts = useMemo(
+    () => (settledWithAnswer ? collectWorkPreviewItems(layout.work) : EMPTY_PREVIEW_ITEMS),
+    [settledWithAnswer, layout.work],
+  );
 
   if (!showWorkTrace && layout.interaction.length === 0 && layout.answer.length === 0) return null;
 
@@ -273,9 +284,7 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
         <AssistantWorkTrace
           attentionRequired={attentionRequired}
           awaitingDecision={attentionRequired}
-          collapseAfterAnswer={
-            layout.answer.length > 0 && !workEntriesHavePreviewableImages(layout.work)
-          }
+          collapseAfterAnswer={layout.answer.length > 0}
           collapsedTail={collapsedTailEntry ? renderEntry(collapsedTailEntry, true) : null}
           durationMs={durationMs}
           hasDetails={layout.work.length > 0 || showDetailedStatus}
@@ -293,6 +302,9 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
 
       {layout.interaction.map((entry) => renderEntry(entry, false, true))}
       {layout.answer.map((entry) => renderEntry(entry, false))}
+      {previewArtifacts.length > 0 && !redactToolContent ? (
+        <PreviewArtifactsRow items={previewArtifacts} readOnly={readOnly} />
+      ) : null}
       {running ? <LiveSparkle paused={attentionRequired} /> : null}
     </div>
   );

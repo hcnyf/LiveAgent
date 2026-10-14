@@ -220,6 +220,11 @@ test("startup paints theme and shell before progressively hydrating pane content
   // 系统默认位置，再被 setup() 的还原逻辑"跳"到记忆位置。每个覆盖配置都必须自带。
   assert.match(tauriWindowsConfigSource, /"visible": false/);
   assert.match(tauriWindowsReleaseConfigSource, /"visible": false/);
+  // 同理（同一套数组替换）：去掉窗口阴影的 shadow:false 也必须每个覆盖配置自带。
+  assert.match(tauriConfigSource, /"shadow": false/);
+  assert.match(tauriMacConfigSource, /"shadow": false/);
+  assert.match(tauriWindowsConfigSource, /"shadow": false/);
+  assert.match(tauriWindowsReleaseConfigSource, /"shadow": false/);
   assert.match(appCommandSource, /pub fn app_frontend_ready/);
   assert.match(appCommandSource, /ready_state\.0\.store\(true, Ordering::SeqCst\)/);
   assert.match(tauriLibSource, /commands::app::app_frontend_ready/);

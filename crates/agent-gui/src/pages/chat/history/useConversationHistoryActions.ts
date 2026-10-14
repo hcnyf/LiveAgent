@@ -620,7 +620,11 @@ export function useConversationHistoryActions(params: UseConversationHistoryActi
         if (!resolvedTitle || resolvedTitle === initialStoredTitle) return;
 
         const currentItem = sidebarStore.peek(conversationId);
-        if (!currentItem || currentItem.title !== initialStoredTitle) return;
+        if (!currentItem) return;
+        // 行标题可能在等标题期间被改写（切会话会重建 pending 行），那不代表已经有人
+        // 定稿。只有"行里已经是同一个标题"才无事可做；其余情况一律把生成结果写进去，
+        // 否则生成好的标题会永远停在库里那一版回退值上（重启后标题又变回消息文本）。
+        if (currentItem.title.trim() === resolvedTitle.trim()) return;
 
         if (currentItem.isPending) {
           sidebarStore.upsertLocal({

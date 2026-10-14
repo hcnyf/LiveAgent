@@ -109,6 +109,29 @@ const CHAT_CODEX_PROVIDER = {
   kind: "chat",
 };
 
+/**
+ * Agnes AI：自称 OpenAI 兼容，但请求体更严格（`size` 必填且只认档位/精确尺寸，
+ * 没有 `quality`/`n`，图生图走同一个 /images/generations + extra_body.image）。
+ * 默认值刻意留成我们 codex 协议的 `auto`——那正是发给它就会 400 的取值。
+ */
+const AGNES_IMAGE_PROVIDER = {
+  ...CODEX_IMAGE_PROVIDER,
+  id: "prov-agnes-img",
+  name: "Agnes",
+  baseUrl: "https://apihub.agnes-ai.com/v1",
+  models: [
+    {
+      id: "agnes-image-2.1-flash",
+      contextWindow: 4096,
+      maxOutputToken: 1024,
+      imageSize: "auto",
+      imageQuality: "auto",
+      imageCount: 1,
+    },
+  ],
+  activeModels: ["agnes-image-2.1-flash"],
+};
+
 function withFetchStub(handler) {
   const original = globalThis.fetch;
   const calls = [];
@@ -250,6 +273,81 @@ test("codex edits post a FormData body so fetch owns the multipart boundary", as
     assert.equal(call.init.headers["content-type"], undefined);
     assert.equal(call.init.body.get("prompt"), "make it blue");
     assert.ok(call.init.body.get("image[]") instanceof Blob);
+  } finally {
+    stub.restore();
+  }
+});
+
+test("agnes text-to-image sends its stricter body: tier size, no quality, no n", async () => {
+  const stub = withFetchStub(async () => jsonResponse({ data: [{ b64_json: "QUJD" }] }));
+  try {
+    const images = await generateImage.generateImages({
+      provider: AGNES_IMAGE_PROVIDER,
+      model: "agnes-image-2.1-flash",
+      prompt: "a red panda",
+      size: "auto",
+      quality: "auto",
+      count: 1,
+    });
+    assert.deepEqual(images, [{ dataBase64: "QUJD", mimeType: "image/png" }]);
+    assert.equal(stub.calls.length, 1);
+    const call = stub.calls[0];
+    assert.equal(call.url, `${PROXY_BASE}/proxy/codex/v1/images/generations`);
+    const body = JSON.parse(call.init.body);
+    // `auto` 不是 Agnes 的合法 size：换成最小档 + 1:1。
+    assert.equal(body.size, "1K");
+    assert.equal(body.ratio, "1:1");
+    // 它的参数表里没有 quality / n，发了就是 400。
+    assert.equal("quality" in body, false);
+    assert.equal("n" in body, false);
+    assert.equal(body.return_base64, true);
+  } finally {
+    stub.restore();
+  }
+});
+
+test("agnes keeps exact sizes verbatim and asks for N images with N requests", async () => {
+  const stub = withFetchStub(async () => jsonResponse({ data: [{ b64_json: "QUJD" }] }));
+  try {
+    const images = await generateImage.generateImages({
+      provider: AGNES_IMAGE_PROVIDER,
+      model: "agnes-image-2.1-flash",
+      prompt: "a red panda",
+      size: "1024x1024",
+      quality: "auto",
+      count: 3,
+    });
+    assert.equal(images.length, 3);
+    assert.equal(stub.calls.length, 3);
+    for (const call of stub.calls) {
+      const body = JSON.parse(call.init.body);
+      assert.equal(body.size, "1024x1024");
+      assert.equal("ratio" in body, false);
+    }
+  } finally {
+    stub.restore();
+  }
+});
+
+test("agnes image-to-image reuses /images/generations instead of the edits multipart", async () => {
+  const stub = withFetchStub(async () => jsonResponse({ data: [{ b64_json: "QUJD" }] }));
+  try {
+    await generateImage.generateImages({
+      provider: AGNES_IMAGE_PROVIDER,
+      model: "agnes-image-2.1-flash",
+      prompt: "make it blue",
+      size: "auto",
+      quality: "auto",
+      count: 1,
+      referenceImages: [{ dataBase64: "cmVm", mimeType: "image/png" }],
+    });
+    const call = stub.calls[0];
+    assert.equal(call.url, `${PROXY_BASE}/proxy/codex/v1/images/generations`);
+    assert.equal(typeof call.init.body, "string", "agnes edits must be JSON, not multipart");
+    const body = JSON.parse(call.init.body);
+    assert.deepEqual(body.image, ["data:image/png;base64,cmVm"]);
+    assert.deepEqual(body.extra_body.image, ["data:image/png;base64,cmVm"]);
+    assert.equal(body.extra_body.response_format, "b64_json");
   } finally {
     stub.restore();
   }

@@ -28,8 +28,7 @@ type StartConversationTitleJobParams = {
    * caller cannot silently fall back to Chinese titles in an English UI.
    */
   locale: Locale;
-  // Only the pending row's title is streamed into the sidebar; persisted rows
-  // are renamed through the history IPC by the caller.
+  // 生成过程中的预览只推给网关（WebUI 标签名）；侧栏只在标题定稿后写一次。
   sidebarStore: Pick<SidebarStore, "peek" | "upsertLocal">;
   titleJobRef: MutableRefObject<TitleJobRefValue>;
   gatewayBridgeEvents: GatewayBridgeEventController;
@@ -106,14 +105,10 @@ export function startConversationTitleJob(params: StartConversationTitleJobParam
         .replace(/^[`"'""'']+|[`"'""'']+$/g, "")
         .trim();
       if (!preview) return;
+      // 刻意**不写侧栏**：逐字写侧栏会让标题在生成过程中一路变形，用户看到的就是
+      // "任务进行时标题一直在动"。侧栏只在标题定稿后写一次（见下方 titlePromise 的
+      // 收尾），中间态只推给网关的 WebUI 标签名。
       forwardGatewayTitlePreview(preview);
-      const currentItem = sidebarStore.peek(conversationId);
-      if (!currentItem?.isPending) return;
-      sidebarStore.upsertLocal({
-        ...currentItem,
-        title: preview,
-        updatedAt: Date.now(),
-      });
     },
   })
     .then((assistant) => normalizeGeneratedConversationTitle(assistantMessageToText(assistant)))
