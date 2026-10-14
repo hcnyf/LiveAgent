@@ -805,7 +805,3 @@ fork 的 T3.3（`输入能力改多选（含 PDF）并开放 claude_code`，提�
 
 诊断手段：会话调试日志（`payloadPipeline` 的 payload-debug-logging）看
 `payload.messages[i].content` 是否含 `image_url` / `input_image`；或给该模型勾上「图片」再试。
-
-
-
-
