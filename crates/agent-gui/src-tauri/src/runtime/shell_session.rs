@@ -676,7 +676,10 @@ fn spawn_stream_reader<R: Read + Send + 'static>(
                     if let Some(session) = session.upgrade() {
                         session.append_output(
                             ShellOutputStream::Stderr,
-                            format!("LiveAgent failed to read shell output: {error}\n"),
+                            format!(
+                                "{} failed to read shell output: {error}\n",
+                                crate::app_identity::APP_DISPLAY_NAME
+                            ),
                         );
                     }
                     break;
@@ -754,7 +757,10 @@ fn spawn_process_monitor(
                     let _ = terminate_child_process_tree(&mut child, config.termination_grace);
                     session.append_output(
                         ShellOutputStream::Stderr,
-                        format!("LiveAgent failed to inspect shell process: {error}\n"),
+                        format!(
+                            "{} failed to inspect shell process: {error}\n",
+                            crate::app_identity::APP_DISPLAY_NAME
+                        ),
                     );
                     break (ShellSessionStatus::Failed, Some(-1));
                 }

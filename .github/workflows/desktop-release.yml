@@ -216,9 +216,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
+          # 便携包文件名跟随配置里的应用名（productName / mainBinaryName），不硬编码：
+          # 改名后旧字面量会让 find 落空、test -n 直接让整条 Windows 发版失败。
+          product_name="$(node -p 'require("./crates/agent-gui/src-tauri/tauri.conf.json").productName')"
           msi_path="$(find target crates/agent-gui/src-tauri/target -type f -name '*.msi' -path '*bundle*' -print -quit 2>/dev/null || true)"
           exe_path="$(find target crates/agent-gui/src-tauri/target -type f -name '*.exe' -path '*bundle*' -print -quit 2>/dev/null || true)"
-          portable_exe_path="$(find target crates/agent-gui/src-tauri/target -type f -name 'liveagent.exe' -path '*/release/*' ! -path '*bundle*' -print -quit 2>/dev/null || true)"
+          portable_exe_path="$(find target crates/agent-gui/src-tauri/target -type f -name "${product_name}.exe" -path '*/release/*' ! -path '*bundle*' -print -quit 2>/dev/null || true)"
           test -n "$msi_path"
           test -n "$exe_path"
           test -n "$portable_exe_path"
@@ -228,10 +231,10 @@ jobs:
           cp "$msi_path.sig" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64.msi.sig"
           cp "$exe_path" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-Setup.exe"
           cp "$exe_path.sig" "dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-Setup.exe.sig"
-          mkdir -p dist/portable/LiveAgent
-          cp "$portable_exe_path" dist/portable/LiveAgent/LiveAgent.exe
+          mkdir -p "dist/portable/${product_name}"
+          cp "$portable_exe_path" "dist/portable/${product_name}/${product_name}.exe"
           portable_zip="dist/LiveAgent-${LIVEAGENT_RELEASE_TAG}-Windows-x64-portable.zip"
-          powershell -NoProfile -Command "Compress-Archive -Path 'dist/portable/LiveAgent/*' -DestinationPath '$portable_zip' -Force"
+          powershell -NoProfile -Command "Compress-Archive -Path 'dist/portable/${product_name}/*' -DestinationPath '$portable_zip' -Force"
           rm -rf dist/portable
           test "$(find dist -type f | wc -l)" -gt 0
 

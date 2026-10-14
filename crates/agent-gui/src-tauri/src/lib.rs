@@ -1,3 +1,4 @@
+mod app_identity;
 mod commands;
 mod runtime;
 mod services;
@@ -425,6 +426,19 @@ fn show_main_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     }
 
     Ok(())
+}
+
+/// 主窗口标题：任务栏按钮 / Alt-Tab / 任务视图显示的就是它。
+///
+/// `document.title` 不会同步到原生窗口标题（wry 的 `on_document_title_changed`
+/// 本仓库未注册），所以这里显式设成注入的显示名，避免平台配置里再硬编码一份应用名。
+fn apply_main_window_title(app: &tauri::App) {
+    let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
+        return;
+    };
+    if let Err(error) = window.set_title(app_identity::APP_DISPLAY_NAME) {
+        eprintln!("failed to set main window title: {error}");
+    }
 }
 
 /// 启动看门狗：`app_frontend_ready` 是窗口显形的唯一正常通道，一旦前端异常
@@ -1012,6 +1026,7 @@ pub fn run() {
                 // 窗口几何须在托盘/装饰配置之前定好：这两步都不改坐标，
                 // 但"先还原再钳制"越早越不容易闪出屏外位置。
                 clamp_restored_window_geometry(app)?;
+                apply_main_window_title(app);
                 // 窗口几何定好后再挂显示兜底，避免看门狗与还原逻辑互相插队。
                 spawn_frontend_ready_watchdog(app.handle());
                 configure_system_tray(app)?;

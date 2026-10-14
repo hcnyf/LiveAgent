@@ -14,6 +14,7 @@ import type { CronTask } from "@liveagent/ui/lib/automation/types";
 import type { SidebarConversation } from "@liveagent/ui/lib/sidebar/types";
 import { invoke } from "@tauri-apps/api/core";
 import { type Locale, t } from "../../i18n/config";
+import { APP_DISPLAY_NAME } from "../appIdentity";
 import type { AppSettings, Theme, WorkspaceProject } from "../settings";
 import { workspaceProjectPathKey } from "../settings";
 import { readGlobalShortcutBindings } from "../shortcuts/globalShortcuts";
@@ -162,7 +163,7 @@ export function buildTrayMenuModel(input: BuildTrayMenuModelInput): TrayMenuMode
         : t("tray.gatewayDisconnected", locale);
 
   const tooltipParts = [
-    "LiveAgent",
+    APP_DISPLAY_NAME,
     runningCount > 0 ? withCount(t("tray.tooltipRunning", locale), runningCount) : null,
     gatewayStatusText,
   ].filter((part): part is string => Boolean(part));

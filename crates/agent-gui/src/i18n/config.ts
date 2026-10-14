@@ -1,4 +1,6 @@
 import { createHostTranslations, type Locale } from "@liveagent/ui/i18n/hostTranslations";
+import { SHARED_TRANSLATIONS } from "@liveagent/ui/i18n/sharedTranslations";
+import { APP_DISPLAY_NAME } from "../lib/appIdentity";
 
 export type { Locale } from "@liveagent/ui/i18n/hostTranslations";
 export {
@@ -9,10 +11,56 @@ export {
 } from "@liveagent/ui/i18n/hostTranslations";
 
 /**
+ * 把共享文案里的通用产品名换成当前应用显示名。
+ *
+ * `agent-ui` 的共享文案（`SHARED_TRANSLATIONS`）由桌面端与 WebUI 共用，写的是通用名
+ * `LiveAgent`；桌面端要显示 `LiveAgent N`。整段复制进覆盖表既冗长、又会与共享文案
+ * 脱节，所以这里只做一次显式替换。显示名取不到时（没有 vite define 的纯模块加载）
+ * `APP_DISPLAY_NAME` 回退成 `LiveAgent`，替换结果与共享值一致，行为不变。
+ */
+function withAppName(value: string): string {
+  return value.replaceAll("LiveAgent", APP_DISPLAY_NAME);
+}
+
+/**
  * Host translation overrides. Shared, host-neutral messages live in agent-ui.
  */
 export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> = {
   "zh-CN": {
+    // 共享文案里带产品名的条目：桌面端换成当前应用显示名（WebUI 不受影响）。
+    "chat.welcome": withAppName(SHARED_TRANSLATIONS["zh-CN"]["chat.welcome"]),
+    "chat.notifySessionCompleteBody": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["chat.notifySessionCompleteBody"],
+    ),
+    "planner.notificationTitle": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["planner.notificationTitle"],
+    ),
+    "settings.notificationsWhenFocusedHint": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["settings.notificationsWhenFocusedHint"],
+    ),
+    "settings.notificationsPermissionDenied": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["settings.notificationsPermissionDenied"],
+    ),
+    "settings.systemToolsDesc": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["settings.systemToolsDesc"],
+    ),
+    "settings.builtinTool.browser.detail": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["settings.builtinTool.browser.detail"],
+    ),
+    "settings.browserMode.userProfile.desc": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["settings.browserMode.userProfile.desc"],
+    ),
+    "settings.remoteDesc": withAppName(SHARED_TRANSLATIONS["zh-CN"]["settings.remoteDesc"]),
+    "settings.skillsImportDesc": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["settings.skillsImportDesc"],
+    ),
+    "settings.skillsScanHint": withAppName(SHARED_TRANSLATIONS["zh-CN"]["settings.skillsScanHint"]),
+    "settings.cuaDriver.notInstalledDesc": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["settings.cuaDriver.notInstalledDesc"],
+    ),
+    "settings.cuaDriver.allowSelfTitle": withAppName(
+      SHARED_TRANSLATIONS["zh-CN"]["settings.cuaDriver.allowSelfTitle"],
+    ),
     "app.windowPinned": "已置顶",
     "app.windowPinnedHint": "窗口已置顶，浮在其他应用上方。点击取消置顶。",
     "app.settingsLoadFailed": "加载设置失败，已回退到默认配置。",
@@ -49,7 +97,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "chat.workspaceShowAll": "显示全部（{count}）",
     "chat.workspaceShowLess": "收起",
     "chat.workspaceOpenSystemFileManagerFailed": "打开资源管理器失败",
-    "chat.exitConfirmTitle": "退出 LiveAgent？",
+    "chat.exitConfirmTitle": `退出 ${APP_DISPLAY_NAME}？`,
     "chat.exitConfirmSubtitle": "当前仍有终端任务在运行。",
     "chat.exitConfirmDescription": "继续退出会关闭这些终端进程。取消后可返回项目工具栏处理。",
     "chat.exitConfirmNote": "不会删除项目或会话历史，但正在运行的命令会被终止。",
@@ -61,7 +109,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "projectTools.sshLocalForwardListening": "正在监听（仅本机）",
     "settings.navAbout": "关于",
     "settings.groupOther": "其他",
-    "settings.aboutTitle": "关于 LiveAgent",
+    "settings.aboutTitle": `关于 ${APP_DISPLAY_NAME}`,
     "settings.aboutDescription": "查看当前版本、发布说明和桌面端更新状态。",
     "settings.aboutApplication": "应用",
     "settings.aboutApplicationDesc": "名称、版本与当前更新通道。",
@@ -93,7 +141,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "settings.aboutInstalled": "更新已安装",
     "settings.aboutInstalledDesc": "更新包已安装，点击重启应用后生效。",
     "settings.aboutRestarting": "正在重启应用",
-    "settings.aboutRestartingDesc": "LiveAgent 正在退出并重新打开。",
+    "settings.aboutRestartingDesc": `${APP_DISPLAY_NAME} 正在退出并重新打开。`,
     "settings.aboutUpdateAvailable": "发现新版本",
     "settings.aboutUpdateAvailableDesc": "新版本已经可以安装。",
     "settings.aboutUpToDate": "已是最新版本",
@@ -230,7 +278,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "settings.shortcutSendScopeDesc": "仅在消息输入框中生效，Shift + Enter 始终换行。",
     "settings.shortcutSaveFailed": "无法保存快捷键，请检查本机存储是否可用。",
     "settings.shortcutSummon": "快速呼出",
-    "settings.shortcutSummonDesc": "从任意位置立即唤起并聚焦 LiveAgent 主窗口",
+    "settings.shortcutSummonDesc": `从任意位置立即唤起并聚焦 ${APP_DISPLAY_NAME} 主窗口`,
     "settings.shortcutToggle": "显示 / 隐藏窗口",
     "settings.shortcutToggleDesc": "在前台与隐藏之间切换主窗口",
     "settings.shortcutNewChat": "新建对话",
@@ -238,7 +286,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "settings.shortcutSearchConversations": "搜索会话",
     "settings.shortcutSearchConversationsDesc": "唤起窗口并搜索已保存的历史会话",
     "settings.shortcutPin": "窗口置顶",
-    "settings.shortcutPinDesc": "切换主窗口置顶，让 LiveAgent 浮在其他应用上方",
+    "settings.shortcutPinDesc": `切换主窗口置顶，让 ${APP_DISPLAY_NAME} 浮在其他应用上方`,
     "settings.shortcutNotSet": "未设置，点击录制",
     "settings.shortcutRecordingHint": "请敲击组合键…",
     "settings.shortcutPressEnter": "⏎ 完成",
@@ -275,7 +323,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "tray.settings": "设置…",
     "tray.checkUpdates": "检查更新…",
     "tray.openDataDir": "打开数据目录",
-    "tray.quit": "退出 LiveAgent",
+    "tray.quit": `退出 ${APP_DISPLAY_NAME}`,
     "tray.untitledConversation": "未命名对话",
     "tray.untitledCronTask": "未命名任务",
     "tray.cronEnabled": "已启用定时任务「{name}」",
@@ -300,6 +348,40 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "settings.remoteHeartbeatHint": "本地 Agent 向 Gateway 上报存活状态的间隔",
   },
   "en-US": {
+    // 共享文案里带产品名的条目：桌面端换成当前应用显示名（WebUI 不受影响）。
+    "chat.welcome": withAppName(SHARED_TRANSLATIONS["en-US"]["chat.welcome"]),
+    "chat.notifySessionCompleteBody": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["chat.notifySessionCompleteBody"],
+    ),
+    "planner.notificationTitle": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["planner.notificationTitle"],
+    ),
+    "settings.notificationsWhenFocusedHint": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["settings.notificationsWhenFocusedHint"],
+    ),
+    "settings.notificationsPermissionDenied": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["settings.notificationsPermissionDenied"],
+    ),
+    "settings.systemToolsDesc": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["settings.systemToolsDesc"],
+    ),
+    "settings.builtinTool.browser.detail": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["settings.builtinTool.browser.detail"],
+    ),
+    "settings.browserMode.userProfile.desc": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["settings.browserMode.userProfile.desc"],
+    ),
+    "settings.remoteDesc": withAppName(SHARED_TRANSLATIONS["en-US"]["settings.remoteDesc"]),
+    "settings.skillsImportDesc": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["settings.skillsImportDesc"],
+    ),
+    "settings.skillsScanHint": withAppName(SHARED_TRANSLATIONS["en-US"]["settings.skillsScanHint"]),
+    "settings.cuaDriver.notInstalledDesc": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["settings.cuaDriver.notInstalledDesc"],
+    ),
+    "settings.cuaDriver.allowSelfTitle": withAppName(
+      SHARED_TRANSLATIONS["en-US"]["settings.cuaDriver.allowSelfTitle"],
+    ),
     "app.windowPinned": "Pinned",
     "app.windowPinnedHint": "Window is pinned above other apps. Click to unpin.",
     "app.settingsLoadFailed": "Failed to load settings. Default settings have been restored.",
@@ -338,7 +420,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "chat.workspaceShowAll": "Show all ({count})",
     "chat.workspaceShowLess": "Show less",
     "chat.workspaceOpenSystemFileManagerFailed": "Failed to open the file manager",
-    "chat.exitConfirmTitle": "Exit LiveAgent?",
+    "chat.exitConfirmTitle": `Exit ${APP_DISPLAY_NAME}?`,
     "chat.exitConfirmSubtitle": "Terminal tasks are still running.",
     "chat.exitConfirmDescription":
       "Exiting will close these terminal processes. Cancel to return to the project tools and handle them manually.",
@@ -352,7 +434,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "projectTools.sshLocalForwardListening": "Listening on this computer only",
     "settings.navAbout": "About",
     "settings.groupOther": "Other",
-    "settings.aboutTitle": "About LiveAgent",
+    "settings.aboutTitle": `About ${APP_DISPLAY_NAME}`,
     "settings.aboutDescription":
       "View the current version, release notes, and desktop update status.",
     "settings.aboutApplication": "Application",
@@ -386,10 +468,9 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "settings.aboutInstalling": "Installing update",
     "settings.aboutInstallingDesc": "Downloading and verifying the update package.",
     "settings.aboutInstalled": "Update installed",
-    "settings.aboutInstalledDesc":
-      "The update package has been installed. Restart LiveAgent to use it.",
+    "settings.aboutInstalledDesc": `The update package has been installed. Restart ${APP_DISPLAY_NAME} to use it.`,
     "settings.aboutRestarting": "Restarting app",
-    "settings.aboutRestartingDesc": "LiveAgent is quitting and opening again.",
+    "settings.aboutRestartingDesc": `${APP_DISPLAY_NAME} is quitting and opening again.`,
     "settings.aboutUpdateAvailable": "New version available",
     "settings.aboutUpdateAvailableDesc": "The new version is ready to install.",
     "settings.aboutUpToDate": "Up to date",
@@ -536,8 +617,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
       "Only in the message editor. Shift + Enter always inserts a line break.",
     "settings.shortcutSaveFailed": "Could not save the shortcut. Check local storage availability.",
     "settings.shortcutSummon": "Quick Summon",
-    "settings.shortcutSummonDesc":
-      "Instantly bring up and focus the LiveAgent window from anywhere",
+    "settings.shortcutSummonDesc": `Instantly bring up and focus the ${APP_DISPLAY_NAME} window from anywhere`,
     "settings.shortcutToggle": "Show / Hide Window",
     "settings.shortcutToggleDesc": "Toggle the main window between foreground and hidden",
     "settings.shortcutNewChat": "New Chat",
@@ -546,7 +626,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "settings.shortcutSearchConversationsDesc":
       "Bring up the window and search saved conversation history",
     "settings.shortcutPin": "Pin Window",
-    "settings.shortcutPinDesc": "Toggle always-on-top so LiveAgent floats above other apps",
+    "settings.shortcutPinDesc": `Toggle always-on-top so ${APP_DISPLAY_NAME} floats above other apps`,
     "settings.shortcutNotSet": "Not set — click to record",
     "settings.shortcutRecordingHint": "Press your key combo…",
     "settings.shortcutPressEnter": "⏎ to confirm",
@@ -583,7 +663,7 @@ export const GUI_TRANSLATION_OVERRIDES: Record<Locale, Record<string, string>> =
     "tray.settings": "Settings…",
     "tray.checkUpdates": "Check for Updates…",
     "tray.openDataDir": "Open Data Folder",
-    "tray.quit": "Quit LiveAgent",
+    "tray.quit": `Quit ${APP_DISPLAY_NAME}`,
     "tray.untitledConversation": "Untitled chat",
     "tray.untitledCronTask": "Untitled task",
     "tray.cronEnabled": "Enabled cron task {name}",

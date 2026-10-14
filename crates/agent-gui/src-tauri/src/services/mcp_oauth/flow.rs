@@ -85,9 +85,25 @@ pub struct Loopback {
     port: u16,
 }
 
-const CALLBACK_OK_HTML: &str = "<!doctype html><html><head><meta charset=\"utf-8\"><title>LiveAgent</title></head><body style=\"font-family:system-ui;display:flex;align-items:center;justify-content:center;height:90vh\"><div style=\"text-align:center\"><h2>授权完成 / Authorization complete</h2><p>可以关闭此页面，回到 LiveAgent。/ You can close this page and return to LiveAgent.</p></div></body></html>";
+const CALLBACK_OK_HTML: &str = concat!(
+    "<!doctype html><html><head><meta charset=\"utf-8\"><title>",
+    env!("LIVEAGENT_DISPLAY_NAME"),
+    "</title></head><body style=\"font-family:system-ui;display:flex;align-items:center;justify-content:center;height:90vh\"><div style=\"text-align:center\"><h2>授权完成 / Authorization complete</h2><p>可以关闭此页面，回到 ",
+    env!("LIVEAGENT_DISPLAY_NAME"),
+    "。/ You can close this page and return to ",
+    env!("LIVEAGENT_DISPLAY_NAME"),
+    ".</p></div></body></html>",
+);
 
-const CALLBACK_FAIL_HTML: &str = "<!doctype html><html><head><meta charset=\"utf-8\"><title>LiveAgent</title></head><body style=\"font-family:system-ui;display:flex;align-items:center;justify-content:center;height:90vh\"><div style=\"text-align:center\"><h2>授权未完成 / Authorization failed</h2><p>请回到 LiveAgent 查看详情并重试。/ Return to LiveAgent for details and retry.</p></div></body></html>";
+const CALLBACK_FAIL_HTML: &str = concat!(
+    "<!doctype html><html><head><meta charset=\"utf-8\"><title>",
+    env!("LIVEAGENT_DISPLAY_NAME"),
+    "</title></head><body style=\"font-family:system-ui;display:flex;align-items:center;justify-content:center;height:90vh\"><div style=\"text-align:center\"><h2>授权未完成 / Authorization failed</h2><p>请回到 ",
+    env!("LIVEAGENT_DISPLAY_NAME"),
+    " 查看详情并重试。/ Return to ",
+    env!("LIVEAGENT_DISPLAY_NAME"),
+    " for details and retry.</p></div></body></html>",
+);
 
 impl Loopback {
     pub fn bind() -> Result<Self, String> {

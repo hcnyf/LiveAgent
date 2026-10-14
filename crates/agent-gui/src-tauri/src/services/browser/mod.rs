@@ -308,7 +308,11 @@ impl RequestedMode {
 
 /// userProfile 模式扩展未连接时的报错。TS 侧原样透传给模型/用户，须自含
 /// 安装路径引导；设置页另有可视化引导（browser_extension_install_info）。
-const EXTENSION_NOT_CONNECTED_ERROR: &str = "浏览器扩展未连接：当前设置要求在你的日常浏览器中操作（复用登录态），但 LiveAgent Browser Bridge 扩展尚未安装或未连上。请到「设置 → 系统工具 → 浏览器自动化」按引导安装扩展（chrome://extensions → 开发者模式 → 加载已解压的扩展程序），或将浏览器模式改为「自动」/「独立浏览器」。";
+const EXTENSION_NOT_CONNECTED_ERROR: &str = concat!(
+    "浏览器扩展未连接：当前设置要求在你的日常浏览器中操作（复用登录态），但 ",
+    env!("LIVEAGENT_DISPLAY_NAME"),
+    " Browser Bridge 扩展尚未安装或未连上。请到「设置 → 系统工具 → 浏览器自动化」按引导安装扩展（chrome://extensions → 开发者模式 → 加载已解压的扩展程序），或将浏览器模式改为「自动」/「独立浏览器」。",
+);
 
 async fn start_browser(
     bridge: &ExtensionBridge,
@@ -339,7 +343,12 @@ async fn start_browser(
         }
     }
     let executable = discover_browser_executable().ok_or_else(|| {
-        "未检测到 Chrome/Edge/Chromium。浏览器自动化需要已安装的 Chromium 系浏览器，或安装 LiveAgent 浏览器扩展以复用现有浏览器。".to_string()
+        concat!(
+            "未检测到 Chrome/Edge/Chromium。浏览器自动化需要已安装的 Chromium 系浏览器，或安装 ",
+            env!("LIVEAGENT_DISPLAY_NAME"),
+            " 浏览器扩展以复用现有浏览器。"
+        )
+        .to_string()
     })?;
     let launched = tauri::async_runtime::spawn_blocking({
         let executable = executable.clone();

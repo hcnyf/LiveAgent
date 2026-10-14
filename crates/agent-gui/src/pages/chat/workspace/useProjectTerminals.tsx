@@ -9,6 +9,7 @@ import type { TerminalSession } from "@liveagent/ui/lib/terminal/types";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useState } from "react";
+import { APP_DISPLAY_NAME } from "../../../lib/appIdentity";
 import { tauriTerminalClient } from "../../../lib/terminal/tauriTerminalClient";
 import { asErrorMessage } from "../chatPageUtils";
 import { terminalAppExitGuard } from "../workbench/terminalPaneRuntime";
@@ -142,7 +143,7 @@ export function useProjectTerminals(params: UseProjectTerminalsParams) {
       } catch (error) {
         terminalAppExitGuard.reset();
         if (!cancelled) {
-          setErrorMessage(asErrorMessage(error, "退出 LiveAgent 失败"));
+          setErrorMessage(asErrorMessage(error, `退出 ${APP_DISPLAY_NAME} 失败`));
         }
       }
     })

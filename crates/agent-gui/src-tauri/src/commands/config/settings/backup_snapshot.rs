@@ -330,7 +330,12 @@ pub(crate) fn parse_backup_document(raw: &str) -> Result<(BackupSnapshot, Backup
     )?;
     let manifest_value = document
         .remove(BACKUP_MANIFEST_FIELD)
-        .ok_or_else(|| "备份文件缺少元信息，可能不是 LiveAgent 导出的配置".to_string())?;
+        .ok_or_else(|| {
+            format!(
+                "备份文件缺少元信息，可能不是 {} 导出的配置",
+                crate::app_identity::APP_DISPLAY_NAME
+            )
+        })?;
     let manifest = serde_json::from_value::<BackupManifest>(manifest_value)
         .map_err(|e| format!("解析备份元信息失败：{e}"))?;
     validate_backup_manifest(&manifest)?;

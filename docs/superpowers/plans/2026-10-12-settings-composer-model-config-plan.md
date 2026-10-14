@@ -664,3 +664,48 @@ Remove-Item -Path "D:\VSBuildTools" -Recurse -Force
 
 > 注意：**不要再删 `C:\ProgramData\Microsoft\VisualStudio\Packages`**（见坑 3）。若要回收它的空间，只删其中的下载负载子目录，保留 `_Instances` 与 `_bootstrapper`。
 
+---
+
+## 附录 D：v1.1 优化落点（2026-10-14）
+
+### D-1 平台覆盖配置的 RFC 7396「数组整体替换」陷阱（启动白屏根因）
+
+`tauri.windows.conf.json` / `tauri.windows.release.conf.json` 各自带一份 `app.windows`
+数组。Tauri 按 RFC 7396 合并配置，**数组是整体替换、不与基础配置逐元素合并**，所以基础
+`tauri.conf.json` 里的 `"visible": false` 在 Windows 上被静默丢掉：主窗口创建瞬间即
+可见，先以未渲染的白色 WebView2 出现在系统默认位置，随后 `setup()` 的
+`restore_state` / `clamp_window_to_visible_monitor` 在**已经可见**的窗口上执行，形成
+「白屏 + 跳到记忆位置」。macOS 覆盖配置自带 `visible:false`，所以只有 Windows 复现。
+
+**凡是平台覆盖配置里出现的 `app.windows[0]`，都必须自带 `visible:false`。**
+`crates/agent-gui/test/chat/workbench-window-session.test.mjs` 已把该断言扩展到两个
+Windows 配置。
+
+配套兜底：`spawn_frontend_ready_watchdog`（`src-tauri/src/lib.rs`）。窗口显形的唯一
+正常通道是前端骨架调用 `app_frontend_ready`；前端异常时窗口会永久隐藏，用户会以为
+应用没启动。15s 超时后无条件 `show()`。
+
+### D-2 显示名单点真源（全链路）
+
+真源只有一处：`crates/agent-gui/src-tauri/tauri.conf.json` 的 `productName`。
+
+| 消费方 | 取值方式 |
+|---|---|
+| Rust（托盘 tooltip / 状态行 / 窗口标题 / 通知 / 错误文案） | `build.rs` 注入 `LIVEAGENT_DISPLAY_NAME` → `src-tauri/src/app_identity.rs::APP_DISPLAY_NAME`（`services/tray.rs` 转发导出，兼容既有调用点） |
+| 必须保持 `const` 的 Rust 字符串 | `concat!(..., env!("LIVEAGENT_DISPLAY_NAME"), ...)` |
+| 桌面前端（托盘 tooltip、关于页、CUA 自指拒绝文案等） | `vite.config.ts` 注入 `__LIVEAGENT_APP_NAME__` → `src/lib/appIdentity.ts::APP_DISPLAY_NAME`（`typeof` 守卫：纯模块加载下该标识符不存在，直接引用会 ReferenceError） |
+| GUI i18n 覆盖表 | `src/i18n/config.ts`：自有条目用模板字面量；共享文案（agent-ui）里带产品名的条目用 `withAppName()` 替换通用名——共享文案由桌面端与 WebUI 共用，**不能**直接改 agent-ui 的字面量 |
+| 任务管理器进程 / exe 名 | `tauri.conf.json` 顶层 `"mainBinaryName": "LiveAgent N"`（与 Cargo 包名解耦，不影响 `~/.liveagent` 数据目录） |
+| 任务栏 / Alt-Tab 名称 | `setup()` 里 `apply_main_window_title` 用 `APP_DISPLAY_NAME` 调 `set_title`；平台配置里的 `title` 留空，避免第二处硬编码 |
+
+**CI 耦合**：`.github/workflows/desktop-release.yml` 的便携包步骤原先把
+`liveagent.exe` / `dist/portable/LiveAgent` 写死，改 `mainBinaryName` 后 `find` 会落空、
+`test -n "$portable_exe_path"` 直接让整条 Windows 发版失败。现已改为从
+`tauri.conf.json` 的 `productName` 推导。
+
+**不要改**：Cargo 包名 `liveagent`（数据目录 `~/.{CARGO_PKG_NAME}`）、`~/.liveagent`
+路径文案、localStorage 键、`data-liveagent-*`、`liveagent-file:` 协议、`@liveagent/*`
+包路径、CSS 类名、浏览器扩展名、`LIVEAGENT_UPDATE_REPOSITORY` 与 updater User-Agent。
+WebUI（`crates/agent-gateway/web`）的 `LiveAgent Gateway` 是另一个产品面，未改。
+
+

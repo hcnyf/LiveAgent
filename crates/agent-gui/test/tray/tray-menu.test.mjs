@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createTsModuleLoader } from "../helpers/load-ts-module.mjs";
+
+// 与 vite 的 `define` 同源：显示名来自 tauri.conf.json 的 productName。不注入的话
+// `src/lib/appIdentity.ts` 会回退成通用名，下面关于"退出 <应用名>"的断言就失去意义。
+const { productName } = JSON.parse(
+  readFileSync(new URL("../../src-tauri/tauri.conf.json", import.meta.url), "utf8"),
+);
+globalThis.__LIVEAGENT_APP_NAME__ = productName;
 
 const loader = createTsModuleLoader();
 const trayMenu = loader.loadModule("src/lib/tray/trayMenu.ts");
@@ -99,7 +107,7 @@ test("runs derive from the running id set with localized count label", () => {
     ["c1"],
   );
   assert.equal(model.labels.runs, "运行中 · 1 个对话");
-  assert.equal(model.tooltip, "LiveAgent · 1 个对话运行中");
+  assert.equal(model.tooltip, `${productName} · 1 个对话运行中`);
 });
 
 test("cron entries list all tasks with enabled checkmarks, capped at 10", () => {
@@ -182,7 +190,7 @@ test("en-US locale localizes static labels and theme summary", () => {
   const model = trayMenu.buildTrayMenuModel(baseInput({ locale: "en-US", theme: "dark" }));
 
   assert.equal(model.labels.newChat, "New Chat");
-  assert.equal(model.labels.quit, "Quit LiveAgent");
+  assert.equal(model.labels.quit, `Quit ${productName}`);
   assert.equal(model.labels.appearance, "Appearance · Dark");
   assert.equal(model.theme, "dark");
 });

@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>LiveAgent 使用麦克风将语音转换为输入文字。</string>
+  <string>LiveAgent N 使用麦克风将语音转换为输入文字。</string>
 </dict>
 </plist>

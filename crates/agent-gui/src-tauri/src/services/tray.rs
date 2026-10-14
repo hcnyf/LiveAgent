@@ -464,7 +464,8 @@ pub fn apply_tray_menu(
 /// 应用显示名：由 `build.rs` 从 `tauri.conf.json` 的 `productName` 注入
 /// （可用 `LIVEAGENT_DISPLAY_NAME` 覆盖）。**不要在别处再硬编码应用名**——
 /// 同一份代码要能打出并存的两个包（如 `LiveAgent` 与 `LiveAgent N`）。
-pub const APP_DISPLAY_NAME: &str = env!("LIVEAGENT_DISPLAY_NAME");
+/// 真源与说明见 [`crate::app_identity`]，这里只做转发以保持既有调用点不变。
+pub use crate::app_identity::APP_DISPLAY_NAME;
 
 fn compose_status_line(app_version: &str, status_suffix: Option<&str>) -> String {
     let base = format!("{APP_DISPLAY_NAME} {app_version}");

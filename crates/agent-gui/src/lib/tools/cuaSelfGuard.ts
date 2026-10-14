@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { APP_DISPLAY_NAME } from "../appIdentity";
 
 /**
  * 把 LiveAgent 自己从 cua-driver 的视野与可操作范围里摘掉。
@@ -45,24 +46,24 @@ import { invoke } from "@tauri-apps/api/core";
  */
 
 const SELF_TARGET_REFUSAL =
-  "该目标是 LiveAgent 自身的窗口，已被拒绝：让模型操作宿主界面可以绕过工具审批、" +
-  "改写权限设置或直接关闭应用。请改为操作其他应用。（如确需自动化 LiveAgent 本身，" +
-  "在「设置 → CUA」中打开「允许操作 LiveAgent 自身」。）";
+  `该目标是 ${APP_DISPLAY_NAME} 自身的窗口，已被拒绝：让模型操作宿主界面可以绕过工具审批、` +
+  `改写权限设置或直接关闭应用。请改为操作其他应用。（如确需自动化 ${APP_DISPLAY_NAME} 本身，` +
+  `在「设置 → CUA」中打开「允许操作 ${APP_DISPLAY_NAME} 自身」。）`;
 
 const SELF_REGION_REFUSAL =
-  "该坐标落在 LiveAgent 自身的窗口范围内，已被拒绝：以桌面为目标按屏幕坐标操作宿主界面，" +
-  "同样可以点掉审批弹窗或改写权限设置。请改为操作其他应用的窗口。（如确需自动化 LiveAgent " +
-  "本身，在「设置 → CUA」中打开「允许操作 LiveAgent 自身」。）";
+  `该坐标落在 ${APP_DISPLAY_NAME} 自身的窗口范围内，已被拒绝：以桌面为目标按屏幕坐标操作宿主界面，` +
+  `同样可以点掉审批弹窗或改写权限设置。请改为操作其他应用的窗口。（如确需自动化 ${APP_DISPLAY_NAME} ` +
+  `本身，在「设置 → CUA」中打开「允许操作 ${APP_DISPLAY_NAME} 自身」。）`;
 
 const SELF_FOREGROUND_REFUSAL =
-  "LiveAgent 当前是前台应用，这次无明确目标的桌面键盘输入会直接落在宿主界面上" +
-  "（可以按掉审批弹窗、用快捷键关闭应用），已被拒绝。请先聚焦目标应用（例如先点击它的窗口），" +
-  "或改用带 pid / window_id 的显式窗口目标。（如确需自动化 LiveAgent 本身，" +
-  "在「设置 → CUA」中打开「允许操作 LiveAgent 自身」。）";
+  `${APP_DISPLAY_NAME} 当前是前台应用，这次无明确目标的桌面键盘输入会直接落在宿主界面上` +
+  `（可以按掉审批弹窗、用快捷键关闭应用），已被拒绝。请先聚焦目标应用（例如先点击它的窗口），` +
+  `或改用带 pid / window_id 的显式窗口目标。（如确需自动化 ${APP_DISPLAY_NAME} 本身，` +
+  `在「设置 → CUA」中打开「允许操作 ${APP_DISPLAY_NAME} 自身」。）`;
 
 const SELF_FOREGROUND_UNKNOWN_REFUSAL =
-  "无法确认当前前台应用，已拒绝这次无明确目标的桌面键盘输入：确认不了它不会落在 LiveAgent " +
-  "自己身上。请改用带 pid / window_id 的显式窗口目标，或稍后重试。";
+  `无法确认当前前台应用，已拒绝这次无明确目标的桌面键盘输入：确认不了它不会落在 ${APP_DISPLAY_NAME} ` +
+  `自己身上。请改用带 pid / window_id 的显式窗口目标，或稍后重试。`;
 
 type SelfIdentity = { pid: number };
 
@@ -138,8 +139,8 @@ const MAX_SCAN_DEPTH = 12;
 
 /** 拒绝一个深到扫不完的入参时给模型的说明。 */
 const SELF_SCAN_DEPTH_REFUSAL =
-  "调用参数的嵌套层级超出了安全检查的上限，已被拒绝：无法确认它是否以 LiveAgent 自身为目标。" +
-  "请用扁平一些的参数重试。";
+  `调用参数的嵌套层级超出了安全检查的上限，已被拒绝：无法确认它是否以 ${APP_DISPLAY_NAME} 自身为目标。` +
+  `请用扁平一些的参数重试。`;
 
 /** 各家写法里表示进程 id 的字段名。 */
 const PID_KEYS = ["pid", "process_id", "processId", "owner_pid", "ownerPid"] as const;

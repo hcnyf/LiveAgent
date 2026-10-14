@@ -36,9 +36,16 @@ pub async fn settings_list_ccswitch_providers() -> Result<CcsProvidersResponse, 
                 .map(|path| path.display().to_string())
                 .collect::<Vec<_>>()
                 .join("；");
-            format!("未发现 ccswitch LiveAgent 供应商，已检查：{checked}")
+            format!(
+                "未发现 ccswitch {} 供应商，已检查：{checked}",
+                crate::app_identity::APP_DISPLAY_NAME
+            )
         } else {
-            format!("发现 {} 个 ccswitch LiveAgent 供应商", providers.len())
+            format!(
+                "发现 {} 个 ccswitch {} 供应商",
+                providers.len(),
+                crate::app_identity::APP_DISPLAY_NAME
+            )
         };
         Ok(CcsProvidersResponse {
             status: "success".to_string(),

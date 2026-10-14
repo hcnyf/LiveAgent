@@ -29,7 +29,7 @@ fn notification_title() -> String {
         .ok()
         .filter(|title| !title.trim().is_empty())
         .map(|title| title.clone())
-        .unwrap_or_else(|| "LiveAgent".into())
+        .unwrap_or_else(|| crate::app_identity::APP_DISPLAY_NAME.to_string())
 }
 
 pub async fn handle_request(

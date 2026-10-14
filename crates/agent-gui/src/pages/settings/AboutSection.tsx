@@ -21,6 +21,7 @@ import { useLocale } from "@liveagent/ui/i18n/index";
 import { AgentActivationSwitch } from "@liveagent/ui/pages/settings/shared";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useId } from "react";
+import { APP_DISPLAY_NAME } from "../../lib/appIdentity";
 import type { AppUpdateController } from "../../lib/appUpdates";
 import type { ReleaseAnnouncementController } from "../../lib/releaseAnnouncement";
 import { releaseNotesBody, releaseTitle } from "../../lib/releaseNotes";
@@ -216,7 +217,7 @@ export function AboutSection(props: AboutSectionProps) {
             control={
               <div className="text-right">
                 <div className="text-sm font-medium text-foreground">
-                  LiveAgent v{currentVersion}
+                  {APP_DISPLAY_NAME} v{currentVersion}
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{channelLabel}</div>
               </div>

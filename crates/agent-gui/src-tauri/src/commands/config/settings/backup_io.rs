@@ -18,7 +18,7 @@ pub async fn settings_backup_export() -> Result<Option<String>, String> {
         let default_name = format!("liveagent-config-{}.json", now_ms());
         let Some(target) = rfd::FileDialog::new()
             .set_file_name(&default_name)
-            .add_filter("LiveAgent 配置", &["json"])
+            .add_filter(concat!(env!("LIVEAGENT_DISPLAY_NAME"), " 配置"), &["json"])
             .save_file()
         else {
             return Ok(None);
@@ -44,7 +44,7 @@ pub async fn settings_backup_peek_import(
             Some(value) => PathBuf::from(value),
             None => {
                 let Some(picked) = rfd::FileDialog::new()
-                    .add_filter("LiveAgent 配置", &["json"])
+                    .add_filter(concat!(env!("LIVEAGENT_DISPLAY_NAME"), " 配置"), &["json"])
                     .pick_file()
                 else {
                     return Ok(None);

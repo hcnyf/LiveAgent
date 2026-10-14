@@ -1158,17 +1158,20 @@ pub(crate) fn run_shell_script_with_envs(
             stderr_str.push('\n');
         }
         if shell_profile.platform == "windows" {
-            stderr_str.push_str(
-                "LiveAgent warning: command exited, but stdout/stderr remained open after exit. \
+            stderr_str.push_str(&format!(
+                "{} warning: command exited, but stdout/stderr remained open after exit. \
 This usually means a background process inherited the tool pipes. Use ManagedProcess for \
-long-running Windows commands so LiveAgent can capture logs and stop the process tree.",
-            );
+long-running Windows commands so {} can capture logs and stop the process tree.",
+                crate::app_identity::APP_DISPLAY_NAME,
+                crate::app_identity::APP_DISPLAY_NAME,
+            ));
         } else {
-            stderr_str.push_str(
-                "LiveAgent warning: command exited, but stdout/stderr remained open after exit. \
+            stderr_str.push_str(&format!(
+                "{} warning: command exited, but stdout/stderr remained open after exit. \
 This usually means a background process inherited the tool pipes. Redirect long-running \
 process output to a log file, for example: `nohup command > /tmp/liveagent-task.log 2>&1 < /dev/null &`.",
-            );
+                crate::app_identity::APP_DISPLAY_NAME,
+            ));
         }
     }
 

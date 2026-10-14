@@ -25,6 +25,7 @@ import {
 import { Input } from "@liveagent/ui/components/ui/input";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import { useMemo, useState } from "react";
+import { APP_DISPLAY_NAME } from "../../lib/appIdentity";
 import type { CodexRequestFormat, ProviderId } from "../../lib/settings";
 
 export type CherryProviderImportItem = {
@@ -398,7 +399,7 @@ export function CherryStudioImportModal(props: CherryStudioImportModalProps) {
               <DialogDescription className="text-xs">
                 {dataPath
                   ? "正在使用手动指定的目录"
-                  : "LiveAgent 会自动读取 Cherry Studio 的数据目录设置"}
+                  : `${APP_DISPLAY_NAME} 会自动读取 Cherry Studio 的数据目录设置`}
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
