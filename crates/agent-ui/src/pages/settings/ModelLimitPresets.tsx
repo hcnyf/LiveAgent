@@ -20,7 +20,10 @@ export function ModelLimitPresetRow(props: {
   return (
     // 用 fieldset 而非 div[role=group]：仓库同族写法见 ComposerModelControls 的
     // 运行控制组。inner div 承担 flex 布局——fieldset 作 flex 容器在部分浏览器有怪癖。
-    <fieldset aria-label={label} className="m-0 min-w-0 border-0 p-0">
+    //
+    // mb-2：chip 与输入框共用 settings-tile-hover 底色，只靠 FormField 的 space-y-2
+    // （8px）看着像连成一块，肉眼上"贴住"了输入框。补一段间距把两行分开。
+    <fieldset aria-label={label} className="m-0 mb-2 min-w-0 border-0 p-0">
       <div className="flex flex-wrap gap-1">
         {presets.map((preset) => (
           <Button

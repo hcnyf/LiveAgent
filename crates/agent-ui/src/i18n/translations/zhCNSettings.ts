@@ -601,13 +601,15 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
   "settings.showApiKey": "显示 API Key",
   "settings.requestFormat": "请求格式",
   "settings.reasoning": "思考强度",
-  "settings.reasoning.off": "关闭",
-  "settings.reasoning.minimal": "最低",
-  "settings.reasoning.low": "低",
-  "settings.reasoning.medium": "中",
-  "settings.reasoning.high": "高",
-  "settings.reasoning.xhigh": "极高",
-  "settings.reasoning.max": "最高",
+  // 思考档位刻意保留英文原值：译成"低/中/高"会让用户难以对应到厂商文档与请求里
+  // 真实的 low/medium/high。档位名是 API 取值，不是界面文案。
+  "settings.reasoning.off": "off",
+  "settings.reasoning.minimal": "minimal",
+  "settings.reasoning.low": "low",
+  "settings.reasoning.medium": "medium",
+  "settings.reasoning.high": "high",
+  "settings.reasoning.xhigh": "xhigh",
+  "settings.reasoning.max": "max",
   "settings.promptCaching": "Prompt 缓存",
   "settings.promptCachingDescClaude": "在请求上标注 ephemeral 缓存断点，长会话可显著降低输入费用。",
   "settings.promptCachingDescCodex":
