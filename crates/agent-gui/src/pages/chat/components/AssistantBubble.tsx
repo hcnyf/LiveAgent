@@ -4,6 +4,7 @@ import type { AssistantTurnLayoutEntry } from "@liveagent/ui/components/chat/ass
 import {
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
+  workEntriesHavePreviewableImages,
 } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import { RoundBlockContent } from "@liveagent/ui/components/chat/assistant-bubble/RoundContent";
 import { RetryDetailsBlock } from "@liveagent/ui/components/chat/RetryDetailsBlock";
@@ -82,7 +83,7 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
           <AssistantWorkTrace
             className="mt-0"
             awaitingDecision={awaitingDecision}
-            collapseAfterAnswer={unit.hasAnswer}
+            collapseAfterAnswer={unit.hasAnswer && !workEntriesHavePreviewableImages(workEntries)}
             collapsedTail={collapsedTailEntry ? renderWorkEntry(collapsedTailEntry) : null}
             durationMs={unit.durationMs}
             hasDetails={workEntries.length > 0 || isCompactionRunning}

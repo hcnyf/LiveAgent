@@ -898,6 +898,24 @@ export function getBuiltinResultKind(result?: ToolResultMessage) {
   return typeof kind === "string" ? kind : null;
 }
 
+/**
+ * work 区块里是否有可预览的图片（`display_image` 工具结果：Image / GenerateImage）。
+ *
+ * 用途：`AssistantWorkTrace` 在有最终回答时会把「处理中」区块自动收起，图片预览
+ * 会连同一起被卸载。调用方据此跳过自动收起——有图片时保持展开，收起由用户手动点。
+ */
+export function workEntriesHavePreviewableImages(
+  entries: readonly AssistantTurnLayoutEntry[],
+): boolean {
+  const hasImage = (item: ToolTraceItem) =>
+    getBuiltinResultKind(item.toolResult) === "display_image";
+  return entries.some((entry) => {
+    if (entry.block.kind === "tool") return hasImage(entry.block.item);
+    if (entry.block.kind === "toolGroup") return entry.block.items.some(hasImage);
+    return false;
+  });
+}
+
 export function isBuiltinShareToolName(name: string) {
   const trimmed = name.trim();
   if (isDynamicMcpToolName(trimmed)) {

@@ -18,6 +18,9 @@ const workTraceSource = readSource("../../../agent-ui/src/components/chat/Assist
 const guiBubbleSource = readSource("../../src/pages/chat/components/AssistantBubble.tsx");
 const activityRowSource = readSource("../../src/pages/chat/transcript/AssistantActivityRow.tsx");
 const rowModelSource = readSource("../../src/pages/chat/transcript/rowModel.ts");
+const utilsSource = readSource(
+  "../../../agent-ui/src/components/chat/assistant-bubble/assistantBubbleUtils.ts",
+);
 
 test("reasoning renders as expandable disclosures instead of vanishing status text", () => {
   assert.match(roundContentSource, /<ThinkingDisclosure/);
@@ -75,9 +78,21 @@ test("a settled turn with a final answer collapses its work trace on both surfac
   // Shared AssistantTurnContent (WebUI path) and the GUI's own bubble unit
   // bypass each other, so the auto-collapse wiring must exist in both.
   assert.match(workTraceSource, /if \(!running && !attentionRequired && collapseAfterAnswer\)/);
-  assert.match(roundContentSource, /collapseAfterAnswer=\{layout\.answer\.length > 0\}/);
-  assert.match(guiBubbleSource, /collapseAfterAnswer=\{unit\.hasAnswer\}/);
+  assert.match(
+    roundContentSource,
+    /collapseAfterAnswer=\{\s*layout\.answer\.length > 0 && !workEntriesHavePreviewableImages\(layout\.work\),?\s*\}/,
+  );
+  assert.match(
+    guiBubbleSource,
+    /collapseAfterAnswer=\{\s*unit\.hasAnswer && !workEntriesHavePreviewableImages\(workEntries\),?\s*\}/,
+  );
   assert.match(rowModelSource, /hasAnswer: layout\.answer\.length > 0/);
+});
+
+test("a settled turn keeps its work trace open while it holds image previews", () => {
+  // 有 png/jpg/svg 预览时不再自动收起：收起会把图片连同预览灯箱一起卸载。
+  assert.match(utilsSource, /export function workEntriesHavePreviewableImages\(/);
+  assert.match(utilsSource, /getBuiltinResultKind\(item\.toolResult\) === "display_image"/);
 });
 
 test("GUI transcript keeps live interaction content outside the work trace", () => {

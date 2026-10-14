@@ -758,5 +758,54 @@ soft = min(⌊P·W/100⌋, hard − clamp(⌊0.05W⌋, 4k, 16k))     P = 设置�
 与手动压缩的 50% 门槛是**展示/手动**口径，本次未跟随该设置。两者数值巧合一致，
 改设置后不要再假设它们同步。
 
+---
+
+## 附录 F：会话窗口两项（2026-10-14）
+
+### F-1 会话完成后图片预览被自动收起（已修）
+
+**不是**右侧停靠区的文件预览浮层（`useWorkspaceOverlays.ts` 只在「右侧 fileTree
+tab 从开到关」时关它，与会话运行态无关），**而是工作轨迹区块**：
+
+- `AssistantWorkTrace.tsx:95-100`：回合结束（`running` 由 true 变 false）且该回合有
+  最终回答时强制 `setExpanded(false)`；`LazyCollapse` 收起即**卸载** body。
+- 工具结果的图片（`display_image`：`Image` 与 `GenerateImage`）都渲染在
+  `layout.work` 里 → 一起被卸载；若用户此时开着灯箱（`ToolImages.tsx` 的
+  `ImagePreview`），宿主被卸载会连带关掉灯箱。
+
+**修法**：`assistantBubbleUtils.ts` 新增纯函数 `workEntriesHavePreviewableImages()`，
+两个调用点据此跳过自动收起（展开态归用户手动控制）：
+`RoundContent.tsx`（共享面，WebUI 同路径）与 `agent-gui/.../AssistantBubble.tsx`
+（GUI 自有面）。`rowModel.ts` 的 `hasAnswer` 语义不动。
+
+### F-2 剪切板粘贴图片「模型读不到」的排查结论（不改代码）
+
+链路：paste → `system_import_uploaded_readable_files` 落 `~/.liveagent/uploads/<batch>/`
+→ `liveAgentAttachments` → `buildRequestContext({includeUploadedFilesMetadata: true})`
+→ `payloadPipeline` 的 `native-attachments` → `nativeResponsesAttachments.ts` 内联成
+`input_image` / `image_url` / `image{base64}` / `inlineData`。
+
+**图片要有像素，必须同时满足三件事**：模型能力门控（`modelSupportsImageInput`）通过、
+MIME 在 `NATIVE_IMAGE_MIME_TYPES`（png/jpeg/gif/webp）内、文件可达（有 `absolutePath`、
+≤25MB）。任一不满足即 `return null`，该消息退化成「只给路径行」，模型看不到像素。
+
+最可能的历史根因：**非目录模型的图片能力被推断成 `["text"]`**（`modelFactory.ts`
+按 id 前缀猜 `input`），于是既不进内联，`piAiAdapter` 又把 Read 返回的图片块剥掉。
+fork 的 T3.3（`输入能力改多选（含 PDF）并开放 claude_code`，提交 `e51f2266`）把门控改成
+「有声明按声明」，并给了「图片」勾选框 —— 这解释了「原版出现 / 二开没复现 / 新版可读」。
+
+**残留条件（仍会读不到，但都不是 bug）**：
+
+| 条件 | 位置 |
+|---|---|
+| 模型/中转的 `input` 推断成 `["text"]`，且用户没在设置里勾「图片」 | `modelFactory.ts` 按 id 前缀推断；`nativeResponsesAttachments.ts:251-256` 门控 |
+| 老会话已发生过压缩：附件只剩 `[attachment: name]` | `compaction/checkpoint.ts:52-57` |
+| MIME 不在白名单（bmp / svg / ico / 无名 `.bin`） | `nativeResponsesAttachments.ts:129` vs Rust `system.rs:181-210` |
+| 暂存文件超 30 天被 GC | `system.rs:845-846` |
+
+诊断手段：会话调试日志（`payloadPipeline` 的 payload-debug-logging）看
+`payload.messages[i].content` 是否含 `image_url` / `input_image`；或给该模型勾上「图片」再试。
+
+
 
 

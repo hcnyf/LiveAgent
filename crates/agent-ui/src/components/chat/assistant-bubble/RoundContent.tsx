@@ -17,6 +17,7 @@ import {
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
   resolveAssistantTurnLayout,
+  workEntriesHavePreviewableImages,
 } from "./assistantBubbleUtils";
 import { CompactionSeamRow } from "./CompactionSeamRow";
 import { ThinkingDisclosure } from "./ThinkingDisclosure";
@@ -272,7 +273,9 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
         <AssistantWorkTrace
           attentionRequired={attentionRequired}
           awaitingDecision={attentionRequired}
-          collapseAfterAnswer={layout.answer.length > 0}
+          collapseAfterAnswer={
+            layout.answer.length > 0 && !workEntriesHavePreviewableImages(layout.work)
+          }
           collapsedTail={collapsedTailEntry ? renderEntry(collapsedTailEntry, true) : null}
           durationMs={durationMs}
           hasDetails={layout.work.length > 0 || showDetailedStatus}
