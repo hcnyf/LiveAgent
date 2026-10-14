@@ -892,9 +892,43 @@ fn configure_system_tray(app: &tauri::App) -> tauri::Result<()> {
 fn configure_windows_window_chrome(app: &tauri::App) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window.set_decorations(false)?;
+        apply_windows_rounded_corners(&window);
     }
 
     Ok(())
+}
+
+/// 主窗口四角小幅圆角：走 DWM 的原生圆角偏好。
+///
+/// 窗口是 `decorations: false` 的无边框自绘标题栏，四个角默认是直角；Tauri 的
+/// `windowEffects.radius` 只在 macOS 生效，Windows 上唯一可行的就是这条 Win32 属性。
+///
+/// - `window.hwnd()` 返回 `windows` crate 的 `HWND(pub *mut c_void)`，其 `.0` 与
+///   windows-sys 的 `HWND = *mut c_void` 是同一个指针，无需再转换。
+/// - `DwmSetWindowAttribute` 返回 `HRESULT`(i32)。Windows 10 不认识这个属性，会回
+///   一个负值（`E_INVALIDARG`）——这里刻意忽略返回值：方角就是它的降级形态，
+///   绝不 `?` 出去、也绝不 panic。
+/// - 想再小一号可以把常量换成 `DWMWCP_ROUNDSMALL`（仅 Win11 22H2+ 支持）。
+#[cfg(target_os = "windows")]
+fn apply_windows_rounded_corners(window: &tauri::WebviewWindow) {
+    use windows_sys::Win32::Graphics::Dwm::{
+        DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND, DwmSetWindowAttribute,
+    };
+
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let preference = DWMWCP_ROUND;
+    let _ = unsafe {
+        DwmSetWindowAttribute(
+            hwnd.0,
+            // windows-sys 把 `dwattribute` 声明成 u32，而常量是 i32 的
+            // `DWMWINDOWATTRIBUTE`；33 落在 u32 范围内，直接转。
+            DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+            &preference as *const _ as *const core::ffi::c_void,
+            std::mem::size_of_val(&preference) as u32,
+        )
+    };
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

@@ -66,20 +66,20 @@ test("token counts use K for thousands while keeping smaller values intact", () 
   assert.equal(formatTokenCount(128_000, "zh-CN"), "128K");
 });
 
-test("threshold boundaries: <50% ok, 50-80% warn, >=80% danger", () => {
-  assert.equal(CONTEXT_USAGE_WARN_RATIO, 0.5);
+test("threshold boundaries: <60% ok, 60-80% warn, >=80% danger", () => {
+  assert.equal(CONTEXT_USAGE_WARN_RATIO, 0.6);
   assert.equal(CONTEXT_USAGE_DANGER_RATIO, 0.8);
   assert.equal(contextUsageLevel(0), "ok");
-  assert.equal(contextUsageLevel(0.49), "ok");
-  assert.equal(contextUsageLevel(0.5), "warn");
+  assert.equal(contextUsageLevel(0.59), "ok");
+  assert.equal(contextUsageLevel(0.6), "warn");
   assert.equal(contextUsageLevel(0.79), "warn");
   assert.equal(contextUsageLevel(0.8), "danger");
   assert.equal(contextUsageLevel(1.5), "danger");
 });
 
 test("manual compaction unlocks exactly at the warn ratio", () => {
-  assert.equal(canManualCompact(0.49), false);
-  assert.equal(canManualCompact(0.5), true);
+  assert.equal(canManualCompact(0.59), false);
+  assert.equal(canManualCompact(0.6), true);
   assert.equal(canManualCompact(0.99), true);
 });
 
@@ -937,13 +937,13 @@ async function withRing(run) {
   }
 }
 
-test("context usage ring hides below the warn ratio and reappears exactly at 50%", async () => {
+test("context usage ring hides below the warn ratio and reappears exactly at 60%", async () => {
   await withRing(async (paint) => {
     // 阈值取等号，与 canManualCompact 同一口径：环恰在能承担压缩入口时浮现。
-    assert.equal(await paint({ totalTokens: 49_000, hideBelowWarn: true }), "", "49% 应隐藏");
-    const atThreshold = await paint({ totalTokens: 50_000, hideBelowWarn: true });
-    assert.notEqual(atThreshold, "", "50% 必须浮现");
-    assert.match(atThreshold, /50%/);
+    assert.equal(await paint({ totalTokens: 59_000, hideBelowWarn: true }), "", "59% 应隐藏");
+    const atThreshold = await paint({ totalTokens: 60_000, hideBelowWarn: true });
+    assert.notEqual(atThreshold, "", "60% 必须浮现");
+    assert.match(atThreshold, /60%/);
     // 环管「当前上下文占用」（瞬时、压缩后回落），与状态栏的累计读数互补。
     assert.equal(
       await paint({ totalTokens: 12_000, hideBelowWarn: true }),

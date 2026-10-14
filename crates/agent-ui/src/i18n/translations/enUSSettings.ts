@@ -842,7 +842,7 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
     "Model used for clarify questions and the final prompt. Follows the current chat model when unselected or unavailable.",
   "settings.composerContextDisplay": "Context usage display",
   "settings.composerContextDisplayHint":
-    "Choose how the composer shows context usage. Every mode keeps the manual compaction entry at ≥50% usage.",
+    "Choose how the composer shows context usage. Every mode keeps the manual compaction entry at ≥60% usage.",
   "settings.composerContextDisplayStatsBar": "Stats bar",
   "settings.composerContextDisplayBoth": "Both",
   "settings.composerContextDisplayRing": "Usage ring",

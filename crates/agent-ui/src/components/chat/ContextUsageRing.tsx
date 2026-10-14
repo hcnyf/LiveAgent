@@ -40,12 +40,12 @@ function isCoarsePointerNow(): boolean {
 }
 
 /**
- * 上下文用量环：composer 内展示当前会话上下文占用百分比，占用 ≥ 50%（黄档）
+ * 上下文用量环：composer 内展示当前会话上下文占用百分比，占用 ≥ 60%（黄档）
  * 起可点击弹出确认后触发手动压缩。阈值与 WebUI 补算口径见 lib/chat/contextUsage.ts。
  * 语义用 Meter（静态量度）而非 Progress（任务进度）。
  *
  * 触屏（无 hover）环境没有悬停，tooltip 与压缩确认改为点按分段：首次点按只弹
- * 用量 tooltip，≥50% 时第二次点按收起 tooltip 再弹压缩确认——两个弹层同侧
+ * 用量 tooltip，≥60% 时第二次点按收起 tooltip 再弹压缩确认——两个弹层同侧
  * 定位，必须互斥展示。桌面端保持悬停出 tooltip、点击出确认的原行为。
  */
 export function ContextUsageRing(props: {
@@ -55,7 +55,7 @@ export function ContextUsageRing(props: {
   onConfirm?: (() => void) | (() => Promise<unknown>);
   className?: string;
   /**
-   * 占用低于警戒线（50%，即手动压缩尚不可用）时整枚环不渲染。展示样式改为
+   * 占用低于警戒线（60%，即手动压缩尚不可用）时整枚环不渲染。展示样式改为
    * 三档后 composer 仍不传此项——"ring" / "both" 模式环都必须 0% 起常显
    * （docs/design/composer-context-stats-bar.md §4.7）。保留为共享环的通用显示
    * 选项，供未来低占用需让位的挂载点使用。

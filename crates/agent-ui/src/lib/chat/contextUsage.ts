@@ -8,8 +8,8 @@
 // CJK 感知的文本 token 估算也定义在此（原 agent-gui compaction/tokenLedger.ts，
 // 迁入共享层供压缩检查点估值复用；tokenLedger 从这里 re-export 保持旧调用方不动）。
 
-/** 黄色起点，同时是手动压缩可用的起点（issue #359：占用 ≥50% 才允许压缩）。 */
-export const CONTEXT_USAGE_WARN_RATIO = 0.5;
+/** 黄色起点，同时是手动压缩可用的起点（issue #359；2026-10 按反馈由 50% 提到 60%）。 */
+export const CONTEXT_USAGE_WARN_RATIO = 0.6;
 /** 红色起点。 */
 export const CONTEXT_USAGE_DANGER_RATIO = 0.8;
 

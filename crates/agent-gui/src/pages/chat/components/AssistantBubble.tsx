@@ -2,13 +2,18 @@ import { LiveAssistantStatus } from "@liveagent/ui/components/chat/AssistantStat
 import { AssistantWorkTrace } from "@liveagent/ui/components/chat/AssistantWorkTrace";
 import type { AssistantTurnLayoutEntry } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import {
+  countWorkEntries,
+  formatWorkCountsLabel,
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
+  segmentWorkEntries,
 } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import { RoundBlockContent } from "@liveagent/ui/components/chat/assistant-bubble/RoundContent";
 import { RetryDetailsBlock } from "@liveagent/ui/components/chat/RetryDetailsBlock";
+import { WorkProcessRow } from "@liveagent/ui/components/chat/WorkProcessRow";
+import { useLocale } from "@liveagent/ui/i18n/index";
 import type { ChatFileLink } from "@liveagent/ui/lib/chat/chatFileLinks";
-import { memo } from "react";
+import { Fragment, memo } from "react";
 import type { RetryAttemptRecord } from "../../../lib/chat/conversation/liveTranscriptStore";
 import type { AssistantUnitRow } from "../transcript/rowModel";
 
@@ -30,6 +35,8 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
     workdir,
     onOpenFileLink,
   } = props;
+  // hook 必须在下面 `footer` 的提前 return 之前调用。
+  const { locale, t } = useLocale();
   const { unit } = row;
   if (unit.kind === "footer") return null;
 
@@ -38,6 +45,10 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
     unit.kind === "work-trace" && row.live ? resolveActiveThinkingEntryKey(workEntries) : null;
   const collapsedTailEntry =
     unit.kind === "work-trace" && row.live ? resolveActiveWorkEntry(workEntries) : null;
+  // 两次输出之间的过程收成概括条；正文与压缩里程碑留在条外可见。
+  const workSegments = segmentWorkEntries(workEntries, {
+    activeKey: collapsedTailEntry?.key ?? null,
+  });
 
   const renderWorkEntry = (entry: AssistantTurnLayoutEntry) => (
     <RoundBlockContent
@@ -89,7 +100,19 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
             running={row.live}
             startedAtMs={unit.startedAtMs}
           >
-            {workEntries.map((entry) => renderWorkEntry(entry))}
+            {workSegments.map((segment) =>
+              segment.kind === "process" ? (
+                <WorkProcessRow
+                  key={segment.key}
+                  label={formatWorkCountsLabel(countWorkEntries(segment.entries), t, locale)}
+                  running={segment.running}
+                >
+                  {segment.entries.map((entry) => renderWorkEntry(entry))}
+                </WorkProcessRow>
+              ) : (
+                <Fragment key={segment.key}>{renderWorkEntry(segment.entry)}</Fragment>
+              ),
+            )}
             {isCompactionRunning ? (
               <LiveAssistantStatus status={toolStatus} isCompaction className="w-full py-1.5" />
             ) : null}

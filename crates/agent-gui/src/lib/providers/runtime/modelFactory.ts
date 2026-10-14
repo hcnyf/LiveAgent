@@ -6,6 +6,7 @@ import {
   type ThinkingLevelMap,
   toThinkingLevelMap,
 } from "@liveagent/ui/lib/models/modelThinking";
+import { resolveEffectiveMaxOutputTokens } from "@liveagent/ui/lib/models/outputBudget";
 import {
   type CodexRequestFormat,
   getProviderModelDefaults,
@@ -368,7 +369,9 @@ function buildModelFromConfig(
           upstreamBaseUrl?.trim() || baseUrl,
         )
       : configuredContextWindow;
-  const maxTokens = modelConfig?.maxOutputToken ?? defaults.maxOutputToken;
+  const maxTokens = resolveEffectiveMaxOutputTokens(
+    modelConfig?.maxOutputToken ?? defaults.maxOutputToken,
+  );
   // 计费功能已整体移除：pi-ai 的 Model.cost 是结构必填字段，统一喂零价，
   // 流式侧算出的 usage.cost 恒为 0（known 分支同样覆盖，防止目录单价复活计费）。
   const zeroCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };

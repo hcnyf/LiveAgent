@@ -1,4 +1,5 @@
 import { canManualCompact, contextUsageRatio } from "@liveagent/ui/lib/chat/contextUsage";
+import { resolveEffectiveMaxOutputTokens } from "@liveagent/ui/lib/models/outputBudget";
 import {
   normalizeAutoCompactThresholdPercent,
   type ProviderModelConfig,
@@ -9,7 +10,7 @@ import type { CompactionDecisionReason, CompactionTrigger } from "./types";
 // ============================================================================
 // 限额与决策。
 //
-// W = 目录 contextWindow（含输出），O = maxOutputToken（主请求 max_tokens = O）：
+// W = 目录 contextWindow（含输出），O = 有效最大输出（主请求 max_tokens = O）：
 //   inputCap = W − O                       Anthropic 要求 input + max_tokens ≤ W；OpenAI 有独立输入上限
 //   reserve  = clamp(⌊0.05W⌋, 4k, 20k)     两次 usage 锚点之间的估算漂移
 //   hard     = inputCap − reserve          达到即 mustProgress
@@ -17,6 +18,10 @@ import type { CompactionDecisionReason, CompactionTrigger } from "./types";
 //              P = 设置项 system.autoCompactThresholdPercent / 100（默认 80%）
 // 设置值只把触发线**提前**：P·W 在大 maxOutputToken 的模型上会越过 hard，而 soft > hard
 // 会让 [hard, soft) 既不触发压缩、也拿不到 mustProgress，等于把溢出错误原样留给 provider。
+//
+// O 取「有效最大输出」而不是模型声明的原始值：目录里 1M 窗口的模型常带 384k 的
+// maxOutputToken，整份预留会把 inputCap 砍到窗口的 63%，P 填多高都被物理上限吃掉
+// （见 outputBudget.ts）。线上 max_tokens 与这里必须同源，否则估算与实际请求不一致。
 // ============================================================================
 
 export type CompactionLimits = {
@@ -61,7 +66,8 @@ export function resolveCompactionLimits(params: {
 }): CompactionLimits {
   const contextWindow = Math.max(0, Math.floor(params.contextWindow));
   const margin = Math.floor(0.05 * contextWindow);
-  const inputCap = contextWindow - Math.max(0, Math.floor(params.maxOutputToken));
+  const maxOutputToken = resolveEffectiveMaxOutputTokens(params.maxOutputToken);
+  const inputCap = contextWindow - maxOutputToken;
   const reserve = clamp(margin, 4_000, 20_000);
   const hard = inputCap - reserve;
   const safetyLine = hard - clamp(margin, 4_000, 16_000);
@@ -96,7 +102,7 @@ export type CompactionVerdict =
     };
 
 /**
- * 纯决策，按序判断：disabled → no-active-messages → in-flight → manual（50% 门槛）
+ * 纯决策，按序判断：disabled → no-active-messages → in-flight → manual（60% 门槛）
  * → overflow（mustProgress，从 transcript 开始）→ below-threshold → prefix-too-large
  * → circuit-open → 压缩。前缀过大、熔断与防抖动都只拦 [soft, hard)：≥ hard 不受它们
  * 拦截（唯一例外是 fixed 本身已 ≥ hard，压缩什么都腾不出），never hard-reject。

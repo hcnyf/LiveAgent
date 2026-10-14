@@ -566,7 +566,7 @@ test("agent 实发请求字面钉死：anthropic 官方端点两轮，第二轮�
   // 思考开启时强制工具在线上降为 auto（既有拦截器行为）。
   assert.deepEqual(wire, {
     model: "claude-sonnet-4-6",
-    max_tokens: 128000,
+    max_tokens: 32000,
     stream: true,
     thinking: { type: "adaptive", display: "summarized" },
     output_config: { effort: "high" },
@@ -637,7 +637,7 @@ test("completeAssistantMessage 实发请求字面钉死（辅助请求不记配�
   assert.deepEqual(wire, {
     model: "claude-sonnet-4-6",
     messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
-    max_tokens: 128000,
+    max_tokens: 32000,
     stream: true,
     thinking: { type: "adaptive", display: "summarized" },
     output_config: { effort: "high" },

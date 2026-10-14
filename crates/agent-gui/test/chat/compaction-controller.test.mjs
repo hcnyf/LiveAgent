@@ -829,7 +829,7 @@ function manual(controller, binding, state, extra = {}) {
   return controller.compactManually(binding, { state, buildContext: requestContext, ...extra });
 }
 
-test("compactManually: busy while bound, 50% gate without residue, onProceed exactly once", async () => {
+test("compactManually: busy while bound, 60% gate without residue, onProceed exactly once", async () => {
   const controller = new CompactionController();
   bindController(controller);
   assert.deepEqual(await manual(controller, createBinding().binding, bigState()), {
@@ -845,10 +845,10 @@ test("compactManually: busy while bound, 50% gate without residue, onProceed exa
     proceedCalls += 1;
   };
 
-  // 锚点 = usage 纯算术，99_000 停在 100_000（50%）门槛之下。
+  // 锚点 = usage 纯算术，119_000 停在 120_000（60%）门槛之下。
   const rejected = createBinding();
   assert.deepEqual(
-    await manual(controller, rejected.binding, bigState(99_000), { onProceed }),
+    await manual(controller, rejected.binding, bigState(119_000), { onProceed }),
     { outcome: "skipped", reason: "below-manual-threshold" },
   );
   assert.equal(proceedCalls, 0);
@@ -857,7 +857,7 @@ test("compactManually: busy while bound, 50% gate without residue, onProceed exa
   assert.equal(controller.contextUsageTokens, before);
 
   const accepted = createBinding();
-  const result = await manual(controller, accepted.binding, bigState(100_000), {
+  const result = await manual(controller, accepted.binding, bigState(120_000), {
     onProceed: () => {
       onProceed();
       // onProceed 在决策通过之后、running 状态发布之前同步触发。
@@ -916,7 +916,7 @@ test("post-compaction beginRequest never dips below the checkpoint anchor", asyn
   const { binding, recorder } = createBinding();
   // 大 fixedTokens 快照抬高检查点权威值，模拟“检查点值 > 下一次发送的现算估算”。
   const result = await manual(controller, binding, bigState(1_000), {
-    usage: { totalTokens: 100_000, fixedTokens: 40_000 },
+    usage: { totalTokens: 120_000, fixedTokens: 40_000 },
   });
   assert.equal(result.outcome, "compacted");
   const [, checkpointState, checkpointTokens] = recorder.byKind("queueCheckpoint")[0];

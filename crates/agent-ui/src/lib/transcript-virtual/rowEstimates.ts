@@ -91,3 +91,6 @@ export const CHECKPOINT_ROW_ESTIMATE_PX = 88;
 
 // 回合落定后的产物预览行（PreviewArtifactsRow）：标题条 + 一块图片预览。
 export const PREVIEW_ARTIFACTS_ROW_ESTIMATE_PX = 220;
+
+// 「两次输出之间」的过程概括条（WorkProcessRow）：收起时只有一行计数。
+export const WORK_PROCESS_ROW_ESTIMATE_PX = 32;

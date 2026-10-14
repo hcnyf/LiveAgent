@@ -4,6 +4,7 @@ import {
   collectWorkPreviewItems,
   type GroupedRoundBlock,
   resolveAssistantTurnLayout,
+  segmentWorkEntries,
 } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import {
   assembleContinuousReply,
@@ -18,6 +19,7 @@ import {
   estimateUserRowHeight,
   measureEstimateText,
   PREVIEW_ARTIFACTS_ROW_ESTIMATE_PX,
+  WORK_PROCESS_ROW_ESTIMATE_PX,
 } from "@liveagent/ui/lib/transcript-virtual/rowEstimates";
 import type {
   RenderAssistantGroup,
@@ -505,16 +507,26 @@ function buildAssistantUnits(input: BuildAssistantUnitsInput): AssistantUnitRow[
 
   if (layout.work.length > 0 || live) {
     const workMeasurements = layout.work.map((entry) => measureBlockUnit(entry.block));
+    // 概括条把「两次输出之间」的过程收成一行，估高必须跟着收，否则运行中的这一行
+    // 会先按未收起的明细预留高度、挂载实测后再缩回去，观感就是布局跳一下。
+    const workEstimateByKey = new Map<string, number>(
+      layout.work.map(
+        (entry, index) => [entry.key, workMeasurements[index]?.estimate ?? 0] as const,
+      ),
+    );
+    const workEstimate = segmentWorkEntries(layout.work).reduce(
+      (total, segment) =>
+        total +
+        (segment.kind === "process"
+          ? WORK_PROCESS_ROW_ESTIMATE_PX
+          : (workEstimateByKey.get(segment.entry.key) ?? 0)),
+      0,
+    );
     rows.push({
       kind: "assistant-unit",
       key: `${replyKey}:work-trace`,
       replyKey,
-      estimate: live
-        ? Math.min(
-            480,
-            42 + workMeasurements.reduce((total, measurement) => total + measurement.estimate, 0),
-          )
-        : 42,
+      estimate: live ? Math.min(480, 42 + workEstimate) : 42,
       renderCost: Math.min(
         16,
         Math.max(

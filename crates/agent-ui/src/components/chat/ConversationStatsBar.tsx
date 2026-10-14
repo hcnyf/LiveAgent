@@ -84,7 +84,7 @@ function useRunningHeartbeat(running: boolean): number {
 export function ConversationStatsBar(props: {
   stats: ConversationStats | null;
   /**
-   * 提供且当前上下文占用 ≥50%（canManualCompact）时整条可点击，弹出确认后
+   * 提供且当前上下文占用 ≥60%（canManualCompact）时整条可点击，弹出确认后
    * 触发手动压缩，门槛与 ContextUsageRing 同源；不满足条件时纯展示。
    */
   onManualCompactConfirm?: (() => void) | (() => Promise<unknown>);

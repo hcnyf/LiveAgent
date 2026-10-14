@@ -139,7 +139,10 @@ test("golden/anthropic-messages: 官方端点完整请求体（adaptive thinking
   assert.deepEqual(payload, {
     model: "claude-sonnet-4-6",
     messages: [{ role: "user", content: [{ type: "text", text: "hello world" }] }],
-    max_tokens: 128000,
+    // 主请求的输出预留取「有效最大输出」= min(模型声明值, 32k)（见
+    // `crates/agent-ui/src/lib/models/outputBudget.ts`）：把模型的最大输出整份
+    // 预留会挤掉一大块输入预算，压缩触发线因此够不到设置里的百分比。
+    max_tokens: 32000,
     stream: true,
     system: [{ type: "text", text: "You are a precise assistant." }],
     tools: [
@@ -183,7 +186,7 @@ test("golden/openai-completions: 中转端点完整请求体（带工具 + reaso
     ],
     stream: true,
     stream_options: { include_usage: true },
-    max_completion_tokens: 128000,
+    max_completion_tokens: 32000,
     tools: [
       {
         type: "function",
@@ -225,7 +228,7 @@ test("golden/openai-completions: text-only 请求既不带 tools 也不带 tool_
     ],
     stream: true,
     stream_options: { include_usage: true },
-    max_completion_tokens: 128000,
+    max_completion_tokens: 32000,
   });
 });
 
@@ -255,7 +258,7 @@ test("golden/openai-responses: codex 官方端点完整请求体（store + promp
     stream: true,
     prompt_cache_key: SESSION_ID,
     store: true,
-    max_output_tokens: 142000,
+    max_output_tokens: 32000,
     tools: [
       {
         type: "function",
@@ -290,7 +293,7 @@ test("golden/google-generative-ai: 官方端点完整请求体（thinkingLevel +
     model: "gemini-3-pro-preview",
     contents: [{ role: "user", parts: [{ text: "hello world" }] }],
     config: {
-      maxOutputTokens: 65536,
+      maxOutputTokens: 32000,
       systemInstruction: "You are a precise assistant.",
       tools: [
         {
@@ -333,7 +336,7 @@ test("golden/deepseek-responses: 原生适配器完整请求体（developer role
       { role: "user", content: [{ type: "input_text", text: "hello world" }] },
     ],
     stream: true,
-    max_output_tokens: 393216,
+    max_output_tokens: 32000,
     tools: [
       {
         type: "function",

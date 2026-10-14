@@ -807,7 +807,7 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
     "澄清追问与生成终稿使用的模型，未选择或失效时跟随当前对话模型。",
   "settings.composerContextDisplay": "上下文占用展示",
   "settings.composerContextDisplayHint":
-    "选择输入区展示上下文占用的方式。无论哪一档，占用 ≥50% 时都保留手动压缩入口。",
+    "选择输入区展示上下文占用的方式。无论哪一档，占用 ≥60% 时都保留手动压缩入口。",
   "settings.composerContextDisplayStatsBar": "状态栏",
   "settings.composerContextDisplayBoth": "都显示",
   "settings.composerContextDisplayRing": "用量环",

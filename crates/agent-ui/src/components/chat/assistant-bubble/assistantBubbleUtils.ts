@@ -408,6 +408,99 @@ export function compactAssistantWorkEntries(
   return compacted;
 }
 
+export type WorkCounts = {
+  thinking: number;
+  tools: number;
+  searches: number;
+};
+
+/** 过程明细里各类活动的条数，供概括条文案使用（「N 次工具调用｜N 次思考」）。 */
+export function countWorkEntries(entries: readonly AssistantTurnLayoutEntry[]): WorkCounts {
+  let thinking = 0;
+  let tools = 0;
+  let searches = 0;
+  for (const entry of entries) {
+    const block = entry.block;
+    if (block.kind === "thinking") thinking += 1;
+    else if (block.kind === "tool") tools += 1;
+    else if (block.kind === "toolGroup") tools += block.items.length;
+    else if (block.kind === "hostedSearch") searches += 1;
+    else if (block.kind === "hostedSearchGroup") searches += block.items.length;
+  }
+  return { thinking, tools, searches };
+}
+
+export type WorkSegment =
+  | { kind: "process"; key: string; entries: AssistantTurnLayoutEntry[]; running: boolean }
+  | { kind: "entry"; key: string; entry: AssistantTurnLayoutEntry };
+
+/**
+ * 把 work 层按「模型写出来的正文」切段：连续的非正文 entry 归一段，正文与压缩
+ * 里程碑各自独立成段。
+ *
+ * 渲染时每段过程收成一条可折叠的概括条（「N 次工具调用｜N 次思考」），正文照常
+ * 留在外面可见——用户要的是「两次输出之间的过程别铺满一屏」，不是「把正文也藏起来」。
+ *
+ * 只有一条 entry 的段不包概括条：`toolGroup` 自己已经是折叠行，再套一层只是多一次
+ * 点击。因此短回合的渲染结果与改动前逐字节一致，长回合（思考/工具反复交替）才收成条。
+ */
+export function segmentWorkEntries(
+  entries: readonly AssistantTurnLayoutEntry[],
+  options?: { activeKey?: string | null },
+): WorkSegment[] {
+  const activeKey = options?.activeKey ?? null;
+  const segments: WorkSegment[] = [];
+  let pending: AssistantTurnLayoutEntry[] = [];
+
+  const flush = () => {
+    if (pending.length === 0) return;
+    const group = pending;
+    pending = [];
+    if (group.length === 1) {
+      const only = group[0];
+      if (only) segments.push({ kind: "entry", key: only.key, entry: only });
+      return;
+    }
+    segments.push({
+      kind: "process",
+      key: `process:${group[0]?.key ?? segments.length}`,
+      entries: group,
+      running: activeKey !== null && group.some((entry) => entry.key === activeKey),
+    });
+  };
+
+  for (const entry of entries) {
+    if (entry.block.kind === "text" || entry.block.kind === "checkpoint") {
+      flush();
+      segments.push({ kind: "entry", key: entry.key, entry });
+      continue;
+    }
+    pending.push(entry);
+  }
+  flush();
+
+  return segments;
+}
+
+/**
+ * 概括条文案：「N 次工具调用｜N 次思考｜N 次搜索」，零计数的类别不出现在串里。
+ * 分隔符与工具批次同一口径（中文全角、英文半角竖线）。
+ */
+export function formatWorkCountsLabel(
+  counts: WorkCounts,
+  t: (key: string) => string,
+  locale: string,
+): string {
+  const parts: string[] = [];
+  const push = (key: string, count: number) => {
+    if (count > 0) parts.push(t(key).replace("{count}", String(count)));
+  };
+  push("chat.work.process.tools", counts.tools);
+  push("chat.work.process.thinking", counts.thinking);
+  push("chat.work.process.searches", counts.searches);
+  return parts.join(locale === "zh-CN" ? "｜" : " | ");
+}
+
 /**
  * The most recent thinking entry is the only one that can still be streaming.
  * Its key is exposed so renderers can show that single disclosure in the live

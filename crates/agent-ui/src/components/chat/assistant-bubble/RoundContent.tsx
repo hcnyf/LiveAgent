@@ -4,21 +4,26 @@ import { HostedSearchGroupView } from "@liveagent/ui/components/chat/HostedSearc
 import { LiveSparkle } from "@liveagent/ui/components/chat/LiveSparkle";
 import { StreamingSplitMarkdown } from "@liveagent/ui/components/chat/StreamingSplitMarkdown";
 import { Markdown } from "@liveagent/ui/components/Markdown";
+import { useLocale } from "@liveagent/ui/i18n/index";
 import type { ToolTraceItem, UiRound } from "@liveagent/ui/lib/chat/assistantBubbleAdapter";
 import { normalizeLiveToolStatus } from "@liveagent/ui/lib/chat/assistantStatus";
 import type { ChatFileLink } from "@liveagent/ui/lib/chat/chatFileLinks";
 import { cn } from "@liveagent/ui/lib/shared/utils";
-import { memo, type ReactNode, useMemo } from "react";
+import { Fragment, memo, type ReactNode, useMemo } from "react";
 import { PreviewArtifactsRow } from "../PreviewArtifactsRow";
+import { WorkProcessRow } from "../WorkProcessRow";
 import {
   type AssistantTurnLayoutEntry,
   collectWorkPreviewItems,
+  countWorkEntries,
+  formatWorkCountsLabel,
   type GroupedRoundBlock,
   hasActiveUserInteraction,
   isBuiltinShareToolName,
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
   resolveAssistantTurnLayout,
+  segmentWorkEntries,
 } from "./assistantBubbleUtils";
 import { CompactionSeamRow } from "./CompactionSeamRow";
 import { ThinkingDisclosure } from "./ThinkingDisclosure";
@@ -228,6 +233,7 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
     () => resolveAssistantTurnLayout(rounds, { live: isLive }),
     [isLive, rounds],
   );
+  const { locale, t } = useLocale();
   const running = Boolean(isLive && isStreaming);
   const normalizedToolStatus = running ? normalizeLiveToolStatus(toolStatus ?? null) : null;
   const isCompactionStatus = toolStatusVariant === "compaction";
@@ -252,6 +258,12 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
   const previewArtifacts = useMemo(
     () => (settledWithAnswer ? collectWorkPreviewItems(layout.work) : EMPTY_PREVIEW_ITEMS),
     [settledWithAnswer, layout.work],
+  );
+  // 两次输出之间的过程收成概括条：正文（text）与压缩里程碑留在条外可见，
+  // 连续的非正文 entry 归一段。只有一条 entry 的段不包条，短回合渲染不变。
+  const workSegments = useMemo(
+    () => segmentWorkEntries(layout.work, { activeKey: collapsedTailEntry?.key ?? null }),
+    [collapsedTailEntry, layout.work],
   );
 
   if (!showWorkTrace && layout.interaction.length === 0 && layout.answer.length === 0) return null;
@@ -291,7 +303,19 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
           running={running}
           startedAtMs={startedAtMs}
         >
-          {layout.work.map((entry) => renderEntry(entry, true))}
+          {workSegments.map((segment) =>
+            segment.kind === "process" ? (
+              <WorkProcessRow
+                key={segment.key}
+                label={formatWorkCountsLabel(countWorkEntries(segment.entries), t, locale)}
+                running={segment.running}
+              >
+                {segment.entries.map((entry) => renderEntry(entry, true))}
+              </WorkProcessRow>
+            ) : (
+              <Fragment key={segment.key}>{renderEntry(segment.entry, true)}</Fragment>
+            ),
+          )}
           {showDetailedStatus ? (
             <div className="py-1.5">
               <CompactingText progress={normalizedToolStatus} />

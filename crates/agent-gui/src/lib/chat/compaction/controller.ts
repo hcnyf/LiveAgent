@@ -569,7 +569,7 @@ export class CompactionController {
 
   /**
    * 用户手动触发的压缩（用量环 → 确认 / WebUI compact_now）。仅限空闲：已有轮次绑定
-   * 或压缩在飞返回 "busy"。临时绑定一轮走 compact 主流程：50% 手动门槛与 disabled /
+   * 或压缩在飞返回 "busy"。临时绑定一轮走 compact 主流程：60% 手动门槛与 disabled /
    * no-active-messages 等硬守卫同口径，manual 永不走 deterministic。
    */
   async compactManually(
