@@ -15,6 +15,7 @@ import {
 import { resolveMaxTokens } from "../runtime/common";
 import { wrapInlineThinkTagStream } from "../runtime/inlineThinkTagStream";
 import { rejectEmptyOpenAICompletionsResponse } from "../runtime/openAICompletionsStream";
+import { resolveRequestMaxTokensForContext } from "../runtime/requestOutputBudget";
 import { withAttemptSignal, withStreamRetry } from "../runtime/streamRetry";
 import {
   clampOpenAIReasoningEffort,
@@ -64,10 +65,24 @@ function mapToolChoiceToGoogle(
   return "auto";
 }
 
-function buildOpenAIBaseOptions(model: Model<Api>, options: StreamOptionsEx) {
+/**
+ * 本次请求的输出上限：调用方显式要求值 → 声明值 → 「窗口 − 本次输入」三者取最小。
+ *
+ * 前两项是「回复最多能有多长」，最后一项是 provider 的硬约束（输入 + max_tokens
+ * ≤ 窗口）。输入小的时候最后一项不参与，声明值（可能很大）原样可用；输入快满时
+ * 自动缩到剩余空间。
+ */
+function requestMaxTokens(model: Model<Api>, context: Context, options: StreamOptionsEx) {
+  return Math.min(
+    resolveMaxTokens(options.maxTokens, model.maxTokens),
+    resolveRequestMaxTokensForContext(model, context),
+  );
+}
+
+function buildOpenAIBaseOptions(model: Model<Api>, context: Context, options: StreamOptionsEx) {
   return {
     temperature: options.temperature,
-    maxTokens: resolveMaxTokens(options.maxTokens, model.maxTokens),
+    maxTokens: requestMaxTokens(model, context, options),
     signal: options.signal,
     apiKey: options.apiKey,
     cacheRetention: options.cacheRetention,
@@ -96,7 +111,10 @@ function streamAnthropicMessages(model: Model<Api>, context: Context, options: S
     (attemptSignal) => {
       return streamAnthropic(model as Model<"anthropic-messages">, context, {
         temperature: options.temperature,
-        maxTokens: anthropicThinking.maxTokens,
+        maxTokens: Math.min(
+          anthropicThinking.maxTokens,
+          resolveRequestMaxTokensForContext(model, context),
+        ),
         signal: attemptSignal ?? options.signal,
         apiKey: options.apiKey,
         cacheRetention: options.cacheRetention,
@@ -123,7 +141,7 @@ function streamOpenAICompletionsApi(model: Model<Api>, context: Context, options
   // were specified"）——compaction 摘要、标题生成等 text-only 请求没有工具，
   // 会踩中。tool_choice 在无工具时本就无意义，只在请求真正携带 tools 时下发。
   const openAIOptions: OpenAICompletionsOptions = {
-    ...buildOpenAIBaseOptions(model, options),
+    ...buildOpenAIBaseOptions(model, context, options),
     reasoningEffort: clampOpenAIReasoningEffort(model, options.reasoning),
     toolChoice: context.tools?.length ? mapToolChoiceToOpenAI(options.toolChoice) : undefined,
   };
@@ -145,7 +163,7 @@ function streamOpenAICompletionsApi(model: Model<Api>, context: Context, options
 
 function streamOpenAIResponsesApi(model: Model<Api>, context: Context, options: StreamOptionsEx) {
   const openAIOptions: OpenAIResponsesOptions = {
-    ...buildOpenAIBaseOptions(model, options),
+    ...buildOpenAIBaseOptions(model, context, options),
     reasoningEffort: clampOpenAIReasoningEffort(model, options.reasoning),
   };
   return withStreamRetry(
@@ -167,7 +185,7 @@ function streamOpenAIResponsesApi(model: Model<Api>, context: Context, options: 
 function streamGoogleGenerativeAi(model: Model<Api>, context: Context, options: StreamOptionsEx) {
   const googleOptions: GoogleOptions = {
     temperature: options.temperature,
-    maxTokens: resolveMaxTokens(options.maxTokens, model.maxTokens),
+    maxTokens: requestMaxTokens(model, context, options),
     signal: options.signal,
     apiKey: options.apiKey,
     headers: options.headers,

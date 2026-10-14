@@ -635,17 +635,17 @@ test("post-tool compaction ends the context with a standalone bridge and retains
 test("retained budget subtracts fixed overhead so a large prefix keeps the result under soft", async () => {
   const controller = new CompactionController();
   bindController(controller);
-  // soft 148k；fixed ≈ 80k 已超过 soft 的一半（74k），保留预算归零。
+  // soft 160k；fixed ≈ 80k 已够到 soft 的一半（80k），保留预算归零。
   const result = await controller.compact({
     trigger: "post-tool",
-    state: bigState(150_000, "s".repeat(320_000)),
+    state: bigState(165_000, "s".repeat(320_000)),
     buildContext: requestContext,
   });
 
   assert.equal(result.outcome, "compacted");
   const activeSummary = result.state.segments.at(-1).summary;
   assert.equal(activeSummary.retainedUserMessages, undefined);
-  assert.ok(activeSummary.summaryMeta.stats.contextTokensAfter < 148_000);
+  assert.ok(activeSummary.summaryMeta.stats.contextTokensAfter < 160_000);
 });
 
 test("pre-send compaction merges the bridge into the pending user message", async () => {

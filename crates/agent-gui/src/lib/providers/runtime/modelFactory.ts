@@ -6,7 +6,7 @@ import {
   type ThinkingLevelMap,
   toThinkingLevelMap,
 } from "@liveagent/ui/lib/models/modelThinking";
-import { resolveEffectiveMaxOutputTokens } from "@liveagent/ui/lib/models/outputBudget";
+import { declaredMaxOutputTokens } from "@liveagent/ui/lib/models/outputBudget";
 import {
   type CodexRequestFormat,
   getProviderModelDefaults,
@@ -369,9 +369,10 @@ function buildModelFromConfig(
           upstreamBaseUrl?.trim() || baseUrl,
         )
       : configuredContextWindow;
-  const maxTokens = resolveEffectiveMaxOutputTokens(
-    modelConfig?.maxOutputToken ?? defaults.maxOutputToken,
-  );
+  // 这里存的是**声明值**（设置里的 maxOutputToken），不是每次请求实际下发的
+  // `max_tokens`：后者由 `resolveRequestMaxTokensForContext` 按「窗口 − 本次输入」
+  // 动态夹紧（见 outputBudget.ts）。存声明值是为了让夹紧有上限可给。
+  const maxTokens = declaredMaxOutputTokens(modelConfig?.maxOutputToken ?? defaults.maxOutputToken);
   // 计费功能已整体移除：pi-ai 的 Model.cost 是结构必填字段，统一喂零价，
   // 流式侧算出的 usage.cost 恒为 0（known 分支同样覆盖，防止目录单价复活计费）。
   const zeroCost = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };

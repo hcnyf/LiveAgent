@@ -14,6 +14,7 @@ import {
 import { createParser } from "eventsource-parser";
 import { inlineDeepSeekLargePastes } from "./deepSeekAttachments";
 import { resolveMaxTokens } from "./runtime/common";
+import { resolveRequestMaxTokensForContext } from "./runtime/requestOutputBudget";
 import { clampOpenAIReasoningEffort } from "./runtime/thinkingLevels";
 import { omitToolResultImagesForTextOnlyModel } from "./runtime/toolResultImageFallback";
 import type { StreamOptionsEx, ToolChoice } from "./runtime/types";
@@ -202,6 +203,7 @@ function capturedDeepSeekOutput(capture: DeepSeekResponseCapture) {
 
 function buildResponsesOptions(
   model: Model<Api>,
+  context: Context,
   options: StreamOptionsEx,
   fetch: typeof globalThis.fetch,
 ): OpenAIResponsesOptions {
@@ -211,7 +213,10 @@ function buildResponsesOptions(
       : clampOpenAIReasoningEffort(model, options.reasoning);
   return {
     temperature: options.temperature,
-    maxTokens: resolveMaxTokens(options.maxTokens, model.maxTokens),
+    maxTokens: Math.min(
+      resolveMaxTokens(options.maxTokens, model.maxTokens),
+      resolveRequestMaxTokensForContext(model, context),
+    ),
     signal: options.signal,
     apiKey: options.apiKey,
     headers: options.headers,
@@ -262,7 +267,7 @@ export function streamDeepSeekResponses(
       const inner = streamOpenAIResponses(
         model as Model<"openai-responses">,
         preparedContext,
-        buildResponsesOptions(model, options, fetchWithStateCapture),
+        buildResponsesOptions(model, preparedContext, options, fetchWithStateCapture),
       );
 
       for await (const event of inner) {

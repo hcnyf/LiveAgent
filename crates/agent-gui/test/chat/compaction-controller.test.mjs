@@ -38,9 +38,9 @@ const cancellationModule = loader.loadModule("src/lib/chat/conversation/turnCanc
 const bridgeModule = loader.loadModule("src/lib/chat/compaction/bridge.ts");
 const { deriveContextTokens } = loader.loadModule("src/lib/chat/compaction/tokenLedger.ts");
 
-// W 200k / O 32k：inputCap 168k，hard 158k，soft 148k。
+// W 200k / O 32k（预留取 min(声明值, 8k) = 8k）：inputCap 192k，hard 182k，soft 160k。
 const MODEL_CONFIG = { contextWindow: 200_000, maxOutputToken: 32_000 };
-const SOFT_BAND = 150_000;
+const SOFT_BAND = 165_000;
 const ABOVE_HARD = 190_000;
 
 const SUMMARY = "## Goal\nFix src/app.ts\n## Next Step\nkeep going";

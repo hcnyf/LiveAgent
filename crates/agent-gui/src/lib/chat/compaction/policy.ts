@@ -1,5 +1,5 @@
 import { canManualCompact, contextUsageRatio } from "@liveagent/ui/lib/chat/contextUsage";
-import { resolveEffectiveMaxOutputTokens } from "@liveagent/ui/lib/models/outputBudget";
+import { resolveOutputReserve } from "@liveagent/ui/lib/models/outputBudget";
 import {
   normalizeAutoCompactThresholdPercent,
   type ProviderModelConfig,
@@ -10,7 +10,7 @@ import type { CompactionDecisionReason, CompactionTrigger } from "./types";
 // ============================================================================
 // 限额与决策。
 //
-// W = 目录 contextWindow（含输出），O = 有效最大输出（主请求 max_tokens = O）：
+// W = 目录 contextWindow（含输出），O = 输出预留 = min(声明 maxOutputToken, 8k)：
 //   inputCap = W − O                       Anthropic 要求 input + max_tokens ≤ W；OpenAI 有独立输入上限
 //   reserve  = clamp(⌊0.05W⌋, 4k, 20k)     两次 usage 锚点之间的估算漂移
 //   hard     = inputCap − reserve          达到即 mustProgress
@@ -19,9 +19,10 @@ import type { CompactionDecisionReason, CompactionTrigger } from "./types";
 // 设置值只把触发线**提前**：P·W 在大 maxOutputToken 的模型上会越过 hard，而 soft > hard
 // 会让 [hard, soft) 既不触发压缩、也拿不到 mustProgress，等于把溢出错误原样留给 provider。
 //
-// O 取「有效最大输出」而不是模型声明的原始值：目录里 1M 窗口的模型常带 384k 的
-// maxOutputToken，整份预留会把 inputCap 砍到窗口的 63%，P 填多高都被物理上限吃掉
-// （见 outputBudget.ts）。线上 max_tokens 与这里必须同源，否则估算与实际请求不一致。
+// O 取「预留」而不是模型声明的输出上限：声明值（目录里 1M 窗口的模型常带 384k）
+// 是「最多能吐多少」，整份当成预留会把 inputCap 砍到窗口的 63%，P 填多高都被物理
+// 上限吃掉。线上 `max_tokens` 另行按「窗口 − 本次输入」动态给（见 outputBudget.ts），
+// 所以输入预算只需要留够一次像样回复的量。
 // ============================================================================
 
 export type CompactionLimits = {
@@ -66,7 +67,7 @@ export function resolveCompactionLimits(params: {
 }): CompactionLimits {
   const contextWindow = Math.max(0, Math.floor(params.contextWindow));
   const margin = Math.floor(0.05 * contextWindow);
-  const maxOutputToken = resolveEffectiveMaxOutputTokens(params.maxOutputToken);
+  const maxOutputToken = resolveOutputReserve(params.maxOutputToken);
   const inputCap = contextWindow - maxOutputToken;
   const reserve = clamp(margin, 4_000, 20_000);
   const hard = inputCap - reserve;

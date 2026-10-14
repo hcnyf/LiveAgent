@@ -3,74 +3,22 @@ import type { AssistantMessage, Context, Message } from "@earendil-works/pi-ai";
 import {
   assistantAnchorTokens,
   contentReplaysReasoning,
-  estimateContentBlockTokenUnits,
-  estimateContentTokenUnits,
-  estimateJsonTokens,
   estimateTextTokens,
   estimateTextTokenUnits,
   estimateThinkingReplayTokenUnits,
   hostedSearchFollowUpTokens,
   isStrippedHostedSearchUsage,
-  MESSAGE_ENVELOPE_TOKENS,
-  stringifiedTokenUnits,
 } from "@liveagent/ui/lib/chat/contextUsage";
+// 估算实现搬到 `../contextEstimate`：那里只依赖共享层，providers 侧的
+// 「按剩余窗口夹紧 max_tokens」也要用同一套口径，直接从 providers 引本模块会把
+// conversationState 拖进请求链路并形成依赖环。
+import { estimateMessageTokens, estimateToolsTokens } from "../contextEstimate";
 import { isCompactionAssistantMessage } from "../conversation/conversationState";
 
 // CJK 感知的文本估算、消息包裹常量与非文本值序列化估算全部取自共享层
 //（用量环的检查点估值与 WebUI 倒扫复用同一口径，调参只改共享层）；
 // 这里 re-export 文本估算保持既有调用方与测试不动。
-export { estimateTextTokens, estimateTextTokenUnits };
-
-// 消息在本代码库中是不可变值对象（状态变更只新建数组），因此估算结果可跨
-// state/segment/临时 state 按对象身份缓存，热路径不再重复序列化。
-const messageTokenCache = new WeakMap<object, number>();
-const toolsTokenCache = new WeakMap<object, number>();
-
-// 统一走共享层的内容块口径（文本 CJK 感知、二进制块按计价常量、小结构兜底
-// 序列化）。toolResult 的 details 是 UI/记账负载，provider 转换只发送 content，
-// 一律不计——shell 全量输出、文件读取元数据都挂在 details 上，计入即双算。
-function estimateMessageTokenUnits(message: Message): number {
-  if (message.role === "assistant") {
-    let units = 0;
-    for (const block of message.content) {
-      if (!block || typeof block !== "object") continue;
-      if (block.type === "toolCall") {
-        units += estimateTextTokenUnits(block.name) + stringifiedTokenUnits(block.arguments);
-        continue;
-      }
-      // hostedSearch 块（供应商托管搜索的 UI 负载）在请求侧被 sanitizer 剥除，
-      // 从不发送给模型；按序列化估算会把 queries/sources JSON 虚计进上下文。
-      if ((block as { type?: string }).type === "hostedSearch") continue;
-      units += estimateContentBlockTokenUnits(block);
-    }
-    return units;
-  }
-
-  if (message.role === "toolResult") {
-    return estimateContentTokenUnits(message.content);
-  }
-
-  return estimateContentTokenUnits((message as { content?: unknown }).content);
-}
-
-export function estimateMessageTokens(message: Message): number {
-  const cached = messageTokenCache.get(message);
-  if (cached !== undefined) return cached;
-  const tokens = Math.ceil(estimateMessageTokenUnits(message)) + MESSAGE_ENVELOPE_TOKENS;
-  messageTokenCache.set(message, tokens);
-  return tokens;
-}
-
-export function estimateToolsTokens(tools: Context["tools"]): number {
-  if (!tools || tools.length === 0) return 0;
-  const cached = toolsTokenCache.get(tools);
-  if (cached !== undefined) return cached;
-  // 工具定义是 JSON schema，不是散文：走 estimateJsonTokens（约 2.5 字/token），
-  // 不要用 chars/4，否则 fixedTokens 会比真实首轮 prompt 少 4–8k。
-  const tokens = estimateJsonTokens(JSON.stringify(tools));
-  toolsTokenCache.set(tools, tokens);
-  return tokens;
-}
+export { estimateMessageTokens, estimateTextTokens, estimateTextTokenUnits, estimateToolsTokens };
 
 export type TokenLedgerRebaseOptions = {
   /**
