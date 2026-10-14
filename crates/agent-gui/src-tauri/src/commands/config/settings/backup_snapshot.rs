@@ -33,6 +33,8 @@ const SYSTEM_PORTABLE_BACKUP_KEYS: &[&str] = &[
     SYSTEM_BROWSER_AUTOMATION_MODE_KEY,
     // 通知偏好是机器无关的：换设备后应当跟随（systemProxy 相反，按机器/网络保留本地值）。
     SYSTEM_NOTIFICATIONS_KEY,
+    // 自动压缩触发线同样是机器无关的用户偏好。
+    SYSTEM_AUTO_COMPACT_THRESHOLD_PERCENT_KEY,
 ];
 
 /// 导出文件中内联 manifest 的字段名。

@@ -1376,6 +1376,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
       failover: failoverPlan,
       cancellation,
       debugLogger: compactionDebugLogger,
+      autoCompactThresholdPercent: settings.system.autoCompactThresholdPercent,
       sinks: createCompactionSinks({
         conversationId,
         transcriptStore,
@@ -1706,6 +1707,7 @@ export function useSendChatTurn(params: UseSendChatTurnParams) {
             getToolPolicies,
             getImageProviders,
             getCuaAllowSelfTargeting: () => settings.system.cuaAllowSelfTargeting === true,
+            autoCompactThresholdPercent: settings.system.autoCompactThresholdPercent,
             commandSafetyMode: effectiveCommandSafetyMode,
             planModeEnabled: effectivePlanModeEnabled,
             applyMcpOps: (ops) => {

@@ -8,9 +8,12 @@ import {
   toFontFamilySelectValue,
 } from "@liveagent/adapters/systemSettings";
 import {
+  AUTO_COMPACT_THRESHOLD_PERCENT_MAX,
+  AUTO_COMPACT_THRESHOLD_PERCENT_MIN,
   type ExecutionMode,
   type FontScaleSettings,
   isValidSystemProxyHost,
+  normalizeAutoCompactThresholdPercent,
   resolveDefaultTimeZone,
   type SystemProxyConfig,
   type SystemProxyMode,
@@ -208,6 +211,30 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
   });
 
   useEffect(() => preloadTimeZoneOptions(locale), [locale]);
+
+  // 自动压缩触发线：草稿态 + 失焦提交（照代理端口的做法，避免每敲一个字符就写库）。
+  const autoCompactThreshold = normalizeAutoCompactThresholdPercent(
+    settings.system.autoCompactThresholdPercent,
+  );
+  const [autoCompactThresholdDraft, setAutoCompactThresholdDraft] = useState(() =>
+    String(autoCompactThreshold),
+  );
+  // 外部改动（设置同步 / 备份导入）后回填草稿。
+  useEffect(() => {
+    setAutoCompactThresholdDraft(String(autoCompactThreshold));
+  }, [autoCompactThreshold]);
+  const commitAutoCompactThresholdDraft = () => {
+    const raw = autoCompactThresholdDraft.trim();
+    const parsed = Number(raw);
+    const next =
+      raw !== "" && Number.isFinite(parsed)
+        ? normalizeAutoCompactThresholdPercent(parsed)
+        : autoCompactThreshold;
+    setAutoCompactThresholdDraft(String(next));
+    if (next !== autoCompactThreshold) {
+      setSettings((prev) => updateSystem(prev, { autoCompactThresholdPercent: next }));
+    }
+  };
 
   const executionMode = settings.system.executionMode;
 
@@ -832,6 +859,32 @@ export function SystemSettingsForm(props: SettingsSectionProps) {
           )}
         </SettingsGroup>
       )}
+
+      <SettingsGroup title={t("settings.contextCompaction")}>
+        <SettingsRow
+          title={t("settings.autoCompactThreshold")}
+          description={t("settings.autoCompactThresholdHint")}
+          control={
+            <div className="flex items-center gap-2">
+              <Input
+                variant="plain"
+                id="system-auto-compact-threshold"
+                className="w-20 rounded-lg text-right"
+                type="number"
+                inputMode="numeric"
+                min={AUTO_COMPACT_THRESHOLD_PERCENT_MIN}
+                max={AUTO_COMPACT_THRESHOLD_PERCENT_MAX}
+                step={1}
+                value={autoCompactThresholdDraft}
+                onChange={(event) => setAutoCompactThresholdDraft(event.currentTarget.value)}
+                onBlur={commitAutoCompactThresholdDraft}
+                aria-label={t("settings.autoCompactThreshold")}
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+          }
+        />
+      </SettingsGroup>
 
       <SettingsGroup title={t("settings.fontFamily")}>
         {FONT_FAMILY_FIELDS.map(({ key, labelKey }) => {

@@ -1234,12 +1234,13 @@ mod tests {
         };
         let loaded = load_system(&conn).expect("load system");
 
-        assert_eq!(row_count, 16);
+        assert_eq!(row_count, 17);
         assert_eq!(
             keys,
             vec![
                 SYSTEM_ACTIVE_WORKSPACE_PROJECT_ID_KEY.to_string(),
                 SYSTEM_ARCHIVED_WORKSPACE_PROJECT_PATHS_KEY.to_string(),
+                SYSTEM_AUTO_COMPACT_THRESHOLD_PERCENT_KEY.to_string(),
                 SYSTEM_BROWSER_AUTOMATION_MODE_KEY.to_string(),
                 SYSTEM_COMMAND_SAFETY_MODE_KEY.to_string(),
                 SYSTEM_CUA_ALLOW_SELF_TARGETING_KEY.to_string(),
@@ -1271,6 +1272,7 @@ mod tests {
                 "defaultTimeZone": "",
                 "systemProxy": default_system_proxy_json(),
                 "notifications": default_notification_settings_json(),
+                "autoCompactThresholdPercent": 80,
                 "workdir": default_workdir.clone(),
                 "toolPolicies": { "Bash": "ask", "server:docs-mcp": "deny" },
                 "workspaceProjectGroups": null,
@@ -1608,6 +1610,7 @@ mod tests {
                 "defaultTimeZone": "",
                 "systemProxy": default_system_proxy_json(),
                 "notifications": default_notification_settings_json(),
+                "autoCompactThresholdPercent": 80,
                 "workdir": "/tmp/liveagent-default-project",
                 "toolPolicies": null,
                 "workspaceProjectGroups": null,
@@ -1666,6 +1669,7 @@ mod tests {
                 "defaultTimeZone": "",
                 "systemProxy": default_system_proxy_json(),
                 "notifications": default_notification_settings_json(),
+                "autoCompactThresholdPercent": 80,
                 "workdir": "/tmp/liveagent-default-project",
                 "toolPolicies": null,
                 "workspaceProjectGroups": null,
@@ -1746,6 +1750,7 @@ mod tests {
                 "defaultTimeZone": "",
                 "systemProxy": default_system_proxy_json(),
                 "notifications": default_notification_settings_json(),
+                "autoCompactThresholdPercent": 80,
                 "workdir": "/tmp/liveagent-default-project",
                 "workspaceProjects": [
                     {

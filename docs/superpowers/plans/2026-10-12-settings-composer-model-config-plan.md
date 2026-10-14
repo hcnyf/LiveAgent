@@ -708,4 +708,55 @@ Windows 配置。
 包路径、CSS 类名、浏览器扩展名、`LIVEAGENT_UPDATE_REPOSITORY` 与 updater User-Agent。
 WebUI（`crates/agent-gateway/web`）的 `LiveAgent Gateway` 是另一个产品面，未改。
 
+---
+
+## 附录 E：上下文自动压缩阈值（`system.autoCompactThresholdPercent`）
+
+设置项：设置 → 上下文压缩 → 「自动压缩触发线」，可填 10–99，默认 80。
+
+### 语义：只提前，不后移
+
+```
+soft = min(⌊P·W/100⌋, hard − clamp(⌊0.05W⌋, 4k, 16k))     P = 设置值/100
+```
+
+`hard − 余量` 是算法自身的安全线。取 min 是刻意的：大 `maxOutputToken` 的模型上
+`P·W` 会越过 `hard`，而 **soft > hard 会让 [hard, soft) 既不触发压缩、也拿不到
+`mustProgress`**，等于把溢出错误原样留给 provider。所以设置值只能把线提前；
+界面上也据此写了提示（"实际触发线不会晚于算法自身的安全线"）。
+
+默认 80% 的实测效果（`crates/agent-gui/test/chat/compaction-policy.test.mjs`）：
+
+| W | O | hard | 安全线 | 80% 线 | soft |
+|---|---|---|---|---|---|
+| 200k | 64k | 126k | 116k | 160k | **116k**（安全线胜出，与旧口径一致） |
+| 400k | 128k | 252k | 236k | 320k | **236k**（同上） |
+| 1M | 128k | 852k | 836k | 800k | **800k**（设置值胜出，比旧口径提前 36k） |
+| 128k | 8k | 113.6k | 107.2k | 102.4k | **102.4k**（提前 4.8k） |
+
+### 落点（漏一个就静默失效）
+
+- 类型 / 常量 / 归一：`crates/agent-ui/src/lib/settings/types.ts`（`AUTO_COMPACT_THRESHOLD_PERCENT_*`）
+  与 `index.ts` 的 `normalizeAutoCompactThresholdPercent`（`clampInt`，非数值回退默认）、
+  `normalizeSystemSettings`、`getDefaultSettings`。
+- 算法：`crates/agent-gui/src/lib/chat/compaction/policy.ts` 的 `resolveCompactionLimits`
+  与 `decideCompaction`（新增 `autoCompactThresholdPercent` 参数）。
+- 绑定：`controller.ts` 的 `CompactionBinding.autoCompactThresholdPercent`；两个
+  `bindTurn` 调用点（`useSendChatTurn.ts` 发送链路、`lib/subagents/run.ts` 子代理）与
+  手动压缩的绑定（`useManualCompaction.ts`）。
+- 子代理链路需透传：`useSendChatTurn` → `runAgentConversationTurn` 参数 →
+  `subagentRuntime` → `builtinRegistry` → `createSubagentTools` → `SubagentRunEnvironment`
+  → 子代理 binding。
+- Rust 持久化（**四处都要加，否则重启/备份后静默回落**）：
+  `settings/mod.rs` 键常量、`system.rs` 的 normalize + 插入、`save_system` 白名单、
+  `backup_snapshot.rs` 的 `SYSTEM_PORTABLE_BACKUP_KEYS`；测试的 `row_count` 与四处全量
+  payload 断言。
+
+### 未联动
+
+用量环的红档（`agent-ui/lib/chat/contextUsage.ts` 的 `CONTEXT_USAGE_DANGER_RATIO = 0.8`）
+与手动压缩的 50% 门槛是**展示/手动**口径，本次未跟随该设置。两者数值巧合一致，
+改设置后不要再假设它们同步。
+
+
 

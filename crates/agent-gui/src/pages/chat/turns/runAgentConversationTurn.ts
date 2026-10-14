@@ -305,6 +305,8 @@ export type RunAgentConversationTurnParams = {
   getImageProviders?: () => AppSettings["customProviders"];
   /** 允许 CUA 工具操作 LiveAgent 自身；默认 false，见 lib/tools/cuaSelfGuard.ts。 */
   getCuaAllowSelfTargeting?: () => boolean;
+  /** 上下文自动压缩触发线占 contextWindow 的百分比（turn 级快照）；缺省 80。 */
+  autoCompactThresholdPercent?: number;
   /** 命令执行方式(turn 级快照):ask 全量审批 / auto 按策略 / sandbox(±断网)。 */
   commandSafetyMode?: AppSettings["system"]["commandSafetyMode"];
   /** Plan mode(turn 级快照):真时本轮只注入只读工具 + ExitPlanMode 提交闸门。 */
@@ -403,6 +405,7 @@ export async function runAgentConversationTurn(params: RunAgentConversationTurnP
     getToolPolicies,
     getImageProviders,
     getCuaAllowSelfTargeting,
+    autoCompactThresholdPercent,
     commandSafetyMode,
     planModeEnabled,
     applyMcpOps,
@@ -675,6 +678,7 @@ export async function runAgentConversationTurn(params: RunAgentConversationTurnP
           templates: enabledSubagentTemplates(agentTemplates),
           store: subagentStore,
           scheduler: subagentScheduler,
+          autoCompactThresholdPercent,
         }
       : undefined,
   });

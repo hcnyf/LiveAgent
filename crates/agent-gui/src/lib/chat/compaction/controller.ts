@@ -80,6 +80,8 @@ export type CompactionBinding = {
   failover?: TextStreamFailoverParams;
   cancellation: TurnCancellation;
   debugLogger?: StreamDebugLogger;
+  /** 自动压缩触发线占 contextWindow 的百分比（设置项 `system.autoCompactThresholdPercent`）。 */
+  autoCompactThresholdPercent?: number;
   sinks: CompactionSinks;
   // 保留原话的改写：子代理据此排除 bus 刷新、把委派 / 续跑消息收窄到任务原文。
   resolveRetainedUserText?: RetainedUserTextResolver;
@@ -341,6 +343,7 @@ export class CompactionController {
       totalTokens: positiveTokenCount(req.usage?.totalTokens) ?? ledger.total(),
       fixedTokens,
       modelConfig: binding.runtime.modelConfig,
+      autoCompactThresholdPercent: binding.autoCompactThresholdPercent,
       activeMessageCount: segment?.messages.length ?? 0,
       inFlight: this.inFlight,
       failureStreak: this.failureStreak,

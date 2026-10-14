@@ -1,5 +1,9 @@
 import { canManualCompact, contextUsageRatio } from "@liveagent/ui/lib/chat/contextUsage";
-import type { ProviderModelConfig, ReasoningLevel } from "../../settings";
+import {
+  normalizeAutoCompactThresholdPercent,
+  type ProviderModelConfig,
+  type ReasoningLevel,
+} from "../../settings";
 import type { CompactionDecisionReason, CompactionTrigger } from "./types";
 
 // ============================================================================
@@ -9,7 +13,10 @@ import type { CompactionDecisionReason, CompactionTrigger } from "./types";
 //   inputCap = W − O                       Anthropic 要求 input + max_tokens ≤ W；OpenAI 有独立输入上限
 //   reserve  = clamp(⌊0.05W⌋, 4k, 20k)     两次 usage 锚点之间的估算漂移
 //   hard     = inputCap − reserve          达到即 mustProgress
-//   soft     = hard − clamp(⌊0.05W⌋, 4k, 16k)   唯一的自动触发线
+//   soft     = min(⌊P·W⌋, hard − clamp(⌊0.05W⌋, 4k, 16k))   唯一的自动触发线
+//              P = 设置项 system.autoCompactThresholdPercent / 100（默认 80%）
+// 设置值只把触发线**提前**：P·W 在大 maxOutputToken 的模型上会越过 hard，而 soft > hard
+// 会让 [hard, soft) 既不触发压缩、也拿不到 mustProgress，等于把溢出错误原样留给 provider。
 // ============================================================================
 
 export type CompactionLimits = {
@@ -46,13 +53,23 @@ function clamp(value: number, min: number, max: number): number {
 export function resolveCompactionLimits(params: {
   contextWindow: number;
   maxOutputToken: number;
+  /**
+   * 自动压缩触发线占 contextWindow 的百分比（设置项
+   * `system.autoCompactThresholdPercent`）；缺省 80，越界会被归一化。
+   */
+  autoCompactThresholdPercent?: number;
 }): CompactionLimits {
   const contextWindow = Math.max(0, Math.floor(params.contextWindow));
   const margin = Math.floor(0.05 * contextWindow);
   const inputCap = contextWindow - Math.max(0, Math.floor(params.maxOutputToken));
   const reserve = clamp(margin, 4_000, 20_000);
   const hard = inputCap - reserve;
-  return { inputCap, reserve, hard, soft: hard - clamp(margin, 4_000, 16_000) };
+  const safetyLine = hard - clamp(margin, 4_000, 16_000);
+  const configuredLine = Math.floor(
+    (normalizeAutoCompactThresholdPercent(params.autoCompactThresholdPercent) / 100) *
+      contextWindow,
+  );
+  return { inputCap, reserve, hard, soft: Math.min(configuredLine, safetyLine) };
 }
 
 export function forkFits(totalTokens: number, limits: CompactionLimits): boolean {
@@ -90,6 +107,8 @@ export function decideCompaction(params: {
   /** 账本的 fixed（system + tools + 边界追加段）。 */
   fixedTokens: number;
   modelConfig?: ProviderModelConfig;
+  /** 自动压缩触发线占 contextWindow 的百分比（设置项）；缺省 80。 */
+  autoCompactThresholdPercent?: number;
   activeMessageCount: number;
   inFlight: boolean;
   failureStreak: number;
@@ -98,7 +117,11 @@ export function decideCompaction(params: {
   const contextWindow = Math.max(0, Math.floor(params.modelConfig?.contextWindow ?? 0));
   const maxOutputToken = Math.max(0, Math.floor(params.modelConfig?.maxOutputToken ?? 0));
   const totalTokens = Math.max(0, Math.floor(params.totalTokens));
-  const limits = resolveCompactionLimits({ contextWindow, maxOutputToken });
+  const limits = resolveCompactionLimits({
+    contextWindow,
+    maxOutputToken,
+    autoCompactThresholdPercent: params.autoCompactThresholdPercent,
+  });
   const skip = (reason: CompactionDecisionReason): CompactionVerdict => ({
     shouldCompact: false,
     reason,

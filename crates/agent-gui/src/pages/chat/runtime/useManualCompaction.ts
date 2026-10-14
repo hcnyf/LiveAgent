@@ -332,6 +332,7 @@ export function useManualCompaction(params: {
             sessionId: runtimeEntry.sessionId,
             failover: failoverPlan,
             cancellation,
+            autoCompactThresholdPercent: settings.system.autoCompactThresholdPercent,
             sinks: createCompactionSinks({
               conversationId,
               transcriptStore,

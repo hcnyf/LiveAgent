@@ -127,6 +127,9 @@ import type {
 import {
   BROWSER_AUTOMATION_MODES,
   COMMAND_SAFETY_MODES,
+  AUTO_COMPACT_THRESHOLD_PERCENT_DEFAULT,
+  AUTO_COMPACT_THRESHOLD_PERCENT_MAX,
+  AUTO_COMPACT_THRESHOLD_PERCENT_MIN,
   DEFAULT_CHAT_RUNTIME_CONTROLS,
   DEFAULT_NOTIFICATION_SETTINGS,
   getDefaultUsageQueryConfig,
@@ -1352,6 +1355,16 @@ function clampInt(input: unknown, min: number, max: number, fallback: number): n
   return Math.min(max, Math.max(min, value));
 }
 
+/** 上下文自动压缩触发线占比：收敛成 [MIN, MAX] 内的整数百分比，非数值回退默认。 */
+export function normalizeAutoCompactThresholdPercent(input: unknown): number {
+  return clampInt(
+    input,
+    AUTO_COMPACT_THRESHOLD_PERCENT_MIN,
+    AUTO_COMPACT_THRESHOLD_PERCENT_MAX,
+    AUTO_COMPACT_THRESHOLD_PERCENT_DEFAULT,
+  );
+}
+
 function normalizeUsageQueryConfig(input: unknown): UsageQueryConfig {
   const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const apiKey = normalizeApiKey(typeof obj.apiKey === "string" ? obj.apiKey : "");
@@ -1816,6 +1829,9 @@ export function normalizeSystemSettings(input: unknown): SystemSettings {
     workspaceResourceSettings: normalizeWorkspaceResourceSettings(obj.workspaceResourceSettings),
     systemProxy: normalizeSystemProxyConfig(obj.systemProxy),
     notifications: normalizeNotificationSettings(obj.notifications),
+    autoCompactThresholdPercent: normalizeAutoCompactThresholdPercent(
+      obj.autoCompactThresholdPercent,
+    ),
   };
 }
 
@@ -2049,6 +2065,7 @@ export function getDefaultSettings(): AppSettings {
       workspaceResourceSettings: {},
       systemProxy: getDefaultSystemProxyConfig(),
       notifications: { ...DEFAULT_NOTIFICATION_SETTINGS },
+      autoCompactThresholdPercent: AUTO_COMPACT_THRESHOLD_PERCENT_DEFAULT,
     },
     customProviders,
     mcp: {

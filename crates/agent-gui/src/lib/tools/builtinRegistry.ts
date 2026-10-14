@@ -480,6 +480,7 @@ export async function buildBuiltinToolRegistry(
         templates: subagentRuntime.templates,
         store: subagentRuntime.store,
         scheduler: subagentRuntime.scheduler,
+        autoCompactThresholdPercent: subagentRuntime.autoCompactThresholdPercent,
         baseTools: baseRegistry.tools,
         executeToolCall: baseRegistry.executeToolCall,
         metadataByName: baseRegistry.metadataByName,

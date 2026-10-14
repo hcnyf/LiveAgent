@@ -334,6 +334,22 @@ fn normalize_notification_settings_value(raw: Option<&Value>) -> Value {
     })
 }
 
+/// 上下文自动压缩触发线归一：整数百分比，收敛到 [10, 99]，缺省 80。
+///
+/// 与前端 `AUTO_COMPACT_THRESHOLD_PERCENT_*`（agent-ui settings）同口径；算法侧见
+/// `crates/agent-gui/src/lib/chat/compaction/policy.ts` 的 resolveCompactionLimits。
+fn normalize_auto_compact_threshold_percent_value(raw: Option<&Value>) -> Value {
+    const MIN: f64 = 10.0;
+    const MAX: f64 = 99.0;
+    const DEFAULT: u64 = 80;
+    let value = raw
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+        .map(|value| value.round().clamp(MIN, MAX) as u64)
+        .unwrap_or(DEFAULT);
+    json!(value)
+}
+
 fn normalize_system_proxy_value(raw: Option<&Value>) -> Value {
     let obj = match raw {
         Some(Value::Object(map)) => map.clone(),
@@ -503,6 +519,12 @@ fn system_value_with_defaults(raw: Option<Value>, default_workdir: &str) -> Valu
     system.insert(
         SYSTEM_NOTIFICATIONS_KEY.to_string(),
         normalize_notification_settings_value(system.get(SYSTEM_NOTIFICATIONS_KEY)),
+    );
+    system.insert(
+        SYSTEM_AUTO_COMPACT_THRESHOLD_PERCENT_KEY.to_string(),
+        normalize_auto_compact_threshold_percent_value(
+            system.get(SYSTEM_AUTO_COMPACT_THRESHOLD_PERCENT_KEY),
+        ),
     );
     system.insert(
         SYSTEM_COMMAND_SAFETY_MODE_KEY.to_string(),
@@ -766,6 +788,7 @@ fn save_system_with_default_workdir(
         SYSTEM_WORKSPACE_RESOURCE_SETTINGS_KEY,
         SYSTEM_SYSTEM_PROXY_KEY,
         SYSTEM_NOTIFICATIONS_KEY,
+        SYSTEM_AUTO_COMPACT_THRESHOLD_PERCENT_KEY,
         SYSTEM_CUA_ALLOW_SELF_TARGETING_KEY,
         SYSTEM_DEFAULT_TIME_ZONE_KEY,
     ]

@@ -244,6 +244,10 @@ export const ZH_CN_SETTINGS_TRANSLATIONS = {
     "系统拒绝了通知权限，请在系统设置里为 LiveAgent 打开通知。",
   "settings.notificationsPermissionUnknown": "尚未获得通知权限。",
   "settings.notificationsPermissionRequest": "申请权限",
+  "settings.contextCompaction": "上下文压缩",
+  "settings.autoCompactThreshold": "自动压缩触发线",
+  "settings.autoCompactThresholdHint":
+    "上下文占用达到该百分比时自动压缩（10–99，默认 80）。实际触发线不会晚于算法自身的安全线。",
   "settings.systemProxyEnable": "启用应用代理",
   "settings.systemProxyMode": "代理来源",
   "settings.systemProxyModeManual": "手动填写",

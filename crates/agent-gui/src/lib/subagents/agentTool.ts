@@ -188,6 +188,8 @@ export type SubagentRuntimeConfig = {
   templates: SubagentTemplate[];
   store: SubagentConversationStore;
   scheduler: SubagentScheduler;
+  /** 自动压缩触发线占 contextWindow 的百分比（设置项 `system.autoCompactThresholdPercent`）。 */
+  autoCompactThresholdPercent?: number;
 };
 
 export function createSubagentTools(params: {
@@ -207,6 +209,8 @@ export function createSubagentTools(params: {
   additionalRoots?: readonly AdditionalProjectRoot[];
   createSubagentToolRegistry?: (workdir: string) => Promise<SubagentToolRegistry>;
   worktreeIpc?: SubagentWorktreeIpc;
+  /** 自动压缩触发线占 contextWindow 的百分比（设置项 `system.autoCompactThresholdPercent`）。 */
+  autoCompactThresholdPercent?: number;
   /** 父对话检查点上下文;仅用于 worktree apply 合并回父工作区前捕获前像,
    * 不下发给子代理自身的工具注册表(子代理 workdir 是临时目录)。 */
   checkpoint?: { conversationId: string; turnId: string };
@@ -339,6 +343,7 @@ export function createSubagentTools(params: {
       store,
       scheduler,
       worktree: worktreeIpc,
+      autoCompactThresholdPercent: params.autoCompactThresholdPercent,
       createChildToolRegistry: params.createSubagentToolRegistry,
       readonlyTools,
       readonlyExecuteToolCall: params.executeToolCall,

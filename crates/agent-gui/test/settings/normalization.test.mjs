@@ -2858,6 +2858,42 @@ test("system proxy config normalizes defaults, ports, and password flags", () =>
   assert.equal(settings.normalizeSystemProxyConfig({ type: "https" }).type, "http");
 });
 
+test("auto-compaction threshold normalizes to 10–99 with an 80 default", () => {
+  assert.equal(
+    settings.getDefaultSettings().system.autoCompactThresholdPercent,
+    settings.AUTO_COMPACT_THRESHOLD_PERCENT_DEFAULT,
+  );
+  // 旧存档缺该字段 → 默认 80（零迁移）。
+  assert.equal(settings.normalizeSystemSettings({}).autoCompactThresholdPercent, 80);
+  assert.equal(
+    settings.normalizeSystemSettings({ autoCompactThresholdPercent: 60 }).autoCompactThresholdPercent,
+    60,
+  );
+  assert.equal(
+    settings.normalizeSystemSettings({ autoCompactThresholdPercent: 60.4 })
+      .autoCompactThresholdPercent,
+    60,
+  );
+  // 越界收敛到 [10, 99]。
+  assert.equal(
+    settings.normalizeSystemSettings({ autoCompactThresholdPercent: 0 }).autoCompactThresholdPercent,
+    10,
+  );
+  assert.equal(
+    settings.normalizeSystemSettings({ autoCompactThresholdPercent: 1000 })
+      .autoCompactThresholdPercent,
+    99,
+  );
+  // 非数值回退默认。
+  assert.equal(
+    settings.normalizeSystemSettings({ autoCompactThresholdPercent: "70" })
+      .autoCompactThresholdPercent,
+    80,
+  );
+  assert.equal(settings.normalizeAutoCompactThresholdPercent(85), 85);
+  assert.equal(settings.normalizeAutoCompactThresholdPercent(undefined), 80);
+});
+
 test("notification preferences default to all-on and only accept an explicit false", () => {
   const defaults = settings.getDefaultSettings().system.notifications;
   assert.deepEqual(defaults, {

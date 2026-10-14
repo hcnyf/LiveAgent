@@ -70,6 +70,8 @@ export type SubagentRunEnvironment = {
   enqueueWorktreeApply: <T>(run: () => Promise<T>) => Promise<T>;
   /** 父对话检查点上下文;传给 worktree.apply 让后端在改写父工作区前捕获前像。 */
   checkpoint?: { conversationId: string; turnId: string };
+  /** 自动压缩触发线占 contextWindow 的百分比（设置项 `system.autoCompactThresholdPercent`）。 */
+  autoCompactThresholdPercent?: number;
   onStatus?: (status: string | null) => void;
 };
 
@@ -485,6 +487,7 @@ export async function executeSubagentRun(
       runtime: env.runtime,
       sessionId: subagentSessionId,
       cancellation: createTurnCancellationFromSignal(signal),
+      autoCompactThresholdPercent: env.autoCompactThresholdPercent,
       sinks: {
         persist: async (state) => {
           schedulePersist("running", state);

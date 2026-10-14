@@ -258,6 +258,10 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
     "The system denied notification permission. Enable notifications for LiveAgent in your system settings.",
   "settings.notificationsPermissionUnknown": "Notification permission is not granted yet.",
   "settings.notificationsPermissionRequest": "Request permission",
+  "settings.contextCompaction": "Context compaction",
+  "settings.autoCompactThreshold": "Auto-compaction threshold",
+  "settings.autoCompactThresholdHint":
+    "Compact automatically once context usage reaches this percentage (10–99, default 80). The effective line never falls behind the algorithm's own safety margin.",
   "settings.systemProxyEnable": "Enable app proxy",
   "settings.systemProxyMode": "Proxy source",
   "settings.systemProxyModeManual": "Manual",

@@ -9,9 +9,10 @@ test("limits: inputCap / reserve / hard / soft per the W·O table", () => {
   const rows = [
     [200_000, 64_000, { inputCap: 136_000, reserve: 10_000, hard: 126_000, soft: 116_000 }],
     [400_000, 128_000, { inputCap: 272_000, reserve: 20_000, hard: 252_000, soft: 236_000 }],
-    [1_000_000, 128_000, { inputCap: 872_000, reserve: 20_000, hard: 852_000, soft: 836_000 }],
-    // 有意比旧阈值提前：旧口径给估算漂移只留 1.6k。
-    [128_000, 8_000, { inputCap: 120_000, reserve: 6_400, hard: 113_600, soft: 107_200 }],
+    // 默认 80% 触发线（800k）比安全线（836k）更早，所以 soft 取 800k。
+    [1_000_000, 128_000, { inputCap: 872_000, reserve: 20_000, hard: 852_000, soft: 800_000 }],
+    // 80% 的 128k = 102.4k，同样早于安全线 107.2k。
+    [128_000, 8_000, { inputCap: 120_000, reserve: 6_400, hard: 113_600, soft: 102_400 }],
   ];
   for (const [contextWindow, maxOutputToken, expected] of rows) {
     assert.deepEqual(policy.resolveCompactionLimits({ contextWindow, maxOutputToken }), expected);
@@ -19,6 +20,34 @@ test("limits: inputCap / reserve / hard / soft per the W·O table", () => {
   const limits = policy.resolveCompactionLimits({ contextWindow: 200_000, maxOutputToken: 64_000 });
   assert.equal(policy.forkFits(134_000, limits), true);
   assert.equal(policy.forkFits(134_001, limits), false);
+});
+
+test("soft follows system.autoCompactThresholdPercent but never passes the safety line", () => {
+  // W=1M/O=128k：hard 852k，安全线 836k。
+  const base = { contextWindow: 1_000_000, maxOutputToken: 128_000 };
+  assert.equal(policy.resolveCompactionLimits(base).soft, 800_000);
+  assert.equal(
+    policy.resolveCompactionLimits({ ...base, autoCompactThresholdPercent: 50 }).soft,
+    500_000,
+  );
+  // 95% → 950k 越过安全线，被钳到 836k：触发线只提前、不后移。
+  assert.equal(
+    policy.resolveCompactionLimits({ ...base, autoCompactThresholdPercent: 95 }).soft,
+    836_000,
+  );
+  // 越界与非数值都收敛（10 / 99 / 默认 80）。
+  assert.equal(
+    policy.resolveCompactionLimits({ ...base, autoCompactThresholdPercent: 0 }).soft,
+    100_000,
+  );
+  assert.equal(
+    policy.resolveCompactionLimits({ ...base, autoCompactThresholdPercent: 500 }).soft,
+    836_000,
+  );
+  assert.equal(
+    policy.resolveCompactionLimits({ ...base, autoCompactThresholdPercent: Number.NaN }).soft,
+    800_000,
+  );
 });
 
 const W200 = { contextWindow: 200_000, maxOutputToken: 64_000 }; // soft 116k / hard 126k
@@ -59,6 +88,22 @@ test("decideCompaction checks guards in order", () => {
   const soft = next({ totalTokens: 116_000 });
   assert.deepEqual([soft.shouldCompact, soft.mustProgress, soft.startAt], [true, false, "fork"]);
   assert.equal(soft.limits.soft, 116_000);
+});
+
+test("the configured threshold moves the automatic trigger line", () => {
+  // W=1M/O=128k：默认 80% → soft 800k（安全线 836k 更高，不参与）。
+  const wide = { modelConfig: { contextWindow: 1_000_000, maxOutputToken: 128_000 } };
+  assert.equal(next({ ...wide, totalTokens: 799_999 }).reason, "below-threshold");
+  assert.equal(next({ ...wide, totalTokens: 800_000 }).shouldCompact, true);
+  // 调到 50% 后 600k 就触发。
+  assert.equal(
+    next({ ...wide, totalTokens: 600_000, autoCompactThresholdPercent: 50 }).shouldCompact,
+    true,
+  );
+  assert.equal(
+    next({ ...wide, totalTokens: 499_999, autoCompactThresholdPercent: 50 }).reason,
+    "below-threshold",
+  );
 });
 
 test("prefix-too-large: compaction cannot free room under a huge fixed prefix", () => {

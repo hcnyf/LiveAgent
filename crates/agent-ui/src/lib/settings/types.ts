@@ -392,7 +392,21 @@ export type SystemSettings = {
   systemProxy: SystemProxyConfig;
   /** 会话类系统通知的四项偏好（默认全开）。见 lib/system/notifications.ts。 */
   notifications: NotificationSettings;
+  /**
+   * 上下文自动压缩触发线：占模型 contextWindow 的百分比（10–99，默认 80）。
+   *
+   * 它只把触发线**提前**——算法自身的安全线（hard − 余量）仍是上限，见
+   * `crates/agent-gui/src/lib/chat/compaction/policy.ts` 的 resolveCompactionLimits。
+   */
+  autoCompactThresholdPercent?: number;
 };
+
+/** 上下文自动压缩触发线占比（%）：与 `system.autoCompactThresholdPercent` 同口径。 */
+export const AUTO_COMPACT_THRESHOLD_PERCENT_MIN = 10;
+
+export const AUTO_COMPACT_THRESHOLD_PERCENT_MAX = 99;
+
+export const AUTO_COMPACT_THRESHOLD_PERCENT_DEFAULT = 80;
 
 /**
  * 会话类系统通知偏好：
