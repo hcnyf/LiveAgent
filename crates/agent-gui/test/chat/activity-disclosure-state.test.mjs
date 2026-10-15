@@ -98,6 +98,9 @@ const { AssistantWorkTrace } = env.loadModule(
 const { ToolTraceGroup } = env.loadModule(
   "@liveagent/ui/components/chat/assistant-bubble/ToolTraceGroup.tsx",
 );
+const { ReaderDetachedProvider } = env.loadModule(
+  "@liveagent/ui/components/chat/TranscriptReadingContext.tsx",
+);
 
 function click(element) {
   act(() => element.dispatchEvent(new MouseEvent("click", { bubbles: true })));
@@ -502,6 +505,72 @@ test("a running tool batch names the current operation and caps its expanded hei
   const scrollRegion = container.querySelector("[data-tool-trace-scroll]");
   assert.match(scrollRegion.className, /max-h-400px/);
   assert.match(scrollRegion.className, /overflow-y-auto/);
+
+  act(() => root.unmount());
+});
+
+test("a reader parked in history keeps auto disclosures from folding under them", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+
+  const renderToolBatch = (running, detached) => {
+    act(() => {
+      root.render(
+        React.createElement(ReaderDetachedProvider, {
+          detached,
+          children: React.createElement(ToolTraceGroup, {
+            items: [toolItem],
+            runningToolCallIds: running ? [toolItem.toolCall.id] : [],
+          }),
+        }),
+      );
+    });
+  };
+
+  // 读者停在历史里：批次跑完也不折——折起来会把他正在看的那一段抽走。
+  renderToolBatch(true, true);
+  assert.equal(container.querySelector("button").getAttribute("aria-expanded"), "true");
+  renderToolBatch(false, true);
+  assert.equal(container.querySelector("button").getAttribute("aria-expanded"), "true");
+
+  // 回到底部再补上折叠。
+  renderToolBatch(false, false);
+  assert.equal(container.querySelector("button").getAttribute("aria-expanded"), "false");
+
+  act(() => root.unmount());
+});
+
+test("a settled turn defers folding the work trace while the reader is parked in history", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+
+  const renderWorkTrace = (running, detached) => {
+    act(() => {
+      root.render(
+        React.createElement(ReaderDetachedProvider, {
+          detached,
+          children: React.createElement(AssistantWorkTrace, {
+            hasDetails: true,
+            running,
+            collapseAfterAnswer: true,
+            children: React.createElement("div", null, "details"),
+          }),
+        }),
+      );
+    });
+  };
+
+  renderWorkTrace(true, true);
+  const button = container.querySelector("button");
+  assert.equal(button.getAttribute("aria-expanded"), "true");
+
+  // 回合结束但读者还停在历史里：先不折。
+  renderWorkTrace(false, true);
+  assert.equal(button.getAttribute("aria-expanded"), "true");
+
+  // 回到底部：补上折叠。
+  renderWorkTrace(false, false);
+  assert.equal(button.getAttribute("aria-expanded"), "false");
 
   act(() => root.unmount());
 });

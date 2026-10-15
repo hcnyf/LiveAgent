@@ -9,6 +9,7 @@ import { useScrollFollow } from "@liveagent/ui/lib/chat-scroll/useScrollFollow";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import { useEffect, useRef, useState } from "react";
 import { Brain, ChevronRight } from "../../IconSet";
+import { useReaderDetached } from "../TranscriptReadingContext";
 
 /**
  * One reasoning segment in the processing trace. Streams visibly while the
@@ -42,10 +43,13 @@ export function ThinkingDisclosure(props: {
   // disclosure ownership stays with them.
   const [open, setOpen] = useState(active);
   const userOwnsDisclosureRef = useRef(false);
+  const readerDetached = useReaderDetached();
 
   useEffect(() => {
-    if (!active && !userOwnsDisclosureRef.current) setOpen(false);
-  }, [active]);
+    // 读者停在历史里时不折：折起来会把他正在看的内容抽走；等回到底部再补
+    // （`readerDetached` 变化会重跑这个 effect）。
+    if (!active && !userOwnsDisclosureRef.current && !readerDetached) setOpen(false);
+  }, [active, readerDetached]);
 
   // Callback ref → state so the follow engine re-binds whenever LazyCollapse
   // mounts a fresh body (the element identity changes on every reopen).

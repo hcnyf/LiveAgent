@@ -4,6 +4,7 @@ import { isDocumentHidden } from "@liveagent/ui/lib/shared/documentVisibility";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { LazyCollapse } from "./LazyCollapse";
+import { useReaderDetached } from "./TranscriptReadingContext";
 import { useAttentionDisclosure } from "./useAttentionDisclosure";
 
 const PIXEL_KEYS = [
@@ -95,9 +96,14 @@ export function AssistantWorkTrace({
   // 有总结文案时，回合完成（running 变 false）后自动折叠「处理中」区块一次；
   // 之后 disclosure 所有权交还给用户，手动展开/折叠不再被强制收回，
   // 也不会和 attentionRequired（待用户交互的卡片）的强制展开打架。
+  const readerDetached = useReaderDetached();
+
   useEffect(() => {
-    if (!running && !attentionRequired && collapseAfterAnswer) setExpanded(false);
-  }, [running, attentionRequired, collapseAfterAnswer, setExpanded]);
+    // 读者停在历史里时先不折，回到底部再补——否则他正在看的那一段会被抽走。
+    if (!running && !attentionRequired && collapseAfterAnswer && !readerDetached) {
+      setExpanded(false);
+    }
+  }, [running, attentionRequired, collapseAfterAnswer, readerDetached, setExpanded]);
   const [elapsedMs, setElapsedMs] = useState(
     () =>
       durationMs ??

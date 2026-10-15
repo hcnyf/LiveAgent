@@ -18,6 +18,7 @@ import {
   Terminal,
   Wrench,
 } from "../../IconSet";
+import { useFrozenWhileReaderDetached } from "../TranscriptReadingContext";
 import {
   compactInlineText,
   getFileOperationDisplay,
@@ -177,12 +178,13 @@ function ToolTraceGroupInner(props: {
   // 与思考区块同一套默认语义：正在跑的这一批展开，落定后收起——此前这里恒为收起，
   // 于是同一条概括条里「思考展开了、工具没展开」。三档设置
   // （`system.workTraceDisclosure`）在工具组上同样生效；手动点过之后以手动为准。
-  const autoExpanded =
+  const autoExpanded = useFrozenWhileReaderDetached(
     disclosure === "expanded"
       ? true
       : disclosure === "collapsed"
         ? false
-        : active || counts.running > 0;
+        : active || counts.running > 0,
+  );
   const open = manual ?? (attentionOpened || autoExpanded);
 
   // The latest live batch drops the count prefix ("运行中" instead of

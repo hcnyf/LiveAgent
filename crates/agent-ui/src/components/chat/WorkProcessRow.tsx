@@ -2,6 +2,7 @@ import { ChevronDown } from "@liveagent/ui/components/IconSet";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import { memo, type ReactNode, useState } from "react";
 import { LazyCollapse } from "./LazyCollapse";
+import { useFrozenWhileReaderDetached } from "./TranscriptReadingContext";
 import { useWorkTraceDisclosure } from "./WorkTraceDisclosureContext";
 
 /**
@@ -28,13 +29,14 @@ export const WorkProcessRow = memo(function WorkProcessRow(props: {
   const { label, running = false, hasOutputAfter = false, children } = props;
   const disclosure = useWorkTraceDisclosure();
   const [manual, setManual] = useState<boolean | null>(null);
-  const autoExpanded =
+  const autoExpanded = useFrozenWhileReaderDetached(
     disclosure === "expanded"
       ? true
       : disclosure === "collapsed"
         ? false
         : // active：收起的时机是「模型有输出」，不是「这一段的活动跑完了」。
-          !hasOutputAfter;
+          !hasOutputAfter,
+  );
   const expanded = manual ?? autoExpanded;
 
   return (

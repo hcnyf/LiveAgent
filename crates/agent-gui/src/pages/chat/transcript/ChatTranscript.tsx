@@ -1,4 +1,5 @@
 import { ChatEmptyState } from "@liveagent/ui/components/chat/ChatEmptyState";
+import { ReaderDetachedProvider } from "@liveagent/ui/components/chat/TranscriptReadingContext";
 import { ChevronDown, Copy } from "@liveagent/ui/components/IconSet";
 import { ContextMenuItem, ContextMenuPopup } from "@liveagent/ui/components/ui/context-menu";
 import { useLocale } from "@liveagent/ui/i18n/index";
@@ -233,41 +234,45 @@ export const ChatTranscript = memo(function ChatTranscript(props: ChatTranscript
           ) : null}
 
           <div className={cn("select-text", isTranscriptSettling && "invisible")}>
-            <RowInteractionProvider value={rowInteractionStore}>
-              {/* Keyed remount per conversation: per-conversation state
+            {/* 读者停在历史里（未跟随底部）时，冻结转录里的自动展开/收起，
+                免得把他正在看的那一段顶走；回到底部再一次性生效。 */}
+            <ReaderDetachedProvider detached={!following}>
+              <RowInteractionProvider value={rowInteractionStore}>
+                {/* Keyed remount per conversation: per-conversation state
                   (row model, entrance registry, virtualizer measurements)
                   initializes fresh, and row keys can never collide across
                   conversations in the virtualizer's itemSizeCache. */}
-              <TranscriptList
-                key={conversationId}
-                conversationId={conversationId}
-                historyItems={historyItems}
-                hasMoreHistory={hasMoreHistory}
-                onLoadEarlierHistory={onLoadEarlierHistory}
-                isHistorySwitching={isHistorySwitching}
-                liveTranscriptStore={liveTranscriptStore}
-                scrollViewport={scrollViewport}
-                layoutWidth={contentWidth}
-                isViewportFollowing={scrollFollowHandle.isFollowing}
-                viewportFollowing={following}
-                onRestoreFollowing={scrollFollowHandle.restoreFollowing}
-                isSending={isSending}
-                isCompactionRunning={isCompactionRunning}
-                showUsage={showUsage}
-                usageContextWindow={usageContextWindow}
-                workspaceRoot={workspaceRoot}
-                onOpenFileLink={onOpenFileLink}
-                gitClient={gitClient}
-                navRef={transcriptNavRef}
-                saveReadingPositionRef={saveReadingPositionRef}
-                onAnchorUserRowChange={setActiveFloorKey}
-                onResendFromEdit={onResendFromEdit}
-                onBranchConversation={onBranchConversation}
-                onFirstLayoutSettled={
-                  shouldDeferTranscriptReveal ? handleFirstLayoutSettled : undefined
-                }
-              />
-            </RowInteractionProvider>
+                <TranscriptList
+                  key={conversationId}
+                  conversationId={conversationId}
+                  historyItems={historyItems}
+                  hasMoreHistory={hasMoreHistory}
+                  onLoadEarlierHistory={onLoadEarlierHistory}
+                  isHistorySwitching={isHistorySwitching}
+                  liveTranscriptStore={liveTranscriptStore}
+                  scrollViewport={scrollViewport}
+                  layoutWidth={contentWidth}
+                  isViewportFollowing={scrollFollowHandle.isFollowing}
+                  viewportFollowing={following}
+                  onRestoreFollowing={scrollFollowHandle.restoreFollowing}
+                  isSending={isSending}
+                  isCompactionRunning={isCompactionRunning}
+                  showUsage={showUsage}
+                  usageContextWindow={usageContextWindow}
+                  workspaceRoot={workspaceRoot}
+                  onOpenFileLink={onOpenFileLink}
+                  gitClient={gitClient}
+                  navRef={transcriptNavRef}
+                  saveReadingPositionRef={saveReadingPositionRef}
+                  onAnchorUserRowChange={setActiveFloorKey}
+                  onResendFromEdit={onResendFromEdit}
+                  onBranchConversation={onBranchConversation}
+                  onFirstLayoutSettled={
+                    shouldDeferTranscriptReveal ? handleFirstLayoutSettled : undefined
+                  }
+                />
+              </RowInteractionProvider>
+            </ReaderDetachedProvider>
           </div>
 
           <div style={{ height: transcriptBottomReservePx }} />
