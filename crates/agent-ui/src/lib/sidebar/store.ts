@@ -34,7 +34,6 @@ import type {
 } from "./types";
 
 const DEFAULT_PAGE_SIZE = 80;
-const DEFAULT_RECONCILE_INTERVAL_MS = 60_000;
 const DEFAULT_WORKDIRS_FALLBACK_MS = 300_000;
 const DEFAULT_WORKDIRS_DEBOUNCE_MS = 2_000;
 const DEFAULT_POSITION_LOCK_MS = 1_200;
@@ -112,7 +111,6 @@ export type SidebarStore = {
 export type SidebarStoreOptions = {
   now?: () => number;
   pageSize?: number;
-  reconcileIntervalMs?: number;
   workdirsFallbackMs?: number;
   workdirsDebounceMs?: number;
   positionLockMs?: number;
@@ -132,7 +130,6 @@ export function createSidebarStore(
 ): SidebarStore {
   const now = options?.now ?? Date.now;
   const pageSize = options?.pageSize ?? DEFAULT_PAGE_SIZE;
-  const reconcileIntervalMs = options?.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
   const workdirsFallbackMs = options?.workdirsFallbackMs ?? DEFAULT_WORKDIRS_FALLBACK_MS;
   const workdirsDebounceMs = options?.workdirsDebounceMs ?? DEFAULT_WORKDIRS_DEBOUNCE_MS;
   const positionLockMs = options?.positionLockMs ?? DEFAULT_POSITION_LOCK_MS;
@@ -180,7 +177,6 @@ export function createSidebarStore(
   let wasDisconnected = false;
   let unsubscribeEvents: (() => void) | null = null;
   let unsubscribeConnection: (() => void) | null = null;
-  let reconcileTimer: ReturnType<typeof setInterval> | null = null;
   let workdirsFallbackTimer: ReturnType<typeof setInterval> | null = null;
   let workdirsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -898,10 +894,14 @@ export function createSidebarStore(
             refreshWorkspaceHistory();
           }
         }) ?? null;
-      reconcileTimer = setInterval(() => {
-        refreshWorkspaceHistory();
-        void fetchFirstPage(false);
-      }, reconcileIntervalMs);
+      // 会话列表只在「重连」与「启动」时对账，没有周期轮询。
+      //
+      // 曾经的 60s 轮询会周期性触碰 listStatus / isLoadingMore / 工作目录的
+      // loading，把「正在同步…」胶囊、空态骨架和「加载更多」按钮的置灰状态
+      // 每 60s 闪一次；而它真正能补的只有「本进程之外产生的变更」（另一个实例、
+      // CLI、网关侧），桌面端本来就没有 subscribeConnection，付出的是每次都要
+      // 闪的代价。标题也已定稿，对账反而会按「服务端优先」把它改回去。
+      // 需要立刻看到别处的改动时，切一次工作目录/scope 会走权威首屏。
       workdirsFallbackTimer = setInterval(() => {
         void refreshWorkdirs("fallback");
       }, workdirsFallbackMs);
@@ -925,10 +925,6 @@ export function createSidebarStore(
       unsubscribeEvents = null;
       unsubscribeConnection?.();
       unsubscribeConnection = null;
-      if (reconcileTimer !== null) {
-        clearInterval(reconcileTimer);
-        reconcileTimer = null;
-      }
       if (workdirsFallbackTimer !== null) {
         clearInterval(workdirsFallbackTimer);
         workdirsFallbackTimer = null;
