@@ -396,6 +396,7 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.work.process.tools": "{count} tool calls",
   "chat.work.process.thinking": "{count} thinking steps",
   "chat.work.process.searches": "{count} searches",
+  "chat.work.olderEntries": "{count} earlier steps",
   "chat.tool.batch.read": "Read files",
   "chat.tool.batch.search": "Searched",
   "chat.tool.batch.edit": "Edited files",

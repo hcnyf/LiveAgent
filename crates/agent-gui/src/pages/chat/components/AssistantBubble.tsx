@@ -11,6 +11,7 @@ import {
 } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import { RoundBlockContent } from "@liveagent/ui/components/chat/assistant-bubble/RoundContent";
 import { RetryDetailsBlock } from "@liveagent/ui/components/chat/RetryDetailsBlock";
+import { WorkProcessOlderEntries } from "@liveagent/ui/components/chat/WorkProcessOlderEntries";
 import { WorkProcessRow } from "@liveagent/ui/components/chat/WorkProcessRow";
 import { useLocale } from "@liveagent/ui/i18n/index";
 import type { ChatFileLink } from "@liveagent/ui/lib/chat/chatFileLinks";
@@ -118,7 +119,12 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
                   running={segment.running}
                   hasOutputAfter={segment.hasOutputAfter}
                 >
-                  {segment.entries.map((entry) => renderWorkEntry(entry))}
+                  {segment.hiddenEntries.length > 0 ? (
+                    <WorkProcessOlderEntries count={segment.hiddenEntries.length}>
+                      {() => segment.hiddenEntries.map((entry) => renderWorkEntry(entry))}
+                    </WorkProcessOlderEntries>
+                  ) : null}
+                  {segment.visibleEntries.map((entry) => renderWorkEntry(entry))}
                 </WorkProcessRow>
               ) : (
                 <Fragment key={segment.key}>{renderWorkEntry(segment.entry)}</Fragment>

@@ -11,6 +11,7 @@ import type { ChatFileLink } from "@liveagent/ui/lib/chat/chatFileLinks";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import { Fragment, memo, type ReactNode, useMemo } from "react";
 import { PreviewArtifactsRow } from "../PreviewArtifactsRow";
+import { WorkProcessOlderEntries } from "../WorkProcessOlderEntries";
 import { WorkProcessRow } from "../WorkProcessRow";
 import {
   type AssistantTurnLayoutEntry,
@@ -326,7 +327,12 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
                 running={segment.running}
                 hasOutputAfter={segment.hasOutputAfter}
               >
-                {segment.entries.map((entry) => renderEntry(entry, true))}
+                {segment.hiddenEntries.length > 0 ? (
+                  <WorkProcessOlderEntries count={segment.hiddenEntries.length}>
+                    {() => segment.hiddenEntries.map((entry) => renderEntry(entry, true))}
+                  </WorkProcessOlderEntries>
+                ) : null}
+                {segment.visibleEntries.map((entry) => renderEntry(entry, true))}
               </WorkProcessRow>
             ) : (
               <Fragment key={segment.key}>{renderEntry(segment.entry, true)}</Fragment>

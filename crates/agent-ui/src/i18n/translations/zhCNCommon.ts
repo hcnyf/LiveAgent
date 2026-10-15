@@ -361,6 +361,7 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.work.process.tools": "{count} 次工具调用",
   "chat.work.process.thinking": "{count} 次思考",
   "chat.work.process.searches": "{count} 次搜索",
+  "chat.work.olderEntries": "更早的 {count} 条记录",
   "chat.tool.batch.read": "读取了文件",
   "chat.tool.batch.search": "进行了搜索",
   "chat.tool.batch.edit": "编辑了文件",

@@ -430,11 +430,48 @@ export function countWorkEntries(entries: readonly AssistantTurnLayoutEntry[]): 
   return { thinking, tools, searches };
 }
 
+/**
+ * 概括条展开时最多铺出的 entry 行数。两次输出之间模型可能反复思考/调工具几十次，全铺
+ * 出来会把会话拉得很长；超出的更早记录收成一行「更早的 N 条记录」，点开才铺。
+ *
+ * 口径是 **entry 行数**（不是思考/工具调用条数）：决定高度的是行数，而一个 `toolGroup`
+ * 里塞十几条调用时按调用数切，窗口长度会随内容漂移。
+ */
+export const WORK_TRACE_VISIBLE_ENTRY_LIMIT = 6;
+
+/** 稳定空引用：短段（未超上限）直接复用，避免每次渲染都建新数组。 */
+const EMPTY_WORK_ENTRIES: AssistantTurnLayoutEntry[] = [];
+
+/**
+ * 段内窗口化：只保留**连续后缀**（最近 `WORK_TRACE_VISIBLE_ENTRY_LIMIT` 条），更早的进
+ * 隐藏集。短段原样返回（隐藏集为空），短回合渲染逐字节不变。
+ *
+ * 「当前正在进行的那一条」不需要额外兜底：运行时每一轮都要等本轮工具全部返回才进入
+ * 下一轮，所以还在跑的思考/工具调用必然是段的最后一条，天然落在后缀里；段里更早那些
+ * 已经落定的记录，正是要收起来的东西。
+ *
+ * （刻意不用 `entry.thinkingOpen` 兜底：它是**轮级**标志，同一轮里所有 entry 都会是
+ * true，拿它当「这一条还在流」用会让上限直接失效。）
+ */
+function windowProcessEntries(entries: AssistantTurnLayoutEntry[]): {
+  hidden: AssistantTurnLayoutEntry[];
+  visible: AssistantTurnLayoutEntry[];
+} {
+  const start = Math.max(0, entries.length - WORK_TRACE_VISIBLE_ENTRY_LIMIT);
+  if (start === 0) return { hidden: EMPTY_WORK_ENTRIES, visible: entries };
+  return { hidden: entries.slice(0, start), visible: entries.slice(start) };
+}
+
 export type WorkSegment =
   | {
       kind: "process";
       key: string;
+      /** 这一段里的全部 entry（计数与文案按它算，窗口化不影响口径）。 */
       entries: AssistantTurnLayoutEntry[];
+      /** 默认收起的更早 entry（`entries` 的前缀）。为空时渲染与改动前逐字节一致。 */
+      hiddenEntries: AssistantTurnLayoutEntry[];
+      /** 直接铺出来的 entry（`entries` 的连续后缀）。 */
+      visibleEntries: AssistantTurnLayoutEntry[];
       /** 这一段里含当前正在进行的活动（用于标题的 shimmer）。 */
       running: boolean;
       /**
@@ -455,6 +492,10 @@ export type WorkSegment =
  *
  * 只有一条 entry 的段不包概括条：`toolGroup` 自己已经是折叠行，再套一层只是多一次
  * 点击。因此短回合的渲染结果与改动前逐字节一致，长回合（思考/工具反复交替）才收成条。
+ *
+ * 段内还会再窗口化一次：超过 `WORK_TRACE_VISIBLE_ENTRY_LIMIT` 条的段只铺最近的连续后缀，
+ * 更早的进 `hiddenEntries`（渲染成一行「更早的 N 条记录」，点开才铺）。正在进行的思考/
+ * 工具调用必然是段的最后一条，天然落在可见后缀里，不会被收掉。
  */
 export function segmentWorkEntries(
   entries: readonly AssistantTurnLayoutEntry[],
@@ -473,10 +514,13 @@ export function segmentWorkEntries(
       if (only) segments.push({ kind: "entry", key: only.key, entry: only });
       return;
     }
+    const window = windowProcessEntries(group);
     segments.push({
       kind: "process",
       key: `process:${group[0]?.key ?? segments.length}`,
       entries: group,
+      hiddenEntries: window.hidden,
+      visibleEntries: window.visible,
       running: activeKey !== null && group.some((entry) => entry.key === activeKey),
       hasOutputAfter: false,
     });

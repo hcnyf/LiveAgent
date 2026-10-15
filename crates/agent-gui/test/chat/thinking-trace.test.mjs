@@ -60,7 +60,9 @@ test("a live tool batch expands like reasoning until the model writes again", ()
   // 工具批次此前恒为收起，于是同一条概括条里「思考展开了、工具没展开」。判据与概括条
   // 的 hasOutputAfter 同一口径（这段之后模型还没输出），两个表面各接一次。
   assert.match(utilsSource, /export function resolveActiveWorkTailKeys\(/);
-  assert.match(toolTraceSource, /: active \|\| counts\.running > 0;/);
+  assert.match(toolTraceSource, /active \|\| counts\.running > 0/);
+  // 自动展开态还要经「读者停在历史里就冻结」那一层，免得把读者正在看的内容抽走。
+  assert.match(toolTraceSource, /useFrozenWhileReaderDetached\(/);
   assert.match(roundContentSource, /activeWorkTail=\{activeWorkTailKeys\.has\(entry\.key\)\}/);
   assert.match(guiBubbleSource, /activeWorkTail=\{activeWorkTailKeys\.has\(entry\.key\)\}/);
 });
@@ -90,7 +92,11 @@ test("a turn waiting on the user freezes its progress indicators", () => {
 test("a settled turn with a final answer collapses its work trace on both surfaces", () => {
   // Shared AssistantTurnContent (WebUI path) and the GUI's own bubble unit
   // bypass each other, so the auto-collapse wiring must exist in both.
-  assert.match(workTraceSource, /if \(!running && !attentionRequired && collapseAfterAnswer\)/);
+  // 自动折叠多了一个「读者停在历史里就先不折」的守卫（回到底部再补）。
+  assert.match(
+    workTraceSource,
+    /if \(!running && !attentionRequired && collapseAfterAnswer && !readerDetached\)/,
+  );
   assert.match(roundContentSource, /collapseAfterAnswer=\{layout\.answer\.length > 0\}/);
   assert.match(guiBubbleSource, /collapseAfterAnswer=\{unit\.hasAnswer\}/);
   assert.match(rowModelSource, /hasAnswer: layout\.answer\.length > 0/);
