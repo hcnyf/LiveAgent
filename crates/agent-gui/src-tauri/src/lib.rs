@@ -935,9 +935,10 @@ fn apply_windows_window_chrome(window: &tauri::WebviewWindow) {
     refresh_windows_rounded_region(window);
 }
 
-/// 窗口圆角半径（物理像素）：比输入卡片自身的 18px 更收一点，符合「小幅圆角」。
+/// 窗口圆角半径（物理像素）。比输入卡片自身的 18px 更收一点，符合「小幅圆角」；
+/// 也刻意压小——`SetWindowRgn` 是 1 位图区域，半径越大阶梯感越明显。
 #[cfg(target_os = "windows")]
-const WINDOW_CORNER_RADIUS_PX: i32 = 12;
+const WINDOW_CORNER_RADIUS_PX: i32 = 8;
 
 /// 把窗口区域裁成圆角矩形。`SetWindowRgn` 之后区域句柄归系统所有，不能再释放。
 #[cfg(target_os = "windows")]

@@ -1302,8 +1302,11 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
             )}
             aria-busy={state?.loading}
           >
-            {/* 同主列表：后台每 60s 的对账也会把 loading 置真，换文案会周期性闪。 */}
-            {state?.loading ? (
+            {/* 只认「用户自己点的加载更多」：后台每 60s 的对账复用同一个 loading
+                字段（它调 loadWorkspaceHistory(cwd, false)），跟着它亮转圈就会在
+                没有任何操作时周期性闪。判据是这次请求把 limit 抬高了——只有
+                more=true 才会，后台刷新不会。 */}
+            {state?.loading && state.requestedLimit > state.limit ? (
               <Loader2 aria-hidden="true" className="mr-1 inline size-3 animate-spin" />
             ) : null}
             {state?.error ? t("chat.workspaceHistoryRetry") : t("sidebar.continueLoadingHistory")}
