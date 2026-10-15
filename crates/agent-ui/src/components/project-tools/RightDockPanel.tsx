@@ -825,6 +825,8 @@ export const RightDockPanel = memo(function RightDockPanel(props: RightDockPanel
       gitReview: gitReviewInitialized,
       tunnel: tunnelInitialized,
       sshTunnel: sshTunnelInitialized,
+      // 子代理面板没有「首次打开要拉数据」的初始化步骤，恒为已初始化。
+      subagents: true,
     }),
     [fileTreeInitialized, gitReviewInitialized, sshTunnelInitialized, tunnelInitialized],
   );

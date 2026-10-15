@@ -44,7 +44,12 @@ export type RightDockSingletonTabKind = RightDockToolKind;
  * derived background-tasks tab). While leased, the dock hides the tool's
  * tab, content and launcher tile so the interactive view exists once.
  */
-export type RightDockLeasedToolKind = ProjectToolSurfaceKind;
+/**
+ * 「这个 dock tab 是否已被工作台租走」的查询口径。绝大多数 dock 工具本身就是可租用的
+ * 工作台面板，但 dock 里也可以有**不是**工作台面板的工具（子代理进度）：租用集合里永远
+ * 不会有它，查询返回 false 即可。所以这里取两者的并集，而不是只写工作台面板种类。
+ */
+export type RightDockLeasedToolKind = ProjectToolSurfaceKind | RightDockToolKind;
 
 export const NO_LEASED_RIGHT_DOCK_TOOLS: ReadonlySet<RightDockLeasedToolKind> = new Set();
 
