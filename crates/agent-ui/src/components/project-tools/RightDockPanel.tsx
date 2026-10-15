@@ -51,6 +51,7 @@ import {
   expandedPathsForFileTreePath,
   formatTerminalSessionTitle,
   NO_LEASED_RIGHT_DOCK_TOOLS,
+  type RightDockLeasableToolKind,
   type RightDockLeasedToolKind,
   type RightDockSingletonTabKind,
   rightDockTabRequiresProject,
@@ -122,9 +123,10 @@ type RightDockPanelProps = {
   }) => void;
   /** 终端 tab 右键菜单「在工作台打开」;省略时菜单不出现(拖拽仍可用)。 */
   onOpenTerminalInWorkbench?: (session: TerminalSession) => void;
-  /** 项目工具 tab / 空态入口拖出到 Workbench(落点打开该工具 Pane)。 */
+  /** 项目工具 tab / 空态入口拖出到 Workbench(落点打开该工具 Pane)。只有工作台
+   *  面板类的工具能拖出——子代理进度面板没有对应 Pane，不会走到这里。 */
   onToolDragStart?: (
-    kind: RightDockLeasedToolKind,
+    kind: RightDockLeasableToolKind,
     event: {
       pointerId: number;
       clientX: number;
@@ -133,7 +135,7 @@ type RightDockPanelProps = {
     },
   ) => void;
   /** 项目工具 tab 菜单式“在分屏中打开”。 */
-  onOpenToolInWorkbench?: (kind: RightDockLeasedToolKind) => void;
+  onOpenToolInWorkbench?: (kind: RightDockLeasableToolKind) => void;
   /** 新建菜单「在分屏中新建终端」;与拖拽 newTerminal 走同一提交语义。 */
   onOpenNewTerminalInWorkbench?: () => void;
   /**

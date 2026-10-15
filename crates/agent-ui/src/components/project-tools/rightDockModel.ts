@@ -19,7 +19,7 @@ import {
   reorderIdsByKeyboard,
 } from "../../lib/reorder/reorderModel";
 import type { TerminalSession } from "../../lib/terminal/types";
-import type { ProjectToolSurfaceKind } from "../../lib/workbench/types";
+import { isProjectToolSurfaceKind, type ProjectToolSurfaceKind } from "../../lib/workbench/types";
 
 export const MIN_RIGHT_DOCK_PANEL_WIDTH = 320;
 export const DEFAULT_RIGHT_DOCK_MAX_PANEL_WIDTH = 720;
@@ -52,6 +52,17 @@ export type RightDockSingletonTabKind = RightDockToolKind;
 export type RightDockLeasedToolKind = ProjectToolSurfaceKind | RightDockToolKind;
 
 export const NO_LEASED_RIGHT_DOCK_TOOLS: ReadonlySet<RightDockLeasedToolKind> = new Set();
+
+/**
+ * 可被工作台 Pane 租用的工具种类 = 项目工具面。子代理进度面板也住在 dock 里，但
+ * 没有对应的工作台 Pane，所以它不能出现在拖出/分屏这类签名的类型里。
+ *
+ * dock 组件本身不允许 import 布局层（见 workbench-dock-focus 不变量），只能经由
+ * 本文件把工作台的类型/判定转手给它们。
+ */
+export type RightDockLeasableToolKind = ProjectToolSurfaceKind;
+
+export const isRightDockLeasableToolKind = isProjectToolSurfaceKind;
 
 export const RIGHT_DOCK_SINGLETON_TAB_KINDS: readonly RightDockSingletonTabKind[] =
   RIGHT_DOCK_TOOL_KINDS;

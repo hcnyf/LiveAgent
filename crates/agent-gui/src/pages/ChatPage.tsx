@@ -152,6 +152,7 @@ import {
   isAgentExecutionMode,
   normalizeChatRuntimeControlsForProvider,
   normalizeSelectedModelForProviders,
+  openRightDockSingletonTab,
   parseSelectedModelJson,
   resolveConfiguredThinkingAlwaysOn,
   resolveEffectivePromptSettings,
@@ -187,6 +188,7 @@ import { createTauriTunnelClient } from "../lib/tunnels/tauriTunnelClient";
 import { tauriWorkspaceActivityClient } from "../lib/workspace-activity/tauriWorkspaceActivityClient";
 import type { ChatPageProps } from "./chat/chatPageTypes";
 import { asErrorMessage } from "./chat/chatPageUtils";
+import { SubagentProgressBridge } from "./chat/components/SubagentProgressBridge";
 import { useComposerHistoryPrompts } from "./chat/composer/useComposerHistoryPrompts";
 import type {
   ConversationControllerActions,
@@ -834,6 +836,29 @@ function ChatPageContent(props: ChatPageProps) {
     setSettings,
     onOpenFile: handleOpenWorkspaceFile,
   });
+
+  // 子代理进度面板的数据源与入口：卡片在会话里、面板在右侧 dock，两边必须读到
+  // 同一份值，所以在面板组外面包一层 SubagentProgressBridge（见下方 JSX）。没有项目
+  // 桶时 dock 承载不了 tab，此时不提供入口，卡片也就不会渲染那个按钮。
+  const [focusedSubagentId, setFocusedSubagentId] = useState<string | undefined>(undefined);
+  // 子代理运行态（轮数/调用数/权威起点）只有落盘快照，没有事件通道，所以由面板
+  // 侧轮询；这里只给一个读取入口，不在这里订阅任何东西。
+  const readSubagentLiveRuns = useCallback(
+    () => subagentStoresRef.current.get(currentConversationId).latestRunsByAgent().values(),
+    [currentConversationId],
+  );
+  const handleOpenSubagentProgress = useCallback(
+    (entryId: string) => {
+      if (!terminalProjectPathKey) return;
+      setRightDockOpen(true);
+      setSettings((previousSettings) =>
+        openRightDockSingletonTab(previousSettings, terminalProjectPathKey, "subagents"),
+      );
+      setFocusedSubagentId(entryId);
+    },
+    [setRightDockOpen, setSettings, terminalProjectPathKey],
+  );
+
   // Local runner running-state → sidebar store: diff transitions so sidebar
   // dots (and running workdir keys) include local runs immediately; remote
   // runs arrive through the store's own event subscription.
@@ -4159,205 +4184,219 @@ function ChatPageContent(props: ChatPageProps) {
           }}
         />
 
-        <WorkspacePanelGroup
-          open={activeView === "chat" && rightDockOpen}
-          width={settings.customSettings.rightDock.width}
-          onWidthChange={handleRightDockWidthChange}
-          onClose={() => setRightDockOpen(false)}
-          immediate={activeView !== "chat"}
+        <SubagentProgressBridge
+          items={transcriptItems}
+          liveStore={liveTranscriptStore}
+          onOpenSubagent={terminalProjectPathKey ? handleOpenSubagentProgress : undefined}
+          focusedEntryId={focusedSubagentId}
+          readLiveRuns={readSubagentLiveRuns}
         >
-          <WorkspaceMainPanel>
-            {/* ---- Center column: workbench chrome + conversation surfaces ---- */}
-            <div
-              data-app-frame-column="main"
-              className="relative flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden"
-            >
-              {workspaceCreateModalOpen ? (
-                <WorkspaceCloneModal
-                  initialParent={activeWorkspaceProjectPath || workdir}
-                  onOpenFolder={handleOpenWorkspaceFolder}
-                  onClone={handleCloneWorkspaceProject}
-                  onClose={() => setWorkspaceCreateModalOpen(false)}
-                  onLoadBranches={handleLoadWorkspaceRemoteBranches}
-                />
-              ) : null}
-              <WorkspaceCloneTaskOverlayAdapter onOpenWorkspace={handleOpenClonedWorkspace} />
+          <WorkspacePanelGroup
+            open={activeView === "chat" && rightDockOpen}
+            width={settings.customSettings.rightDock.width}
+            onWidthChange={handleRightDockWidthChange}
+            onClose={() => setRightDockOpen(false)}
+            immediate={activeView !== "chat"}
+          >
+            <WorkspaceMainPanel>
+              {/* ---- Center column: workbench chrome + conversation surfaces ---- */}
+              <div
+                data-app-frame-column="main"
+                className="relative flex flex-col min-h-0 min-w-0 flex-1 overflow-hidden"
+              >
+                {workspaceCreateModalOpen ? (
+                  <WorkspaceCloneModal
+                    initialParent={activeWorkspaceProjectPath || workdir}
+                    onOpenFolder={handleOpenWorkspaceFolder}
+                    onClone={handleCloneWorkspaceProject}
+                    onClose={() => setWorkspaceCreateModalOpen(false)}
+                    onLoadBranches={handleLoadWorkspaceRemoteBranches}
+                  />
+                ) : null}
+                <WorkspaceCloneTaskOverlayAdapter onOpenWorkspace={handleOpenClonedWorkspace} />
 
-              {shareConversation ? (
-                <HistoryShareModal
-                  conversation={shareConversation}
-                  share={shareStatus}
-                  isLoading={shareLoading}
-                  isUpdating={shareUpdating}
-                  errorMessage={shareError}
-                  shareOrigin={sharedManagerShareOrigin}
-                  shareOriginPort={sharedManagerShareOriginPort}
-                  shareOriginLoading={sharedManagerGatewayUrlLoading}
-                  onToggle={handleToggleHistoryShare}
-                  onRedactToolContentChange={handleSetShareRedactToolContent}
-                  onClose={handleCloseShareModal}
-                />
-              ) : null}
+                {shareConversation ? (
+                  <HistoryShareModal
+                    conversation={shareConversation}
+                    share={shareStatus}
+                    isLoading={shareLoading}
+                    isUpdating={shareUpdating}
+                    errorMessage={shareError}
+                    shareOrigin={sharedManagerShareOrigin}
+                    shareOriginPort={sharedManagerShareOriginPort}
+                    shareOriginLoading={sharedManagerGatewayUrlLoading}
+                    onToggle={handleToggleHistoryShare}
+                    onRedactToolContentChange={handleSetShareRedactToolContent}
+                    onClose={handleCloseShareModal}
+                  />
+                ) : null}
 
-              {sharedManagerOpen ? (
-                <SharedHistoryManagerModal
-                  conversations={sharedHistoryItems}
-                  statuses={sharedManagerStatuses}
-                  loadingIds={sharedManagerLoadingIds}
-                  updatingIds={sharedManagerUpdatingIds}
-                  errors={sharedManagerErrors}
-                  shareOrigin={sharedManagerShareOrigin}
-                  shareOriginPort={sharedManagerShareOriginPort}
-                  shareOriginLoading={sharedManagerGatewayUrlLoading}
-                  onRefresh={handleRefreshSharedHistoryStatuses}
-                  onLoadStatus={handleLoadSharedHistoryStatus}
-                  onDisableShare={handleDisableSharedHistory}
-                  onSetRedactToolContent={handleSetSharedHistoryRedactToolContent}
-                  onClose={() => setSharedManagerOpen(false)}
-                />
-              ) : null}
+                {sharedManagerOpen ? (
+                  <SharedHistoryManagerModal
+                    conversations={sharedHistoryItems}
+                    statuses={sharedManagerStatuses}
+                    loadingIds={sharedManagerLoadingIds}
+                    updatingIds={sharedManagerUpdatingIds}
+                    errors={sharedManagerErrors}
+                    shareOrigin={sharedManagerShareOrigin}
+                    shareOriginPort={sharedManagerShareOriginPort}
+                    shareOriginLoading={sharedManagerGatewayUrlLoading}
+                    onRefresh={handleRefreshSharedHistoryStatuses}
+                    onLoadStatus={handleLoadSharedHistoryStatus}
+                    onDisableShare={handleDisableSharedHistory}
+                    onSetRedactToolContent={handleSetSharedHistoryRedactToolContent}
+                    onClose={() => setSharedManagerOpen(false)}
+                  />
+                ) : null}
 
-              {confirmDialog}
+                {confirmDialog}
 
-              {/* ---- Main content ----
+                {/* ---- Main content ----
             字体缩放仅作用于聊天视图：Skills/MCP Hub 页面存在大量未迁移的固定
             像素字号，整列缩放会造成混排（聊天区设置也只应影响聊天区）。 */}
-              <ApplicationView
-                activeView={activeView}
-                settings={settings}
-                setSettings={setSettings}
-                isAgentMode={isAgentMode}
-                initialSkills={availableSkills}
-                initialSkillsRootDir={skillsRootDir}
-                className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
-                chatClassName="zone-font-scale"
-                chatStyle={
-                  {
-                    "--zone-font-scale": settings.customSettings.fontScale.chat,
-                  } as CSSProperties
+                <ApplicationView
+                  activeView={activeView}
+                  settings={settings}
+                  setSettings={setSettings}
+                  isAgentMode={isAgentMode}
+                  initialSkills={availableSkills}
+                  initialSkillsRootDir={skillsRootDir}
+                  className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+                  chatClassName="zone-font-scale"
+                  chatStyle={
+                    {
+                      "--zone-font-scale": settings.customSettings.fontScale.chat,
+                    } as CSSProperties
+                  }
+                  chat={{ content: chatContent }}
+                  onOpenView={setActiveView}
+                  workspaceOverlays={
+                    <WorkspaceOverlayHost
+                      locale={settings.locale}
+                      theme={effectiveTheme}
+                      workspaceEditorMounted={workspaceOverlays.workspaceEditorMounted}
+                      workspaceEditorOpenRequest={workspaceOverlays.workspaceEditorOpenRequest}
+                      workspaceEditorCloseRequestId={
+                        workspaceOverlays.workspaceEditorCloseRequestId
+                      }
+                      workspaceEditorOpen={workspaceOverlays.workspaceEditorOpen}
+                      workspaceEditorCleanupPending={
+                        workspaceOverlays.workspaceEditorCleanupPending
+                      }
+                      onWorkspaceEditorPreviewFile={workspaceOverlays.openWorkspaceFilePreview}
+                      onWorkspaceEditorInsertCodeMention={handleInsertCodeMention}
+                      onWorkspaceEditorHide={workspaceOverlays.handleWorkspaceEditorHide}
+                      onWorkspaceEditorClose={workspaceOverlays.handleWorkspaceEditorClosed}
+                      workspaceFilePreviewMounted={workspaceOverlays.workspaceFilePreviewMounted}
+                      workspaceFilePreviewOpenRequest={
+                        workspaceOverlays.workspaceFilePreviewOpenRequest
+                      }
+                      workspaceFilePreviewOpen={workspaceOverlays.workspaceFilePreviewOpen}
+                      onWorkspaceFilePreviewOpenEditor={workspaceOverlays.openWorkspaceEditorFile}
+                      onWorkspaceFilePreviewRequestClose={
+                        workspaceOverlays.requestWorkspaceFilePreviewClose
+                      }
+                      onWorkspaceFilePreviewClose={
+                        workspaceOverlays.handleWorkspaceFilePreviewClosed
+                      }
+                      workspaceSshTerminalMounted={workspaceOverlays.workspaceSshTerminalMounted}
+                      workspaceSshTerminalOpenRequest={
+                        workspaceOverlays.workspaceSshTerminalOpenRequest
+                      }
+                      workspaceSshTerminalOpen={workspaceOverlays.workspaceSshTerminalOpen}
+                      terminalProjectPathKey={terminalProjectPathKey}
+                      terminalClient={tauriTerminalClient}
+                      sftpClient={tauriSftpClient}
+                      terminalSessions={terminalSessions}
+                      onWorkspaceSshTerminalHide={() =>
+                        workspaceOverlays.setWorkspaceSshTerminalOpen(false)
+                      }
+                      onSshTerminalOpenFile={workspaceOverlays.handleOpenSftpFile}
+                      sshTerminalPaneLeasedSessionIds={leasedDockSessionIds}
+                      onSshTerminalFocusLeasedSession={
+                        sessionWorkbench.enabled ? focusWorkbenchTerminalPane : undefined
+                      }
+                      onSshTerminalSessionTabDragStart={
+                        sessionWorkbench.enabled ? handleSshTerminalTabDragIntent : undefined
+                      }
+                    />
+                  }
+                />
+              </div>
+            </WorkspaceMainPanel>
+            <WorkspaceToolsPanel>
+              <RightDockPanel
+                isOpen={activeView === "chat" && rightDockOpen}
+                onClose={() => setRightDockOpen(false)}
+                fontScale={settings.customSettings.fontScale.rightDock}
+                projectPathKey={terminalProjectPathKey}
+                cwd={terminalProjectPath}
+                workspaceProject={activeWorkspaceProject}
+                workspaceProjectRootClient={desktopWorkspaceProjectRootClient}
+                workspaceRootRevision={workspaceRootRevision}
+                sessions={terminalSessions}
+                sessionsLoaded={terminalSessionsLoaded}
+                leasedSessionIds={leasedDockSessionIds}
+                leasedTools={leasedDockTools}
+                theme={effectiveTheme}
+                disabledMessage={terminalDisabledMessage}
+                projectState={rightDockProjectState}
+                fileTreeState={rightDockFileTreeState}
+                sshHosts={settings.ssh.hosts}
+                associatedSshHostIds={associatedSshHostIds}
+                client={tauriTerminalClient}
+                gitClient={tauriGitClient}
+                gitWriteEnabled
+                textGenerationClient={projectToolTextGenerationClient}
+                tunnelClient={isAgentMode ? tauriTunnelClient : null}
+                tunnelEnabled={tunnelEnabled}
+                tunnelDisabledMessage={tunnelDisabledMessage}
+                tunnelPublicBaseUrl={buildGatewayPublicBaseUrl(
+                  settings.remote.gatewayUrl,
+                  settings.remote.gatewayPort,
+                )}
+                workspaceActivityClient={tauriWorkspaceActivityClient}
+                onProjectStateChange={handleRightDockProjectStateChange}
+                onFileTreeStateChange={handleRightDockFileTreeStateChange}
+                onSshProjectHostIdsChange={handleSshProjectHostIdsChange}
+                onOpenSshSession={handleOpenSshTerminal}
+                onSessionsChange={handleRightDockSessionsChange}
+                onTerminalTabDragStart={
+                  sessionWorkbench.enabled ? handleTerminalTabWorkbenchDragIntent : undefined
                 }
-                chat={{ content: chatContent }}
-                onOpenView={setActiveView}
-                workspaceOverlays={
-                  <WorkspaceOverlayHost
-                    locale={settings.locale}
-                    theme={effectiveTheme}
-                    workspaceEditorMounted={workspaceOverlays.workspaceEditorMounted}
-                    workspaceEditorOpenRequest={workspaceOverlays.workspaceEditorOpenRequest}
-                    workspaceEditorCloseRequestId={workspaceOverlays.workspaceEditorCloseRequestId}
-                    workspaceEditorOpen={workspaceOverlays.workspaceEditorOpen}
-                    workspaceEditorCleanupPending={workspaceOverlays.workspaceEditorCleanupPending}
-                    onWorkspaceEditorPreviewFile={workspaceOverlays.openWorkspaceFilePreview}
-                    onWorkspaceEditorInsertCodeMention={handleInsertCodeMention}
-                    onWorkspaceEditorHide={workspaceOverlays.handleWorkspaceEditorHide}
-                    onWorkspaceEditorClose={workspaceOverlays.handleWorkspaceEditorClosed}
-                    workspaceFilePreviewMounted={workspaceOverlays.workspaceFilePreviewMounted}
-                    workspaceFilePreviewOpenRequest={
-                      workspaceOverlays.workspaceFilePreviewOpenRequest
-                    }
-                    workspaceFilePreviewOpen={workspaceOverlays.workspaceFilePreviewOpen}
-                    onWorkspaceFilePreviewOpenEditor={workspaceOverlays.openWorkspaceEditorFile}
-                    onWorkspaceFilePreviewRequestClose={
-                      workspaceOverlays.requestWorkspaceFilePreviewClose
-                    }
-                    onWorkspaceFilePreviewClose={workspaceOverlays.handleWorkspaceFilePreviewClosed}
-                    workspaceSshTerminalMounted={workspaceOverlays.workspaceSshTerminalMounted}
-                    workspaceSshTerminalOpenRequest={
-                      workspaceOverlays.workspaceSshTerminalOpenRequest
-                    }
-                    workspaceSshTerminalOpen={workspaceOverlays.workspaceSshTerminalOpen}
-                    terminalProjectPathKey={terminalProjectPathKey}
-                    terminalClient={tauriTerminalClient}
-                    sftpClient={tauriSftpClient}
-                    terminalSessions={terminalSessions}
-                    onWorkspaceSshTerminalHide={() =>
-                      workspaceOverlays.setWorkspaceSshTerminalOpen(false)
-                    }
-                    onSshTerminalOpenFile={workspaceOverlays.handleOpenSftpFile}
-                    sshTerminalPaneLeasedSessionIds={leasedDockSessionIds}
-                    onSshTerminalFocusLeasedSession={
-                      sessionWorkbench.enabled ? focusWorkbenchTerminalPane : undefined
-                    }
-                    onSshTerminalSessionTabDragStart={
-                      sessionWorkbench.enabled ? handleSshTerminalTabDragIntent : undefined
-                    }
-                  />
+                onNewTerminalDragStart={
+                  sessionWorkbench.enabled ? handleNewTerminalWorkbenchDragIntent : undefined
                 }
+                onOpenTerminalInWorkbench={
+                  sessionWorkbench.enabled ? handleOpenTerminalInWorkbenchSplit : undefined
+                }
+                onToolDragStart={
+                  sessionWorkbench.enabled && terminalProjectPathKey
+                    ? handleToolWorkbenchDragIntent
+                    : undefined
+                }
+                onOpenToolInWorkbench={
+                  sessionWorkbench.enabled && terminalProjectPathKey
+                    ? handleOpenToolInWorkbenchSplit
+                    : undefined
+                }
+                onOpenNewTerminalInWorkbench={
+                  sessionWorkbench.enabled ? handleOpenNewTerminalInWorkbenchSplit : undefined
+                }
+                onSessionGhost={verifyTerminalSessionAlive}
+                onInsertFileMention={handleRightDockInsertFileMention}
+                onOpenFile={handleOpenWorkspaceFile}
+                gitReviewFocusRequest={gitReviewFocusRequest}
+                onGitReviewFocusRequestHandled={handleGitReviewFocusRequestHandled}
+                onInsertCodeReviewSkill={
+                  codeReviewSkill ? handleRightDockInsertCodeReviewSkill : undefined
+                }
+                onInsertCommitMention={handleRightDockInsertCommitMention}
+                onInsertGitFileMention={handleRightDockInsertGitFileMention}
               />
-            </div>
-          </WorkspaceMainPanel>
-          <WorkspaceToolsPanel>
-            <RightDockPanel
-              isOpen={activeView === "chat" && rightDockOpen}
-              onClose={() => setRightDockOpen(false)}
-              fontScale={settings.customSettings.fontScale.rightDock}
-              projectPathKey={terminalProjectPathKey}
-              cwd={terminalProjectPath}
-              workspaceProject={activeWorkspaceProject}
-              workspaceProjectRootClient={desktopWorkspaceProjectRootClient}
-              workspaceRootRevision={workspaceRootRevision}
-              sessions={terminalSessions}
-              sessionsLoaded={terminalSessionsLoaded}
-              leasedSessionIds={leasedDockSessionIds}
-              leasedTools={leasedDockTools}
-              theme={effectiveTheme}
-              disabledMessage={terminalDisabledMessage}
-              projectState={rightDockProjectState}
-              fileTreeState={rightDockFileTreeState}
-              sshHosts={settings.ssh.hosts}
-              associatedSshHostIds={associatedSshHostIds}
-              client={tauriTerminalClient}
-              gitClient={tauriGitClient}
-              gitWriteEnabled
-              textGenerationClient={projectToolTextGenerationClient}
-              tunnelClient={isAgentMode ? tauriTunnelClient : null}
-              tunnelEnabled={tunnelEnabled}
-              tunnelDisabledMessage={tunnelDisabledMessage}
-              tunnelPublicBaseUrl={buildGatewayPublicBaseUrl(
-                settings.remote.gatewayUrl,
-                settings.remote.gatewayPort,
-              )}
-              workspaceActivityClient={tauriWorkspaceActivityClient}
-              onProjectStateChange={handleRightDockProjectStateChange}
-              onFileTreeStateChange={handleRightDockFileTreeStateChange}
-              onSshProjectHostIdsChange={handleSshProjectHostIdsChange}
-              onOpenSshSession={handleOpenSshTerminal}
-              onSessionsChange={handleRightDockSessionsChange}
-              onTerminalTabDragStart={
-                sessionWorkbench.enabled ? handleTerminalTabWorkbenchDragIntent : undefined
-              }
-              onNewTerminalDragStart={
-                sessionWorkbench.enabled ? handleNewTerminalWorkbenchDragIntent : undefined
-              }
-              onOpenTerminalInWorkbench={
-                sessionWorkbench.enabled ? handleOpenTerminalInWorkbenchSplit : undefined
-              }
-              onToolDragStart={
-                sessionWorkbench.enabled && terminalProjectPathKey
-                  ? handleToolWorkbenchDragIntent
-                  : undefined
-              }
-              onOpenToolInWorkbench={
-                sessionWorkbench.enabled && terminalProjectPathKey
-                  ? handleOpenToolInWorkbenchSplit
-                  : undefined
-              }
-              onOpenNewTerminalInWorkbench={
-                sessionWorkbench.enabled ? handleOpenNewTerminalInWorkbenchSplit : undefined
-              }
-              onSessionGhost={verifyTerminalSessionAlive}
-              onInsertFileMention={handleRightDockInsertFileMention}
-              onOpenFile={handleOpenWorkspaceFile}
-              gitReviewFocusRequest={gitReviewFocusRequest}
-              onGitReviewFocusRequestHandled={handleGitReviewFocusRequestHandled}
-              onInsertCodeReviewSkill={
-                codeReviewSkill ? handleRightDockInsertCodeReviewSkill : undefined
-              }
-              onInsertCommitMention={handleRightDockInsertCommitMention}
-              onInsertGitFileMention={handleRightDockInsertGitFileMention}
-            />
-          </WorkspaceToolsPanel>
-        </WorkspacePanelGroup>
+            </WorkspaceToolsPanel>
+          </WorkspacePanelGroup>
+        </SubagentProgressBridge>
       </div>
       {projectSettingsProject ? (
         <WorkspaceProjectSettingsModal

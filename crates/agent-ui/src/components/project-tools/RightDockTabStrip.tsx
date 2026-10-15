@@ -14,7 +14,8 @@ import {
 } from "../ui/context-menu";
 import {
   formatTerminalSessionTitle,
-  type RightDockLeasedToolKind,
+  isRightDockLeasableToolKind,
+  type RightDockLeasableToolKind,
   type RightDockVisibleTab,
 } from "./rightDockModel";
 import { getRightDockToolDefinition, type RightDockSingletonTabKind } from "./rightDockRegistry";
@@ -62,10 +63,11 @@ type RightDockTabStripProps = {
   onOpenTerminalInWorkbench?: (session: TerminalSession) => void;
   /**
    * Provided when project tool tabs (file tree, git review, tunnel, SSH,
-   * background tasks) can be dragged out into a workbench pane.
+   * background tasks) can be dragged out into a workbench pane. Only those
+   * surfaces have a workbench pane; the subagent panel cannot be leased.
    */
   onToolTabDragStart?: (
-    kind: RightDockLeasedToolKind,
+    kind: RightDockLeasableToolKind,
     event: {
       pointerId: number;
       clientX: number;
@@ -74,7 +76,7 @@ type RightDockTabStripProps = {
     },
   ) => void;
   /** Tab context-menu "open in split" for project tools. */
-  onOpenToolInWorkbench?: (kind: RightDockLeasedToolKind) => void;
+  onOpenToolInWorkbench?: (kind: RightDockLeasableToolKind) => void;
 };
 
 // One descriptor per tab regardless of kind, so every tab shares a single
@@ -138,7 +140,7 @@ export function RightDockTabStrip(props: RightDockTabStripProps) {
   // Shared drag-out / menu wiring for every project tool tab; terminal tabs
   // carry a session and keep their own descriptor.
   const toolTabWorkbenchProps = (
-    kind: RightDockLeasedToolKind,
+    kind: RightDockLeasableToolKind,
   ): Pick<DockTabDescriptor, "menuItems" | "dragProps"> => ({
     menuItems: onOpenToolInWorkbench ? (
       <ContextMenuItem onSelect={() => onOpenToolInWorkbench(kind)} className="gap-2">
@@ -320,7 +322,9 @@ export function RightDockTabStrip(props: RightDockTabStripProps) {
             isActive: currentActiveTab === tab.kind,
             closeLabel,
             closeTitle: closeLabel,
-            ...toolTabWorkbenchProps(tab.kind),
+            // 只有工作台面板类的 dock 工具能拖出/在分屏打开；子代理进度面板没有
+            // 对应的工作台 Pane，所以它这一支不带拖拽与菜单。
+            ...(isRightDockLeasableToolKind(tab.kind) ? toolTabWorkbenchProps(tab.kind) : {}),
             onActivate: () => onActivateTab(tab.id),
             onClose: () => onCloseToolTab(tab.kind),
           });

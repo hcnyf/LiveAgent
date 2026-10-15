@@ -13,8 +13,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { NO_LEASED_RIGHT_DOCK_TOOLS, type RightDockLeasedToolKind } from "./rightDockModel";
-import { RIGHT_DOCK_TOOL_DEFINITIONS, type RightDockSingletonTabKind } from "./rightDockRegistry";
+import {
+  NO_LEASED_RIGHT_DOCK_TOOLS,
+  type RightDockLeasableToolKind,
+  type RightDockLeasedToolKind,
+} from "./rightDockModel";
+import {
+  RIGHT_DOCK_LAUNCHER_TOOL_DEFINITIONS,
+  type RightDockSingletonTabKind,
+} from "./rightDockRegistry";
 
 export type RightDockToolDragStartEvent = {
   pointerId: number;
@@ -63,7 +70,7 @@ type RightDockChooserProps = RightDockLauncherActions & {
    * 存在时每个工具入口(文件树/审查/内网穿透/SSH/后台任务)可拖出到工作台
    * 画板,在落点直接打开该工具 Pane;点击行为不变(在 dock 内打开)。
    */
-  onToolDragStart?: (kind: RightDockLeasedToolKind, event: RightDockToolDragStartEvent) => void;
+  onToolDragStart?: (kind: RightDockLeasableToolKind, event: RightDockToolDragStartEvent) => void;
 };
 
 export function RightDockCreateMenu(props: RightDockCreateMenuProps) {
@@ -146,19 +153,19 @@ export function RightDockCreateMenu(props: RightDockCreateMenuProps) {
             {t("workbench.openNewTerminalInSplit")}
           </DropdownMenuItem>
         ) : null}
-        {RIGHT_DOCK_TOOL_DEFINITIONS.filter((definition) => !leasedTools.has(definition.kind)).map(
-          (definition) => (
-            <DropdownMenuItem
-              key={definition.kind}
-              onSelect={() => onStartTool(definition.kind)}
-              disabled={definition.projectRequired ? !projectReady : !tunnelAvailable}
-              className="gap-2"
-            >
-              {definition.icon("size-3.5")}
-              {t(definition.createTitleKey)}
-            </DropdownMenuItem>
-          ),
-        )}
+        {RIGHT_DOCK_LAUNCHER_TOOL_DEFINITIONS.filter(
+          (definition) => !leasedTools.has(definition.kind),
+        ).map((definition) => (
+          <DropdownMenuItem
+            key={definition.kind}
+            onSelect={() => onStartTool(definition.kind)}
+            disabled={definition.projectRequired ? !projectReady : !tunnelAvailable}
+            className="gap-2"
+          >
+            {definition.icon("size-3.5")}
+            {t(definition.createTitleKey)}
+          </DropdownMenuItem>
+        ))}
         {leasedTools.has("backgroundTasks") ? null : (
           <DropdownMenuItem onSelect={onOpenBackgroundTasks} className="gap-2">
             <Cpu className="size-3.5" />
@@ -191,7 +198,7 @@ export function RightDockChooser(props: RightDockChooserProps) {
   const terminalTileDisabled = !terminalReady || creating;
   // Drag-out arms on primary-button mouse/pen only; touch keeps scrolling the
   // chooser (same rule as the terminal tile and dock tab drag-out).
-  const toolDragHandler = (kind: RightDockLeasedToolKind, disabled: boolean) =>
+  const toolDragHandler = (kind: RightDockLeasableToolKind, disabled: boolean) =>
     onToolDragStart && !disabled
       ? (event: ReactPointerEvent<HTMLButtonElement>) => {
           if (event.button !== 0 || event.pointerType === "touch") return;
@@ -225,21 +232,21 @@ export function RightDockChooser(props: RightDockChooserProps) {
             }
           : undefined,
     },
-    ...RIGHT_DOCK_TOOL_DEFINITIONS.filter((definition) => !leasedTools.has(definition.kind)).map(
-      (definition) => {
-        const disabled = definition.projectRequired ? !projectReady : !tunnelAvailable;
-        return {
-          key: definition.kind,
-          title: t(definition.createTitleKey),
-          description: t(definition.descriptionKey),
-          icon: definition.icon("size-4.5"),
-          disabled,
-          titleAttr: definition.projectRequired ? disabledMessage : undefined,
-          onClick: () => onStartTool(definition.kind),
-          onPointerDown: toolDragHandler(definition.kind, disabled),
-        };
-      },
-    ),
+    ...RIGHT_DOCK_LAUNCHER_TOOL_DEFINITIONS.filter(
+      (definition) => !leasedTools.has(definition.kind),
+    ).map((definition) => {
+      const disabled = definition.projectRequired ? !projectReady : !tunnelAvailable;
+      return {
+        key: definition.kind,
+        title: t(definition.createTitleKey),
+        description: t(definition.descriptionKey),
+        icon: definition.icon("size-4.5"),
+        disabled,
+        titleAttr: definition.projectRequired ? disabledMessage : undefined,
+        onClick: () => onStartTool(definition.kind),
+        onPointerDown: toolDragHandler(definition.kind, disabled),
+      };
+    }),
     ...(leasedTools.has("backgroundTasks")
       ? []
       : [

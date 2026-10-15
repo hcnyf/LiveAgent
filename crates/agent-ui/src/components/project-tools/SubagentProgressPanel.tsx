@@ -1,39 +1,19 @@
 import { formatElapsedTime } from "@liveagent/ui/components/chat/AssistantWorkTrace";
 import { Bot } from "@liveagent/ui/components/IconSet";
 import { useLocale } from "@liveagent/ui/i18n/index";
-import type {
+import { cn } from "@liveagent/ui/lib/shared/utils";
+import { useSubagentProgress } from "@liveagent/ui/lib/subagents/progressContext";
+import type { SubagentProgressEntry } from "@liveagent/ui/lib/subagents/progressGroups";
+import { useEffect, useRef, useState } from "react";
+
+export { SubagentProgressProvider } from "@liveagent/ui/lib/subagents/progressContext";
+export type {
   SubagentProgressEntry,
+  SubagentProgressGroup,
   SubagentProgressValue,
 } from "@liveagent/ui/lib/subagents/progressGroups";
-import { cn } from "@liveagent/ui/lib/shared/utils";
-import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 
-export type { SubagentProgressEntry, SubagentProgressGroup } from "@liveagent/ui/lib/subagents/progressGroups";
-
-const EMPTY: SubagentProgressValue = { groups: [] };
-
-const SubagentProgressContext = createContext<SubagentProgressValue>(EMPTY);
-
-export function useSubagentProgress(): SubagentProgressValue {
-  return useContext(SubagentProgressContext);
-}
-
-/**
- * 子代理进度数据的注入点。数据是**桌面端独有**的（来自 liveTranscriptStore 与会话行），
- * 所以放在这里由宿主提供，而不是塞进 RightDockContext——WebUI 不提供时面板走空状态。
- */
-export function SubagentProgressProvider(props: {
-  value: SubagentProgressValue;
-  children: ReactNode;
-}) {
-  return (
-    <SubagentProgressContext.Provider value={props.value}>
-      {props.children}
-    </SubagentProgressContext.Provider>
-  );
-}
-
-/** 运行中的用时每秒走一次；没有运行中的子代理时不挂定时器。 */
+/** 运行中的用时每秒走一次；没有「带起点的运行中子代理」时不挂定时器。 */
 function useElapsedTick(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -60,8 +40,18 @@ function elapsedLabel(entry: SubagentProgressEntry, now: number): string {
 export function SubagentProgressPanel() {
   const { t } = useLocale();
   const { groups, focusedEntryId } = useSubagentProgress();
-  const running = groups.some((group) => group.entries.some((entry) => entry.running));
-  const now = useElapsedTick(running);
+  // 只有拿到起点的运行中子代理才需要每秒重算（当前宿主不编造起点，见
+  // useSubagentProgressValue）；否则这个定时器只会在没有任何可见变化时空转。
+  const ticking = groups.some((group) =>
+    group.entries.some((entry) => entry.running && entry.startedAtMs !== undefined),
+  );
+  const now = useElapsedTick(ticking);
+  const focusedRef = useRef<HTMLDivElement | null>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 聚焦行经 ref 读取，这里要的就是「聚焦目标变了就滚过去」。
+  useEffect(() => {
+    focusedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [focusedEntryId]);
 
   if (groups.length === 0) {
     return (
@@ -83,7 +73,9 @@ export function SubagentProgressPanel() {
             {/* 父节点：一次 Agent 调用 */}
             <div className="flex items-center gap-1.5 text-xs font-medium text-foreground/85">
               <Bot className="size-3 shrink-0 text-foreground/50" />
-              <span className="min-w-0 truncate">{group.label}</span>
+              <span className="min-w-0 truncate">
+                {group.label ?? t("projectTools.subagentsGroup")}
+              </span>
               <span className="shrink-0 text-muted-foreground/70">
                 {t("projectTools.subagentsCount").replace("{count}", String(group.entries.length))}
               </span>
@@ -93,6 +85,7 @@ export function SubagentProgressPanel() {
               {group.entries.map((entry) => (
                 <div
                   key={entry.id}
+                  ref={entry.id === focusedEntryId ? focusedRef : undefined}
                   data-subagent-entry={entry.id}
                   data-focused={entry.id === focusedEntryId ? "true" : undefined}
                   className={cn(

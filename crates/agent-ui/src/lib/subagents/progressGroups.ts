@@ -21,8 +21,12 @@ export type SubagentProgressEntry = {
 /** 一次 `Agent` 调用（父节点）fan-out 出来的全部子代理（子节点）。 */
 export type SubagentProgressGroup = {
   id: string;
-  /** 父节点文案：调用时的任务描述，取不到就退回父调用 id。 */
-  label: string;
+  /**
+   * 父节点文案。父 `Agent` 调用本身在会话里是被折叠掉的（只留 fan-out 出来的
+   * 卡片），所以宿主通常拿不到它的一句话描述；拿不到时留空，由渲染方决定退
+   * 回文案，绝不把内部调用 id 当作标题显示给用户。
+   */
+  label?: string;
   entries: SubagentProgressEntry[];
 };
 
@@ -32,6 +36,19 @@ export type SubagentProgressValue = {
   onOpenSubagent?: (entryId: string) => void;
   /** 面板里当前聚焦的子代理（宿主传入，用于高亮）。 */
   focusedEntryId?: string;
+};
+
+/**
+ * 持久化运行态的实时快照。子代理每过一个回合边界就会把自己的
+ * `status/roundCount/toolCallCount/startedAt` 落盘，但**不发事件**，所以宿主只能按
+ * 轮询拿到它；有就传，没有就退化为卡片自带的信息（终态报告 + 是否在跑）。
+ */
+export type SubagentLiveRun = {
+  status?: string;
+  /** 权威开始时刻：运行中的用时按它现算，而不是由宿主猜一个。 */
+  startedAtMs?: number;
+  rounds?: number;
+  toolCalls?: number;
 };
 
 /** 进度面板的输入：只描述「卡片」这一层，与工具块的完整结构解耦。 */
@@ -47,6 +64,8 @@ export type SubagentProgressCardInput = {
   startedAtMs?: number;
   /** 父 `Agent` 调用的一句话描述，宿主能拿到就传。 */
   parentLabel?: string;
+  /** 持久化运行态快照（见 SubagentLiveRun），终态报告还没到时的数字来源。 */
+  run?: SubagentLiveRun;
 };
 
 const SUBAGENT_CARD_ID_MARKER = ":agent:";
@@ -84,8 +103,9 @@ function count(value: unknown): number | undefined {
  *
  * 分组键是卡片 id 的前缀，所以同一个父调用的子代理自然聚在一起，并保持出现顺序。
  * 文案优先取结果里的 `details.agent`（有 status/durationMs/rounds/toolCalls），卡片还在
- * 跑时退回 toolCall 的 arguments（只有 name/id/prompt）——这正是「浅层进度」能拿到的全部，
- * 子代理内部逐次工具调用没有回流父会话，这里不编造。
+ * 跑时退回持久化运行态快照（`card.run`，有 status/rounds/toolCalls/startedAt），再退回
+ * toolCall 的 arguments（只有 name/id/prompt）。子代理内部逐次工具调用没有回流父会话，
+ * 这里不编造。父节点的 `label` 只有宿主给了才有。
  */
 export function buildSubagentProgressGroups(
   cards: readonly SubagentProgressCardInput[],
@@ -96,6 +116,7 @@ export function buildSubagentProgressGroups(
     const args = card.arguments ?? {};
     const details = record(card.details);
     const agent = record(details.agent);
+    const run = card.run ?? {};
     const parentId = subagentParentId(card.id);
 
     const entry: SubagentProgressEntry = {
@@ -103,12 +124,13 @@ export function buildSubagentProgressGroups(
       name: text(agent.name) ?? text(args.name) ?? text(args.id) ?? parentId,
       role: text(agent.role) ?? text(args.role),
       task: text(agent.prompt) ?? text(args.prompt),
-      status: text(agent.status) ?? (card.running ? "running" : ""),
+      // 终态报告 > 持久化运行态 > 「在跑」这个事实本身。
+      status: text(agent.status) ?? text(run.status) ?? (card.running ? "running" : ""),
       running: card.running,
-      startedAtMs: card.startedAtMs,
+      startedAtMs: card.startedAtMs ?? count(run.startedAtMs),
       durationMs: count(agent.durationMs),
-      rounds: count(agent.rounds),
-      toolCalls: count(agent.toolCalls),
+      rounds: count(agent.rounds) ?? count(run.rounds),
+      toolCalls: count(agent.toolCalls) ?? count(run.toolCalls),
       index: count(details.index) ?? 0,
       total: count(details.total) ?? 1,
     };
@@ -120,7 +142,7 @@ export function buildSubagentProgressGroups(
     }
     groups.set(parentId, {
       id: parentId,
-      label: text(card.parentLabel) ?? parentId,
+      label: text(card.parentLabel),
       entries: [entry],
     });
   }
