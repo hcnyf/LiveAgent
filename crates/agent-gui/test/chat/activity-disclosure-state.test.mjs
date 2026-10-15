@@ -121,13 +121,14 @@ const toolItem = {
   toolResult: { isError: false },
 };
 
-function renderToolTrace(root, running, items = [toolItem], showTurnStatus = false) {
+function renderToolTrace(root, running, items = [toolItem], showTurnStatus = false, active = false) {
   act(() => {
     root.render(
       React.createElement(ToolTraceGroup, {
         items,
         runningToolCallIds: running ? items.map((item) => item.toolCall.id) : [],
         showTurnStatus,
+        active,
       }),
     );
   });
@@ -309,26 +310,94 @@ test("a new blocking interaction opens the work trace once without stealing late
   act(() => root.unmount());
 });
 
+test("a running tool batch expands like reasoning and folds once it settles", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+
+  renderToolTrace(root, true);
+  const button = container.querySelector("button");
+  assert.equal(button.getAttribute("aria-expanded"), "true");
+
+  renderToolTrace(root, false);
+  assert.equal(button.getAttribute("aria-expanded"), "false");
+
+  act(() => root.unmount());
+});
+
+test("a live tool batch stays expanded until the model writes again", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+
+  // 尾巴上的批次：工具都跑完了也保持展开——收起的时机是「模型有输出」，否则相邻两批
+  // 工具之间的模型往返会让明细反复折叠又展开。
+  renderToolTrace(root, false, [toolItem], false, true);
+  assert.equal(container.querySelector("button").getAttribute("aria-expanded"), "true");
+
+  // 模型写出正文：这一批翻篇，收起。
+  renderToolTrace(root, false, [toolItem], false, false);
+  assert.equal(container.querySelector("button").getAttribute("aria-expanded"), "false");
+
+  act(() => root.unmount());
+});
+
 test("manual tool-batch disclosure survives tool completion and restart", () => {
   const container = document.createElement("div");
   const root = createRoot(container);
 
   renderToolTrace(root, true);
   const button = container.querySelector("button");
+  click(button);
   assert.equal(button.getAttribute("aria-expanded"), "false");
 
-  click(button);
-  assert.equal(button.getAttribute("aria-expanded"), "true");
-
+  // 手动收起后，运行态来回切换都不再抢走控制权。
   renderToolTrace(root, false);
-  assert.equal(button.getAttribute("aria-expanded"), "true");
+  assert.equal(button.getAttribute("aria-expanded"), "false");
   renderToolTrace(root, true);
-  assert.equal(button.getAttribute("aria-expanded"), "true");
+  assert.equal(button.getAttribute("aria-expanded"), "false");
 
   click(button);
-  assert.equal(button.getAttribute("aria-expanded"), "false");
+  assert.equal(button.getAttribute("aria-expanded"), "true");
   renderToolTrace(root, false);
-  assert.equal(button.getAttribute("aria-expanded"), "false");
+  assert.equal(button.getAttribute("aria-expanded"), "true");
+
+  act(() => root.unmount());
+});
+
+test("the work-trace disclosure setting also drives tool batches", () => {
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const { WorkTraceDisclosureProvider } = env.loadModule(
+    "@liveagent/ui/components/chat/WorkTraceDisclosureContext.tsx",
+  );
+
+  const renderWithSetting = (value, running) => {
+    act(() => {
+      root.render(
+        React.createElement(WorkTraceDisclosureProvider, {
+          value,
+          children: React.createElement(ToolTraceGroup, {
+            items: [toolItem],
+            runningToolCallIds: running ? [toolItem.toolCall.id] : [],
+          }),
+        }),
+      );
+    });
+  };
+  const expanded = () => container.querySelector("button").getAttribute("aria-expanded");
+
+  // collapsed：进行中也不展开。
+  renderWithSetting("collapsed", true);
+  assert.equal(expanded(), "false");
+
+  // expanded：落定后仍然展开。
+  renderWithSetting("expanded", false);
+  assert.equal(expanded(), "true");
+
+  // active（默认）：进行中展开，落定后收起。
+  renderWithSetting("active", true);
+  assert.equal(expanded(), "true");
+  renderWithSetting("active", false);
+  assert.equal(expanded(), "false");
 
   act(() => root.unmount());
 });
@@ -428,7 +497,8 @@ test("a running tool batch names the current operation and caps its expanded hei
   assert.match(button.textContent, /正在读取 App\.tsx/);
   assert.match(button.textContent, /运行中/);
 
-  click(button);
+  // 运行中的批默认就是展开的，正文直接可见。
+  assert.equal(button.getAttribute("aria-expanded"), "true");
   const scrollRegion = container.querySelector("[data-tool-trace-scroll]");
   assert.match(scrollRegion.className, /max-h-400px/);
   assert.match(scrollRegion.className, /overflow-y-auto/);

@@ -505,6 +505,27 @@ export function segmentWorkEntries(
 }
 
 /**
+ * 活回合里「模型还没有写出东西」的那一截 work entry：从末尾往前扫，遇到正文或压缩
+ * 里程碑就停。
+ *
+ * 与 `segmentWorkEntries` 的 `hasOutputAfter` 同一口径，区别只是按 entry 给而不是按
+ * 段给——单条 entry 的段（例如夹在两次输出之间的孤零零一批工具）不会包概括条，拿不到
+ * `hasOutputAfter`，但工具批次同样需要这条判据来决定默认展开。
+ */
+export function resolveActiveWorkTailKeys(
+  entries: readonly AssistantTurnLayoutEntry[],
+): ReadonlySet<string> {
+  const keys = new Set<string>();
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (!entry) continue;
+    if (entry.block.kind === "text" || entry.block.kind === "checkpoint") break;
+    keys.add(entry.key);
+  }
+  return keys;
+}
+
+/**
  * 概括条文案：「N 次工具调用｜N 次思考｜N 次搜索」，零计数的类别不出现在串里。
  * 分隔符与工具批次同一口径（中文全角、英文半角竖线）。
  */

@@ -22,6 +22,7 @@ import {
   isBuiltinShareToolName,
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
+  resolveActiveWorkTailKeys,
   resolveAssistantTurnLayout,
   segmentWorkEntries,
 } from "./assistantBubbleUtils";
@@ -36,6 +37,9 @@ const EMPTY_RUNNING_TOOL_CALL_IDS: string[] = [];
 /** 稳定空引用：让 `previewArtifacts` 的 useMemo 不会每次渲染都换新数组。 */
 const EMPTY_PREVIEW_ITEMS: ToolTraceItem[] = [];
 
+/** 稳定空引用：非活回合没有「尾巴」，不必每次渲染都建一个空 Set。 */
+const EMPTY_WORK_TAIL_KEYS: ReadonlySet<string> = new Set();
+
 export const RoundBlockContent = memo(function RoundBlockContent(props: {
   block: GroupedRoundBlock;
   isLive: boolean;
@@ -46,6 +50,8 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
   /** Transcript-stable entry key; block ids alone repeat across rounds. */
   traceKey?: string;
   showTurnStatus?: boolean;
+  /** 这一段之后模型还没有写出东西（活回合的尾巴）；工具批次据此默认展开。 */
+  activeWorkTail?: boolean;
   readOnly?: boolean;
   redactToolContent?: boolean;
   workdir?: string;
@@ -60,6 +66,7 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
     isLatestThinking,
     traceKey,
     showTurnStatus = false,
+    activeWorkTail = false,
     readOnly = false,
     redactToolContent = false,
     workdir,
@@ -116,6 +123,7 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
         redactToolContent={redactToolContent}
         onOpenFileLink={onOpenFileLink}
         showTurnStatus={showTurnStatus}
+        active={activeWorkTail}
       />
     );
   } else if (block.kind === "hostedSearch" || block.kind === "hostedSearchGroup") {
@@ -250,6 +258,12 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
     return null;
   }, [layout.work]);
   const activeThinkingKey = running ? resolveActiveThinkingEntryKey(layout.work) : null;
+  // 工具批次和思考一样按「这段之后模型还没输出」判断是否还在进行；非活回合没有尾巴，
+  // 历史记录里的批次照旧收起。
+  const activeWorkTailKeys = useMemo(
+    () => (running ? resolveActiveWorkTailKeys(layout.work) : EMPTY_WORK_TAIL_KEYS),
+    [running, layout.work],
+  );
   const collapsedTailEntry = running ? resolveActiveWorkEntry(layout.work) : null;
   const showWorkTrace = running || layout.work.length > 0;
   // 回合落定后思考过程照旧收起；可预览产物改由答案下方独立一行承载（见
@@ -283,6 +297,7 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
       isLatestThinking={entry.key === activeThinkingKey}
       traceKey={entry.key}
       showTurnStatus={insideWorkTrace && running && entry.key === latestToolGroupKey}
+      activeWorkTail={activeWorkTailKeys.has(entry.key)}
       readOnly={readOnly}
       redactToolContent={redactToolContent}
       workdir={workdir}

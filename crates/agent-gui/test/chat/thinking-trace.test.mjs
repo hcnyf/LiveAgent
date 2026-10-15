@@ -56,6 +56,15 @@ test("collapsing the live work trace re-homes the active block below the header"
   );
 });
 
+test("a live tool batch expands like reasoning until the model writes again", () => {
+  // 工具批次此前恒为收起，于是同一条概括条里「思考展开了、工具没展开」。判据与概括条
+  // 的 hasOutputAfter 同一口径（这段之后模型还没输出），两个表面各接一次。
+  assert.match(utilsSource, /export function resolveActiveWorkTailKeys\(/);
+  assert.match(toolTraceSource, /: active \|\| counts\.running > 0;/);
+  assert.match(roundContentSource, /activeWorkTail=\{activeWorkTailKeys\.has\(entry\.key\)\}/);
+  assert.match(guiBubbleSource, /activeWorkTail=\{activeWorkTailKeys\.has\(entry\.key\)\}/);
+});
+
 test("one persistent sparkle marks the live turn; textual fillers are gone", () => {
   assert.match(
     roundContentSource,

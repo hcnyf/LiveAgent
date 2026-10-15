@@ -1,12 +1,12 @@
 import { retainRunningToolContent } from "@liveagent/adapters/assistantBubble";
 import { AssistantStatus } from "@liveagent/ui/components/chat/AssistantStatus";
 import { LazyCollapse } from "@liveagent/ui/components/chat/LazyCollapse";
-import { useAttentionDisclosure } from "@liveagent/ui/components/chat/useAttentionDisclosure";
+import { useWorkTraceDisclosure } from "@liveagent/ui/components/chat/WorkTraceDisclosureContext";
 import { useLocale } from "@liveagent/ui/i18n/index";
 import type { ToolTraceItem } from "@liveagent/ui/lib/chat/assistantBubbleAdapter";
 import type { ChatFileLink } from "@liveagent/ui/lib/chat/chatFileLinks";
 import { cn } from "@liveagent/ui/lib/shared/utils";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Bot,
   ChevronRight,
@@ -139,6 +139,12 @@ function ToolTraceGroupInner(props: {
   redactToolContent?: boolean;
   onOpenFileLink?: (link: ChatFileLink) => void;
   showTurnStatus?: boolean;
+  /**
+   * 这一段之后模型还没有写出东西（活回合的尾巴）。`active` 档据此展开，与概括条的
+   * `hasOutputAfter` 同一口径——收起的时机是「模型有输出」，而不是「这批工具跑完了」，
+   * 否则相邻两批工具之间的模型往返会让明细反复折叠又展开。
+   */
+  active?: boolean;
 }) {
   const {
     items,
@@ -147,6 +153,7 @@ function ToolTraceGroupInner(props: {
     redactToolContent = false,
     onOpenFileLink,
     showTurnStatus = false,
+    active = false,
   } = props;
   const { locale, t } = useLocale();
   const counts = useMemo(
@@ -158,7 +165,25 @@ function ToolTraceGroupInner(props: {
     () => hasActiveUserInteraction(items, runningToolCallIds),
     [items, runningToolCallIds],
   );
-  const [open, setOpen] = useAttentionDisclosure(attentionRequired);
+  const disclosure = useWorkTraceDisclosure();
+  const [manual, setManual] = useState<boolean | null>(null);
+  // 与 useAttentionDisclosure 同一契约：新出现的阻塞式交互（未应答的提问、待批准的
+  // 工具）强制展开一次，此后不再与用户的手动收起对抗。
+  const [attentionOpened, setAttentionOpened] = useState(attentionRequired);
+  useEffect(() => {
+    if (attentionRequired) setAttentionOpened(true);
+  }, [attentionRequired]);
+
+  // 与思考区块同一套默认语义：正在跑的这一批展开，落定后收起——此前这里恒为收起，
+  // 于是同一条概括条里「思考展开了、工具没展开」。三档设置
+  // （`system.workTraceDisclosure`）在工具组上同样生效；手动点过之后以手动为准。
+  const autoExpanded =
+    disclosure === "expanded"
+      ? true
+      : disclosure === "collapsed"
+        ? false
+        : active || counts.running > 0;
+  const open = manual ?? (attentionOpened || autoExpanded);
 
   // The latest live batch drops the count prefix ("运行中" instead of
   // "1 运行中"), nothing more. Idle phases render no filler status here:
@@ -200,7 +225,7 @@ function ToolTraceGroupInner(props: {
           "rounded-lg px-1.5 py-1",
           "text-left text-sm font-[450] text-foreground/60 transition-colors duration-150 hover:bg-foreground/[0.04] hover:text-foreground/75",
         )}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => setManual(!open)}
       >
         <BatchIcon className="size-3 shrink-0 text-foreground/45" />
         <span className="min-w-0 truncate">{headerLabel}</span>
@@ -273,6 +298,7 @@ export const ToolTraceGroup = memo(
     previous.readOnly === next.readOnly &&
     previous.redactToolContent === next.redactToolContent &&
     previous.showTurnStatus === next.showTurnStatus &&
+    previous.active === next.active &&
     previous.onOpenFileLink === next.onOpenFileLink &&
     previous.items.length === next.items.length &&
     previous.items.every(

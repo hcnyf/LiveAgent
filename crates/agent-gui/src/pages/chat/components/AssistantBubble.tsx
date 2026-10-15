@@ -6,6 +6,7 @@ import {
   formatWorkCountsLabel,
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
+  resolveActiveWorkTailKeys,
   segmentWorkEntries,
 } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import { RoundBlockContent } from "@liveagent/ui/components/chat/assistant-bubble/RoundContent";
@@ -16,6 +17,9 @@ import type { ChatFileLink } from "@liveagent/ui/lib/chat/chatFileLinks";
 import { Fragment, memo } from "react";
 import type { RetryAttemptRecord } from "../../../lib/chat/conversation/liveTranscriptStore";
 import type { AssistantUnitRow } from "../transcript/rowModel";
+
+/** 稳定空引用：非活回合没有「尾巴」，不必每次渲染都建一个空 Set。 */
+const EMPTY_WORK_TAIL_KEYS: ReadonlySet<string> = new Set();
 
 export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
   row: AssistantUnitRow;
@@ -45,6 +49,11 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
     unit.kind === "work-trace" && row.live ? resolveActiveThinkingEntryKey(workEntries) : null;
   const collapsedTailEntry =
     unit.kind === "work-trace" && row.live ? resolveActiveWorkEntry(workEntries) : null;
+  // 工具批次与思考同一口径：这段之后模型还没输出就算「还在进行」，默认展开。
+  const activeWorkTailKeys =
+    unit.kind === "work-trace" && row.live
+      ? resolveActiveWorkTailKeys(workEntries)
+      : EMPTY_WORK_TAIL_KEYS;
   // 两次输出之间的过程收成概括条；正文与压缩里程碑留在条外可见。
   const workSegments = segmentWorkEntries(workEntries, {
     activeKey: collapsedTailEntry?.key ?? null,
@@ -63,6 +72,7 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
       showTurnStatus={
         row.live && unit.kind === "work-trace" && entry.key === unit.latestToolGroupKey
       }
+      activeWorkTail={activeWorkTailKeys.has(entry.key)}
       workdir={workdir}
       onOpenFileLink={onOpenFileLink}
     />
