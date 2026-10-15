@@ -208,3 +208,12 @@ test("thinking durations settle once and stay stable across reads", () => {
   // A segment never observed streaming (history reload) has no duration.
   assert.equal(resolveThinkingDurationMs("seg-2", false, 9_000), null);
 });
+
+test("a key reused by the next turn measures that turn instead of the previous one", () => {
+  // 回合键按轮计数，于是每轮第一段思考复用同一个键。
+  assert.equal(resolveThinkingDurationMs("reuse:r1:thinking-1", true, 1_000), null);
+  assert.equal(resolveThinkingDurationMs("reuse:r1:thinking-1", false, 5_000), 4_000);
+  // 下一轮必须重新起表，而不是继续把上一轮测出来的 4s 当成这一轮的。
+  assert.equal(resolveThinkingDurationMs("reuse:r1:thinking-1", true, 60_000), null);
+  assert.equal(resolveThinkingDurationMs("reuse:r1:thinking-1", false, 62_500), 2_500);
+});

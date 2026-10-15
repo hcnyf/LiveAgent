@@ -30,7 +30,13 @@ export function resolveThinkingDurationMs(
   now = Date.now(),
 ): number | null {
   if (active) {
-    if (!settledDurations.has(key) && !startedAt.has(key)) {
+    // 键会被**跨轮复用**：回合键按轮计数，于是每一轮的第一段思考都叫同一个名字
+    // （如 `r1:thinking-1`）。若该键上一轮已经结算过，必须先丢掉那个陈旧值再重新
+    // 起表——否则这一轮的首次思考不会重新计时，结算时会直接把上一轮测出来的用时
+    // 当成这一轮的（表现为每轮首次思考固定显示同一个错误时长）。
+    // 重起表仍然只在「未在计时」时发生，所以同一次渲染内的重复调用依旧幂等。
+    settledDurations.delete(key);
+    if (!startedAt.has(key)) {
       startedAt.set(key, now);
       trimOldest(startedAt);
     }
