@@ -1012,6 +1012,17 @@ export function ToolResultDisplay({
       { label: "agent", value: `${details.index + 1}/${details.total}` },
       { label: "status", value: agent.status },
     ];
+    // 这三个数字协议里一直带着，界面却从不显示——「子代理跑到哪了」最直接的答案。
+    if (Number.isFinite(agent.durationMs)) {
+      const totalSeconds = Math.max(1, Math.round(agent.durationMs / 1000));
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      tags.push({ label: "took", value: minutes > 0 ? `${minutes}m${seconds}s` : `${seconds}s` });
+    }
+    if (Number.isFinite(agent.rounds)) tags.push({ label: "rounds", value: String(agent.rounds) });
+    if (Number.isFinite(agent.toolCalls)) {
+      tags.push({ label: "tools", value: String(agent.toolCalls) });
+    }
     if (agent.mode === "worktree") {
       tags.push({ label: "mode", value: agent.mode });
     }
