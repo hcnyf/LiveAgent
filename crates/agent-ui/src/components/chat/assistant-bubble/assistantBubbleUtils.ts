@@ -431,7 +431,19 @@ export function countWorkEntries(entries: readonly AssistantTurnLayoutEntry[]): 
 }
 
 export type WorkSegment =
-  | { kind: "process"; key: string; entries: AssistantTurnLayoutEntry[]; running: boolean }
+  | {
+      kind: "process";
+      key: string;
+      entries: AssistantTurnLayoutEntry[];
+      /** 这一段里含当前正在进行的活动（用于标题的 shimmer）。 */
+      running: boolean;
+      /**
+       * 这一段之后模型已经写出过东西（正文或压缩里程碑）。`active` 档据此收起：
+       * 收起的时机是「模型有输出」，而不是「这一段的活动跑完了」——后者会让
+       * 还在跑的思考/工具链中途就被折起来。
+       */
+      hasOutputAfter: boolean;
+    }
   | { kind: "entry"; key: string; entry: AssistantTurnLayoutEntry };
 
 /**
@@ -466,6 +478,7 @@ export function segmentWorkEntries(
       key: `process:${group[0]?.key ?? segments.length}`,
       entries: group,
       running: activeKey !== null && group.some((entry) => entry.key === activeKey),
+      hasOutputAfter: false,
     });
   };
 
@@ -478,6 +491,15 @@ export function segmentWorkEntries(
     pending.push(entry);
   }
   flush();
+
+  // 反向扫一遍定稿：后面还有模型输出（正文/里程碑）的过程段才算「已翻篇」。
+  let sawOutput = false;
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index];
+    if (!segment) continue;
+    if (segment.kind === "process") segment.hasOutputAfter = sawOutput;
+    else sawOutput = true;
+  }
 
   return segments;
 }

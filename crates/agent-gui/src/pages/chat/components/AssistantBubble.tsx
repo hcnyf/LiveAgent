@@ -106,6 +106,7 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
                   key={segment.key}
                   label={formatWorkCountsLabel(countWorkEntries(segment.entries), t, locale)}
                   running={segment.running}
+                  hasOutputAfter={segment.hasOutputAfter}
                 >
                   {segment.entries.map((entry) => renderWorkEntry(entry))}
                 </WorkProcessRow>

@@ -59,6 +59,9 @@ const SYSTEM_NOTIFICATIONS_KEY: &str = "notifications";
 // 上下文自动压缩触发线（占 contextWindow 的百分比，10–99）。机器无关偏好，纳入
 // 备份可移植白名单；漏进保存白名单就会在重启后静默回落到前端默认 80。
 const SYSTEM_AUTO_COMPACT_THRESHOLD_PERCENT_KEY: &str = "autoCompactThresholdPercent";
+// 过程概括条（WorkProcessRow）的展开策略：active / expanded / collapsed。
+// 同样是机器无关偏好，漏进保存白名单就会在重启后静默回落到前端默认 active。
+const SYSTEM_WORK_TRACE_DISCLOSURE_KEY: &str = "workTraceDisclosure";
 // CUA 自指开关。默认 false —— cua-driver 的工具默认看不到、也点不到
 // LiveAgent 自己的窗口：让模型操作宿主界面等于让它能点掉自己的审批弹窗、
 // 改自己的设置、关掉自己。置 true 才解除（用 LiveAgent 自动化测试

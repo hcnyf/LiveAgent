@@ -100,15 +100,92 @@ pub fn clamp_window_to_visible_monitor(window: &WebviewWindow) -> tauri::Result<
         .map(monitor_work_area)
         .collect();
     let primary = window.primary_monitor()?.map(|monitor| monitor_work_area(&monitor));
-    if let Some((x, y)) = clamp_target(current, &monitors, primary) {
+    // 先处理「整块跑到屏幕外」（重定位到主屏中央），再把底边/右边收回工作区内。
+    let target =
+        clamp_target(current, &monitors, primary).or_else(|| clamp_into_work_area(current, &monitors));
+    if let Some((x, y)) = target {
         window.set_position(tauri::PhysicalPosition::new(x, y))?;
     }
     Ok(())
 }
 
+/// 与某块矩形的重叠面积（无重叠为 0）。
+fn overlap_area(left: Rect, right: Rect) -> i64 {
+    let width = (left.x + left.width).min(right.x + right.width) - left.x.max(right.x);
+    let height = (left.y + left.height).min(right.y + right.height) - left.y.max(right.y);
+    if width <= 0 || height <= 0 {
+        return 0;
+    }
+    i64::from(width) * i64::from(height)
+}
+
+/// 把窗口收进「与它重叠最多的那块工作区」。
+///
+/// 工作区（`rcWork`）已经排除任务栏。窗口底边越过它时，DWM 给窗口画的投影就会落在
+/// 任务栏上——任务栏是亚克力材质，压在上面的投影最显眼，用户报的「靠近底部时任务栏
+/// 被降低亮度」就是它。收边比让窗口整块消失温和：不动左上角，感知只是「被往上/
+/// 往左挪了几像素」。窗口比工作区还大时以左上角为准，不做无意义的负偏移。
+fn clamp_into_work_area(window: Rect, monitors: &[Rect]) -> Option<(i32, i32)> {
+    let best = monitors
+        .iter()
+        .max_by_key(|monitor| overlap_area(window, **monitor))?;
+    if overlap_area(window, *best) == 0 {
+        return None;
+    }
+    let mut x = window.x;
+    let mut y = window.y;
+    let max_right = best.x + best.width;
+    let max_bottom = best.y + best.height;
+    if x + window.width > max_right {
+        x = max_right - window.width;
+    }
+    if y + window.height > max_bottom {
+        y = max_bottom - window.height;
+    }
+    x = x.max(best.x);
+    y = y.max(best.y);
+    (x != window.x || y != window.y).then_some((x, y))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pulls_a_window_off_the_taskbar() {
+        // 工作区 1920x1040（底部 40px 是任务栏），窗口底边伸到 1100。
+        let monitor = Rect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1040,
+        };
+        let straddling = Rect {
+            x: 100,
+            y: 700,
+            width: 800,
+            height: 400,
+        };
+        assert_eq!(clamp_into_work_area(straddling, &[monitor]), Some((100, 640)));
+
+        // 已经在工作区内：一个像素都不动。
+        let inside = Rect {
+            x: 100,
+            y: 100,
+            width: 800,
+            height: 400,
+        };
+        assert_eq!(clamp_into_work_area(inside, &[monitor]), None);
+
+        // 窗口比工作区还大：以左上角为准，不做无意义的负偏移。
+        let taller = Rect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 2000,
+        };
+        assert_eq!(clamp_into_work_area(taller, &[monitor]), None);
+    }
 
     fn rect(x: i32, y: i32, width: i32, height: i32) -> Rect {
         Rect {

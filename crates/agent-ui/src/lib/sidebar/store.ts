@@ -196,11 +196,17 @@ export function createSidebarStore(
   let workspaceGeneration = 0;
   let workspaceDeleteVersion = 0;
   const workspaceDeletedIds = new Map<string, number>();
+  // 正在飞的工作目录请求按 cwd 记账。此前拿 `previous.loading` 兼作重入锁，而
+  // `loading` 同时是「转圈 / 置灰」的渲染输入，被后台对账复用后就成了闪烁来源；
+  // 拆开之后锁仍然精确，后台刷新不再点亮任何加载态。
+  const workspaceHistoryInFlight = new Set<string>();
+
   const loadWorkspaceHistory = async (cwd: string, more = false) => {
     const key = workspaceProjectPathKey(cwd);
     if (!key) return;
+    if (workspaceHistoryInFlight.has(key)) return;
+    workspaceHistoryInFlight.add(key);
     const previous = snapshot.workspaceHistory.get(key);
-    if (previous?.loading) return;
     const limit = previous?.error
       ? previous.requestedLimit
       : (previous?.limit ?? WORKSPACE_HISTORY_PAGE_SIZE) +
@@ -215,7 +221,9 @@ export function createSidebarStore(
       hasMore: previous?.hasMore ?? false,
       totalCount: previous?.totalCount ?? 0,
       loaded: previous?.loaded ?? false,
-      loading: true,
+      // 只有用户点的「加载更多」与首次加载才亮加载态；后台对账（每 60s 复用
+      // 同一个入口、more=false）静默，否则按钮会周期性转圈/变灰。
+      loading: more || !previous?.loaded,
       error: null,
     };
     // Child effects may ask for a project before the parent starts the store.
@@ -227,6 +235,7 @@ export function createSidebarStore(
           loading: false,
         }),
       });
+      workspaceHistoryInFlight.delete(key);
       return;
     }
     commit({ workspaceHistory: new Map(snapshot.workspaceHistory).set(key, loading) });
@@ -290,7 +299,9 @@ export function createSidebarStore(
           error: null,
         }),
       });
+      workspaceHistoryInFlight.delete(key);
     } catch (error) {
+      workspaceHistoryInFlight.delete(key);
       if (generation !== workspaceGeneration) return;
       commit({
         workspaceHistory: new Map(snapshot.workspaceHistory).set(key, {
@@ -561,6 +572,12 @@ export function createSidebarStore(
     if (startCount === 0) {
       return;
     }
+    // 用户点的「加载更多」还在飞时不打断它：后台对账只是补齐别处产生的变更，
+    // 晚一个 tick 没有任何损失；而它一进来就自增 generation，会把用户那一页
+    // 静默作废（列表不增长、也没有任何错误提示）。
+    if (!authoritative && loadMoreRequestToken !== null) {
+      return;
+    }
     if (listRequestInFlight) {
       queuedListRequest = {
         authoritative: (queuedListRequest?.authoritative ?? false) || authoritative,
@@ -604,13 +621,15 @@ export function createSidebarStore(
       return;
     }
     const hasRows = snapshot.conversations.length > 0;
-    commit({
-      listStatus: hasRows ? "syncing" : "loading",
-      // The new first page owns pagination truth now. An older loadMore may
-      // still settle at the transport layer, but its generation is stale and
-      // its UI/result commits are ignored below.
-      isLoadingMore: false,
-    });
+    if (authoritative) {
+      // 只有权威首屏（首次 / 切 scope）才对外宣告状态。后台对账（60s、重连）
+      // 数据没变也走这里，宣告一次就会把「正在同步…」胶囊与空态骨架每 60s
+      // 闪一下，同时把用户正在飞的「加载更多」转圈抹掉。
+      commit({
+        listStatus: hasRows ? "syncing" : "loading",
+        isLoadingMore: false,
+      });
+    }
     try {
       const page = await backend.listConversations(1, pageSize, requestScope);
       if (seq !== requestSeq || generation !== listGeneration || startCount === 0) {

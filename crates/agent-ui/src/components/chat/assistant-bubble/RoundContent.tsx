@@ -309,6 +309,7 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
                 key={segment.key}
                 label={formatWorkCountsLabel(countWorkEntries(segment.entries), t, locale)}
                 running={segment.running}
+                hasOutputAfter={segment.hasOutputAfter}
               >
                 {segment.entries.map((entry) => renderEntry(entry, true))}
               </WorkProcessRow>

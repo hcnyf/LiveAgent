@@ -35,6 +35,8 @@ const SYSTEM_PORTABLE_BACKUP_KEYS: &[&str] = &[
     SYSTEM_NOTIFICATIONS_KEY,
     // 自动压缩触发线同样是机器无关的用户偏好。
     SYSTEM_AUTO_COMPACT_THRESHOLD_PERCENT_KEY,
+    // 过程概括条的展开策略同理。
+    SYSTEM_WORK_TRACE_DISCLOSURE_KEY,
 ];
 
 /// 导出文件中内联 manifest 的字段名。

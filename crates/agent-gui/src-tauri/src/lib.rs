@@ -892,89 +892,43 @@ fn configure_system_tray(app: &tauri::App) -> tauri::Result<()> {
 fn configure_windows_window_chrome(app: &tauri::App) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window.set_decorations(false)?;
-        apply_windows_window_chrome(&window);
-        install_windows_rounded_region_refresh(&window);
+        apply_windows_rounded_corners(&window);
     }
 
     Ok(())
 }
 
-/// 主窗口的无边框外观：先关掉 DWM 的非客户区渲染（投影），再自己把窗口裁成圆角。
+/// 主窗口四角圆角：用回 DWM 的原生圆角偏好（抗锯齿、文字也不受影响）。
 ///
-/// `"shadow": false` 在 Windows 上是空转——tao 只把它映射成「是否给投影预留 frame
-/// insets」，顶层窗口始终保留 `WS_CAPTION`，DWM 照旧画 frame。那圈投影会落在窗口
-/// 之外（贴近任务栏时正好压在任务栏上），观感就是「任务栏被压暗」。真正能停掉它的
-/// 只有 `DWMWA_NCRENDERING_POLICY = DWMNCRP_DISABLED`。
+/// 试过 `DWMWA_NCRENDERING_POLICY=DWMNCRP_DISABLED` + `SetWindowRgn` 自裁圆角
+/// （为了彻底去掉 DWM 投影），但 1 位图区域没有抗锯齿，阶梯感比原生明显得多，
+/// 所以退回原生：圆角与投影同属 DWM frame，只能一起要。
 ///
-/// 代价：frame 不画了，`DWMWA_WINDOW_CORNER_PREFERENCE` 的圆角也随之消失（圆角本
-/// 就是 frame 的一部分）。所以圆角改成自己裁——`SetWindowRgn` 把窗口本身裁成圆角
-/// 矩形，区域之外的像素根本不画，透出桌面/任务栏，不需要透明窗口。
-///
-/// 区域由系统接管（不能 DeleteObject），且尺寸变化后必须重算，见
-/// `refresh_windows_rounded_region` 与 `install_windows_rounded_region_refresh`。
+/// 「尽可能减少阴影」落在两处：① 本函数只做圆角、不再额外叠加任何边框色；
+/// ② `window_geometry` 把还原的窗口位置钳进工作区，投影不会落到任务栏上
+/// （任务栏是亚克力材质，压在上面的投影最显眼）。
 #[cfg(target_os = "windows")]
-fn apply_windows_window_chrome(window: &tauri::WebviewWindow) {
+fn apply_windows_rounded_corners(window: &tauri::WebviewWindow) {
     use windows_sys::Win32::Graphics::Dwm::{
-        DWMNCRP_DISABLED, DWMWA_NCRENDERING_POLICY, DwmSetWindowAttribute,
+        DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND, DwmSetWindowAttribute,
     };
 
     let Ok(hwnd) = window.hwnd() else {
         return;
     };
-    let policy = DWMNCRP_DISABLED;
-    // windows-sys 把 `dwattribute` 声明成 u32，而常量是 i32 的 `DWMWINDOWATTRIBUTE`；
-    // 2 落在 u32 范围内，直接转。返回值刻意忽略：老系统不认就保持原样，绝不 panic。
+    let preference = DWMWCP_ROUND;
     let _ = unsafe {
         DwmSetWindowAttribute(
             hwnd.0,
-            DWMWA_NCRENDERING_POLICY as u32,
-            &policy as *const _ as *const core::ffi::c_void,
-            std::mem::size_of_val(&policy) as u32,
+            // windows-sys 把 `dwattribute` 声明成 u32，而常量是 i32 的
+            // `DWMWINDOWATTRIBUTE`；33 落在 u32 范围内，直接转。返回值刻意忽略：
+            // 老系统不认就保持直角，绝不 panic。
+            DWMWA_WINDOW_CORNER_PREFERENCE as u32,
+            &preference as *const _ as *const core::ffi::c_void,
+            std::mem::size_of_val(&preference) as u32,
         )
     };
-    refresh_windows_rounded_region(window);
-}
-
-/// 窗口圆角半径（物理像素）。比输入卡片自身的 18px 更收一点，符合「小幅圆角」；
-/// 也刻意压小——`SetWindowRgn` 是 1 位图区域，半径越大阶梯感越明显。
-#[cfg(target_os = "windows")]
-const WINDOW_CORNER_RADIUS_PX: i32 = 8;
-
-/// 把窗口区域裁成圆角矩形。`SetWindowRgn` 之后区域句柄归系统所有，不能再释放。
-#[cfg(target_os = "windows")]
-fn refresh_windows_rounded_region(window: &tauri::WebviewWindow) {
-    use windows_sys::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
-
-    let Ok(hwnd) = window.hwnd() else {
-        return;
-    };
-    let Ok(size) = window.inner_size() else {
-        return;
-    };
-    let (width, height) = (size.width as i32, size.height as i32);
-    if width <= 0 || height <= 0 {
-        return;
-    }
-    // CreateRoundRectRgn 的右下角是闭区间，各 +1 才铺满整窗。
-    let diameter = WINDOW_CORNER_RADIUS_PX * 2;
-    let region = unsafe { CreateRoundRectRgn(0, 0, width + 1, height + 1, diameter, diameter) };
-    if region.is_null() {
-        return;
-    }
-    let _ = unsafe { SetWindowRgn(hwnd.0, region, 1) };
-}
-
-/// 缩放/最大化后重算圆角区域；否则窗口会退回到上一次的裁剪形状。
-#[cfg(target_os = "windows")]
-fn install_windows_rounded_region_refresh(window: &tauri::WebviewWindow) {
-    let handle = window.clone();
-    window.on_window_event(move |event| {
-        if matches!(event, tauri::WindowEvent::Resized(_)) {
-            refresh_windows_rounded_region(&handle);
-        }
-    });
-}
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
+}#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 最早期钩子:若本进程是 Windows 沙箱的自我再执行启动器(__sandbox_exec),
     // 就在此建立受限令牌并运行真实命令,以其退出码退出——绝不继续初始化 Tauri。

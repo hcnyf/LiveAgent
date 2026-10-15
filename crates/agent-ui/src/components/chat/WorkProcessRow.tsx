@@ -21,13 +21,20 @@ export const WorkProcessRow = memo(function WorkProcessRow(props: {
   label: string;
   /** 这一段里含当前正在进行的活动。 */
   running?: boolean;
+  /** 这一段之后模型已经写出过东西：`active` 档据此收起。 */
+  hasOutputAfter?: boolean;
   children: ReactNode;
 }) {
-  const { label, running = false, children } = props;
+  const { label, running = false, hasOutputAfter = false, children } = props;
   const disclosure = useWorkTraceDisclosure();
   const [manual, setManual] = useState<boolean | null>(null);
   const autoExpanded =
-    disclosure === "expanded" ? true : disclosure === "collapsed" ? false : running;
+    disclosure === "expanded"
+      ? true
+      : disclosure === "collapsed"
+        ? false
+        : // active：收起的时机是「模型有输出」，不是「这一段的活动跑完了」。
+          !hasOutputAfter;
   const expanded = manual ?? autoExpanded;
 
   return (
