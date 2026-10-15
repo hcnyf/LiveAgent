@@ -935,6 +935,13 @@ pub fn run() {
     // 非 Windows 平台为空操作。
     runtime::windows_sandbox::run_sandbox_launcher_if_requested();
 
+    // Redirection Guard 自愈:被提权进程(安装器/被动更新)拉起的实例会带上该策略,
+    // 整棵子进程树因而拒绝穿越任何 reparse point(pnpm 的 node_modules 全是 junction)。
+    // 进程无法自行降级,只能借 shell 换一个干净的创建者。必须早于窗口创建——用户
+    // 看不到白屏或窗口跳动。非 Windows 平台为空操作。
+    // 详见 runtime/redirection_guard.rs 的模块注释。
+    runtime::redirection_guard::ensure_clean_relaunch();
+
     // 日程快照的 timeZone 取全局默认时区(设置 → 通用),须在打开日程库之前安装。
     services::planning::time::set_default_zone_resolver(Arc::new(
         commands::settings::load_runtime_default_time_zone,
