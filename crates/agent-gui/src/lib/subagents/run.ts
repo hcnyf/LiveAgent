@@ -102,7 +102,9 @@ function buildWorktreeLabel(params: {
     : "session";
   const call = sanitizeLabelPart(params.parentToolCallId, "call");
   const agent = sanitizeLabelPart(params.agentId, `agent-${params.index + 1}`);
-  return `${prefix}-${call}-${params.index + 1}-${agent}`;
+  // agent 名放在最前：后端会把这个标签截成 worktree 的目录名（目录名长度直接决定
+  // worktree 里每个文件的完整路径长度），截断后剩下的必须是最有信息量的那一段。
+  return `${agent}-${params.index + 1}-${call}-${prefix}`;
 }
 
 function isCancellation(error: unknown, signal?: AbortSignal) {

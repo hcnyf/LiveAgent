@@ -187,9 +187,11 @@ test("worktree lifecycle: create -> run -> status -> auto apply -> cleanup", asy
   assert.equal(harness.worktreeIpc.creates.length, 1);
   const createInput = harness.worktreeIpc.creates[0];
   assert.equal(createInput.workdir, "/tmp/liveagent-subagent-test");
-  assert.match(createInput.label, /^parent-session-call-agent-1-fixer$/);
+  // agent 名在前：后端会把标签截成 worktree 的目录名，截断后剩下的必须是最有
+  // 信息量的那一段（目录名长度直接决定 worktree 里每个文件的完整路径长度）。
+  assert.match(createInput.label, /^fixer-1-call-agent-parent-session$/);
 
-  const worktreeRoot = "/tmp/liveagent-worktrees/parent-session-call-agent-1-fixer";
+  const worktreeRoot = "/tmp/liveagent-worktrees/fixer-1-call-agent-parent-session";
   // Runner executed inside the worktree workdir with the child registry.
   assert.equal(harness.runnerCalls[0].workdir, worktreeRoot);
   // Status inspected, patch applied back to the parent workdir, then cleanup.

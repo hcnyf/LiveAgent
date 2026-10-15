@@ -20,6 +20,11 @@ fn git_command(cwd: &Path) -> Command {
 const DEFAULT_MAX_DIFF_CHARS: usize = 20_000;
 const MAX_DIFF_CHARS: usize = 80_000;
 const CREATE_WORKTREE_MAX_ATTEMPTS: usize = 8;
+/// worktree 目录名直接决定 worktree 里每个文件的完整路径长度（经典 Win32 路径上限
+/// 260），而分支名只占主仓 `.git` 下的一条 ref，长一点无所谓。所以目录名只取标签的
+/// 短前缀 + 唯一后缀：唯一性由后缀（毫秒 + uuid）保证，前缀只为人眼可辨。标签本身
+/// 是 `<agent>-<index>-<callId>-<sessionId>`，短前缀拿到的正是最有信息量的 agent 名。
+const WORKTREE_DIR_LABEL_MAX_CHARS: usize = 24;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -278,6 +283,10 @@ fn run_git_owned(cwd: &Path, args: Vec<String>) -> Result<String, String> {
     })
 }
 
+/// `fs::canonicalize` 在 Windows 上返回 `\\?\` verbatim 路径。verbatim 前缀会一路
+/// 传下去变成 git 的参数（`git worktree add \\?\C:\...` → `fatal: could not create
+/// leading directories ... Invalid argument`），所以在这里就换回经典形式；顺带让
+/// 「谁在谁里面」这类前缀比较（workdir vs repo root）在同一个形式下进行。
 fn canonicalize_git_path(cwd: &Path, raw: &str, label: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(raw.trim());
     let absolute = if path.is_absolute() {
@@ -285,12 +294,14 @@ fn canonicalize_git_path(cwd: &Path, raw: &str, label: &str) -> Result<PathBuf, 
     } else {
         cwd.join(path)
     };
-    fs::canonicalize(&absolute).map_err(|_| {
-        format!(
-            "{label} must resolve to an existing path: {}",
-            display_path(&absolute)
-        )
-    })
+    fs::canonicalize(&absolute)
+        .map(strip_windows_verbatim_prefix)
+        .map_err(|_| {
+            format!(
+                "{label} must resolve to an existing path: {}",
+                display_path(&absolute)
+            )
+        })
 }
 
 fn canonicalize_existing_dir(input: &str, label: &str) -> Result<PathBuf, String> {
@@ -303,6 +314,7 @@ fn canonicalize_existing_dir(input: &str, label: &str) -> Result<PathBuf, String
         return Err(format!("{label} must be an absolute path: {raw}"));
     }
     let canonical = fs::canonicalize(&path)
+        .map(strip_windows_verbatim_prefix)
         .map_err(|_| format!("{label} must be an existing directory: {raw}"))?;
     let metadata = fs::metadata(&canonical)
         .map_err(|_| format!("{label} must be an existing directory: {raw}"))?;
@@ -312,6 +324,16 @@ fn canonicalize_existing_dir(input: &str, label: &str) -> Result<PathBuf, String
     Ok(canonical)
 }
 
+/// 目录名用的短标签：截断后可能留下悬空的分隔符，去掉；全空就退回 `agent`。
+fn worktree_dir_label(label: &str) -> String {
+    let truncated: String = label.chars().take(WORKTREE_DIR_LABEL_MAX_CHARS).collect();
+    let trimmed = truncated.trim_end_matches(|ch| ch == '-' || ch == '.');
+    if trimmed.is_empty() {
+        "agent".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
 fn sanitize_path_component(input: &str, fallback: &str) -> String {
     let mut out = String::new();
     for ch in input.trim().chars() {
@@ -965,7 +987,7 @@ fn cleanup_worktree_target_blocking(
         return item;
     }
 
-    let worktree_root = match fs::canonicalize(&raw_path) {
+    let worktree_root = match fs::canonicalize(&raw_path).map(strip_windows_verbatim_prefix) {
         Ok(path) => path,
         Err(err) => {
             item.error = Some(format!("failed to canonicalize worktreeRoot: {err}"));
@@ -990,6 +1012,7 @@ fn cleanup_worktree_target_blocking(
         .and_then(|paths| {
             paths.into_iter().find(|candidate| {
                 fs::canonicalize(candidate)
+                    .map(strip_windows_verbatim_prefix)
                     .map(|canonical| canonical != worktree_root)
                     .unwrap_or(false)
             })
@@ -1093,96 +1116,102 @@ pub(crate) fn cleanup_worktree_targets_blocking(
     }
 }
 
+/// 创建一次委派用的 worktree（同步实现，供命令与测试共用）。
+fn create_worktree_blocking(
+    workdir: String,
+    label: Option<String>,
+) -> Result<SubagentWorktreeCreateResponse, String> {
+    let requested_workdir = canonicalize_existing_dir(&workdir, "workdir")?;
+    let repo_root_raw = run_git(&requested_workdir, &["rev-parse", "--show-toplevel"])?;
+    let repo_root = canonicalize_existing_dir(&repo_root_raw, "git repo root")?;
+    let relative_workdir = requested_workdir
+        .strip_prefix(&repo_root)
+        .map_err(|_| "workdir must be inside the git repository root".to_string())?;
+
+    let repo_name = repo_root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| sanitize_path_component(name, "repo"))
+        .unwrap_or_else(|| "repo".to_string());
+    let label = sanitize_path_component(label.as_deref().unwrap_or("agent"), "agent");
+    let dir_label = worktree_dir_label(&label);
+    let target_parent = repo_root
+        .parent()
+        .unwrap_or(repo_root.as_path())
+        .join(".liveagent-subagents")
+        .join(&repo_name);
+    fs::create_dir_all(&target_parent)
+        .map_err(|err| format!("failed to create worktree parent: {err}"))?;
+
+    let mut last_error: Option<String> = None;
+    let (target, branch_name) = {
+        let mut created: Option<(PathBuf, String)> = None;
+        for _ in 0..CREATE_WORKTREE_MAX_ATTEMPTS {
+            let suffix = unique_worktree_suffix();
+            let target = target_parent.join(format!("{dir_label}-{suffix}"));
+            let branch_name = format!("liveagent/subagent/{label}-{suffix}");
+            match run_git_owned(
+                &repo_root,
+                vec![
+                    "worktree".to_string(),
+                    "add".to_string(),
+                    "-b".to_string(),
+                    branch_name.clone(),
+                    display_path(&target),
+                    "HEAD".to_string(),
+                ],
+            ) {
+                Ok(_) => {
+                    created = Some((target, branch_name));
+                    break;
+                }
+                Err(err) if is_worktree_name_collision(&err) => {
+                    last_error = Some(err);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        created.ok_or_else(|| {
+            format!(
+                "failed to create a unique delegated worktree after {CREATE_WORKTREE_MAX_ATTEMPTS} attempts: {}",
+                last_error.unwrap_or_else(|| "unknown git worktree error".to_string())
+            )
+        })?
+    };
+
+    let worktree_root = strip_windows_verbatim_prefix(
+        fs::canonicalize(&target)
+            .map_err(|err| format!("failed to canonicalize worktree: {err}"))?,
+    );
+    let child_workdir = worktree_root.join(relative_workdir);
+    let child_metadata = fs::metadata(&child_workdir).map_err(|_| {
+        format!(
+            "worktree workdir does not exist: {}",
+            display_path(&child_workdir)
+        )
+    })?;
+    if !child_metadata.is_dir() {
+        return Err(format!(
+            "worktree workdir is not a directory: {}",
+            display_path(&child_workdir)
+        ));
+    }
+
+    Ok(SubagentWorktreeCreateResponse {
+        repo_root: display_path(&repo_root),
+        worktree_root: display_path(&worktree_root),
+        workdir: display_path(&child_workdir),
+        branch_name,
+    })
+}
+
 #[tauri::command]
 pub async fn subagent_worktree_create(
     input: SubagentWorktreeCreateInput,
 ) -> Result<SubagentWorktreeCreateResponse, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let SubagentWorktreeCreateInput { workdir, label } = input;
-        let requested_workdir = canonicalize_existing_dir(&workdir, "workdir")?;
-        let repo_root_raw = run_git(&requested_workdir, &["rev-parse", "--show-toplevel"])?;
-        let repo_root = canonicalize_existing_dir(&repo_root_raw, "git repo root")?;
-        let relative_workdir = requested_workdir
-            .strip_prefix(&repo_root)
-            .map_err(|_| "workdir must be inside the git repository root".to_string())?;
-
-        let repo_name = repo_root
-            .file_name()
-            .and_then(|name| name.to_str())
-            .map(|name| sanitize_path_component(name, "repo"))
-            .unwrap_or_else(|| "repo".to_string());
-        let label = sanitize_path_component(label.as_deref().unwrap_or("agent"), "agent");
-        let target_parent = repo_root
-            .parent()
-            .unwrap_or(repo_root.as_path())
-            .join(".liveagent-subagents")
-            .join(&repo_name);
-        fs::create_dir_all(&target_parent)
-            .map_err(|err| format!("failed to create worktree parent: {err}"))?;
-
-        let mut last_error: Option<String> = None;
-        let (target, branch_name) = {
-            let mut created: Option<(PathBuf, String)> = None;
-            for _ in 0..CREATE_WORKTREE_MAX_ATTEMPTS {
-                let suffix = unique_worktree_suffix();
-                let target = target_parent.join(format!("{label}-{suffix}"));
-                let branch_name = format!("liveagent/subagent/{label}-{suffix}");
-                match run_git_owned(
-                    &repo_root,
-                    vec![
-                        "worktree".to_string(),
-                        "add".to_string(),
-                        "-b".to_string(),
-                        branch_name.clone(),
-                        display_path(&target),
-                        "HEAD".to_string(),
-                    ],
-                ) {
-                    Ok(_) => {
-                        created = Some((target, branch_name));
-                        break;
-                    }
-                    Err(err) if is_worktree_name_collision(&err) => {
-                        last_error = Some(err);
-                    }
-                    Err(err) => return Err(err),
-                }
-            }
-            created.ok_or_else(|| {
-                format!(
-                    "failed to create a unique delegated worktree after {CREATE_WORKTREE_MAX_ATTEMPTS} attempts: {}",
-                    last_error.unwrap_or_else(|| "unknown git worktree error".to_string())
-                )
-            })?
-        };
-
-        let worktree_root = strip_windows_verbatim_prefix(
-            fs::canonicalize(&target)
-                .map_err(|err| format!("failed to canonicalize worktree: {err}"))?,
-        );
-        let child_workdir = worktree_root.join(relative_workdir);
-        let child_metadata = fs::metadata(&child_workdir).map_err(|_| {
-            format!(
-                "worktree workdir does not exist: {}",
-                display_path(&child_workdir)
-            )
-        })?;
-        if !child_metadata.is_dir() {
-            return Err(format!(
-                "worktree workdir is not a directory: {}",
-                display_path(&child_workdir)
-            ));
-        }
-
-        Ok(SubagentWorktreeCreateResponse {
-            repo_root: display_path(&repo_root),
-            worktree_root: display_path(&worktree_root),
-            workdir: display_path(&child_workdir),
-            branch_name,
-        })
-    })
-    .await
-    .map_err(|err| format!("subagent_worktree_create join failed: {err}"))?
+    tauri::async_runtime::spawn_blocking(move || create_worktree_blocking(input.workdir, input.label))
+        .await
+        .map_err(|err| format!("subagent_worktree_create join failed: {err}"))?
 }
 
 #[tauri::command]
@@ -1445,6 +1474,74 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn create_worktree_hands_git_a_classic_path_and_returns_one() -> Result<(), String> {
+        // 回归：`fs::canonicalize` 在 Windows 上给出 verbatim 路径，之前它会一路传到
+        // `git worktree add`，git 直接 `fatal: could not create leading directories
+        // of '//?/C:/...': Invalid argument`——worktree 模式的子代理于是永远起不来，
+        // 而报错只剩 git 输出的第一行。这里断言创建成功、且路径都是经典形式。
+        let root = temp_root("create-classic-path");
+        let repo = root.join("repo");
+        let nested = repo.join("pkg").join("app");
+        init_repo(&repo)?;
+        fs::create_dir_all(&nested).map_err(|err| format!("failed to create nested dir: {err}"))?;
+        fs::write(nested.join("index.ts"), "export const a = 1;\n")
+            .map_err(|err| format!("failed to write nested file: {err}"))?;
+        git(&repo, &["add", "."])?;
+        git(&repo, &["commit", "-m", "add nested"])?;
+
+        let created =
+            create_worktree_blocking(display_path(&nested), Some("agent-a".to_string()))?;
+
+        for (name, value) in [
+            ("repo_root", &created.repo_root),
+            ("worktree_root", &created.worktree_root),
+            ("workdir", &created.workdir),
+        ] {
+            assert!(
+                !value.contains(r"\\?\"),
+                "{name} kept the verbatim prefix: {value}"
+            );
+            assert!(
+                Path::new(value).is_absolute(),
+                "{name} must stay absolute: {value}"
+            );
+        }
+        // 子代理的工作目录是 worktree 里与调用方 workdir 对应的那一层。
+        assert!(created.workdir.replace('\\', "/").ends_with("/pkg/app"));
+        assert!(created.worktree_root.contains(".liveagent-subagents"));
+        assert!(created.branch_name.starts_with("liveagent/subagent/agent-a-"));
+        // 目录名长度是「worktree 里每个文件路径」的固定开销，必须留出足够余量给
+        // 仓库内的深层路径（经典 Win32 路径上限 260）。
+        let dir_name = Path::new(&created.worktree_root)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        assert!(
+            dir_name.chars().count() <= WORKTREE_DIR_LABEL_MAX_CHARS + 1 + 13 + 1 + 32,
+            "worktree directory name is too long: {dir_name}"
+        );
+        assert!(dir_name.starts_with("agent-a-"));
+        // git 真的认这个 worktree：状态查询能跑通，且刚建出来是干净的。
+        let status = worktree_status_blocking(created.worktree_root.clone(), Some(20_000))?;
+        assert!(!status.changed, "fresh worktree should be clean: {status:?}");
+
+        let cleanup = cleanup_worktree_target_blocking(
+            SubagentWorktreeCleanupTarget {
+                run_id: None,
+                worktree_root: created.worktree_root.clone(),
+                branch_name: Some(created.branch_name.clone()),
+            },
+            false,
+            true,
+            true,
+        );
+        assert!(cleanup.error.is_none(), "{:?}", cleanup.error);
+        assert!(cleanup.removed);
+
+        let _ = fs::remove_dir_all(root);
+        Ok(())
+    }
     #[test]
     fn subagent_worktree_cleanup_removes_liveagent_worktree_and_branch() -> Result<(), String> {
         let root = temp_root("cleanup-worktree");
