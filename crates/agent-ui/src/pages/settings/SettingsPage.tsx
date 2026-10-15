@@ -19,6 +19,7 @@ import {
 } from "@liveagent/ui/components/IconSet";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SettingsSectionDefinition, UiExtensionRegistry } from "../../contracts/registry";
+import { useUnreviewedMemoryCount } from "../../lib/memory/useUnreviewedMemoryCount";
 import { AgentsSection } from "./AgentsSection";
 import { CalendarSection } from "./CalendarSection";
 import { CronSection } from "./CronSection";
@@ -61,6 +62,8 @@ export function SettingsPage(props: SettingsPageProps) {
   );
   const sttSelectionChangedRef = useRef(STT_SELECTED_PROVIDER_CACHE.has(sttSettingsService));
   const extension = createSettingsExtension(props);
+  // 待审核记忆条数：挂在「记忆」导航项上做入口提醒。
+  const unreviewedMemoryCount = useUnreviewedMemoryCount(settings.system.workdir);
 
   useEffect(() => setPendingProviderId(initialProviderId), [initialProviderId]);
   useEffect(() => {
@@ -150,6 +153,8 @@ export function SettingsPage(props: SettingsPageProps) {
         labelKey: "settings.navMemory",
         icon: <Brain className={extension.iconClassName} />,
         contentMode: "fill",
+        // 有待审核记忆时在导航项上挂数字角标——用户不必先点进去才知道有事要做。
+        badgeCount: unreviewedMemoryCount,
         render: () => (
           <MemoryPanel
             workdir={settings.system.workdir}
@@ -252,6 +257,7 @@ export function SettingsPage(props: SettingsPageProps) {
       settings,
       sttSelectedProvider,
       sttSettingsService,
+      unreviewedMemoryCount,
     ],
   );
   const registry: UiExtensionRegistry<void> = {

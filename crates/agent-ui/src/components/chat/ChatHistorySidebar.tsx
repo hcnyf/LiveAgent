@@ -34,6 +34,7 @@ import {
 import { Input } from "@liveagent/ui/components/ui/input";
 import { Skeleton } from "@liveagent/ui/components/ui/skeleton";
 import { useLocale } from "@liveagent/ui/i18n/index";
+import { useUnreviewedMemoryCount } from "@liveagent/ui/lib/memory/useUnreviewedMemoryCount";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import type {
   SidebarBatchDeleteOptions,
@@ -351,6 +352,12 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
     showProjects,
     workspaceHistory,
   ]);
+  // 有待审核记忆时在侧栏「记忆」入口挂数字角标。作用域取当前项目——别的项目的待办
+  // 不该在这里打扰你（与设置页「记忆」导航项同一口径）。
+  const unreviewedMemoryCount = useUnreviewedMemoryCount(
+    projects?.find((project) => project.id === activeProjectId)?.path,
+  );
+
   const toggleProjectExpanded = (project: WorkspaceProject) => {
     setExpandedProjectIds((current) => {
       const next = new Set(current);
@@ -1508,6 +1515,14 @@ export const ChatHistorySidebar = memo(function ChatHistorySidebar(props: ChatHi
                       >
                         <Icon className="size-4 shrink-0 text-foreground/85" />
                         <span className="truncate">{t(labelKey)}</span>
+                        {id === "memory" && unreviewedMemoryCount > 0 ? (
+                          <span
+                            data-testid="sidebar-shortcut-memory-badge"
+                            className="ml-auto shrink-0 rounded-full bg-foreground/[0.08] px-1.5 text-xs font-medium tabular-nums text-foreground/70"
+                          >
+                            {unreviewedMemoryCount}
+                          </span>
+                        ) : null}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );

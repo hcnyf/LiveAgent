@@ -243,6 +243,18 @@ export function SettingsShell<Context>(props: SettingsShellProps<Context>) {
                         <span className="min-w-0 truncate leading-tight web:max-820:text-xs">
                           {t(definition.labelKey)}
                         </span>
+                        {definition.badgeCount ? (
+                          <span
+                            data-testid={`settings-nav-badge-${definition.id}`}
+                            className={cn(
+                              "ml-auto shrink-0 rounded-full bg-foreground/[0.08] px-1.5",
+                              "text-xs font-medium tabular-nums text-foreground/70",
+                              "web:max-820:hidden",
+                            )}
+                          >
+                            {definition.badgeCount}
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}

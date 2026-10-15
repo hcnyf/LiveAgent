@@ -22,6 +22,11 @@ export type SettingsSectionDefinition<Context> = {
   icon: ReactNode;
   contentMode?: "scroll" | "fill";
   showSaveIndicator?: boolean;
+  /**
+   * 导航项右侧的提醒角标（0 或缺省则不显示）。给「有待办需要你看一眼」的入口用，
+   * 例如记忆的待审核条数。宿主在构建定义时算好数值传进来，`SettingsShell` 只负责画。
+   */
+  badgeCount?: number;
   isAvailable?: (services: UiServices) => boolean;
   render: (context: Context) => ReactNode;
 };
