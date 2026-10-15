@@ -348,6 +348,9 @@ export function createSidebarStore(
   const invalidateWorkspaceRequests = () => {
     workspaceGeneration += 1;
     pinnedRequest = null;
+    // 作废在飞的请求：它们的结果会被 generation 检查丢掉，重入锁也得一起放掉，
+    // 否则一个永不 settle 的请求会把这个 cwd 永久锁死。
+    workspaceHistoryInFlight.clear();
     commit({
       workspaceHistory: new Map(
         Array.from(snapshot.workspaceHistory, ([key, value]) => [
@@ -568,12 +571,6 @@ export function createSidebarStore(
     if (startCount === 0) {
       return;
     }
-    // 用户点的「加载更多」还在飞时不打断它：后台对账只是补齐别处产生的变更，
-    // 晚一个 tick 没有任何损失；而它一进来就自增 generation，会把用户那一页
-    // 静默作废（列表不增长、也没有任何错误提示）。
-    if (!authoritative && loadMoreRequestToken !== null) {
-      return;
-    }
     if (listRequestInFlight) {
       queuedListRequest = {
         authoritative: (queuedListRequest?.authoritative ?? false) || authoritative,
@@ -617,15 +614,13 @@ export function createSidebarStore(
       return;
     }
     const hasRows = snapshot.conversations.length > 0;
-    if (authoritative) {
-      // 只有权威首屏（首次 / 切 scope）才对外宣告状态。后台对账（60s、重连）
-      // 数据没变也走这里，宣告一次就会把「正在同步…」胶囊与空态骨架每 60s
-      // 闪一下，同时把用户正在飞的「加载更多」转圈抹掉。
-      commit({
-        listStatus: hasRows ? "syncing" : "loading",
-        isLoadingMore: false,
-      });
-    }
+    commit({
+      listStatus: hasRows ? "syncing" : "loading",
+      // The new first page owns pagination truth now. An older loadMore may
+      // still settle at the transport layer, but its generation is stale and
+      // its UI/result commits are ignored below.
+      isLoadingMore: false,
+    });
     try {
       const page = await backend.listConversations(1, pageSize, requestScope);
       if (seq !== requestSeq || generation !== listGeneration || startCount === 0) {
