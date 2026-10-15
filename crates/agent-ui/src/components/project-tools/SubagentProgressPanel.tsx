@@ -1,43 +1,14 @@
 import { formatElapsedTime } from "@liveagent/ui/components/chat/AssistantWorkTrace";
 import { Bot } from "@liveagent/ui/components/IconSet";
 import { useLocale } from "@liveagent/ui/i18n/index";
+import type {
+  SubagentProgressEntry,
+  SubagentProgressValue,
+} from "@liveagent/ui/lib/subagents/progressGroups";
 import { cn } from "@liveagent/ui/lib/shared/utils";
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
 
-/** 一个子代理的运行态（浅层：谁在跑 / 多久 / 轮数 / 工具调用数 / 终态）。 */
-export type SubagentProgressEntry = {
-  /** 卡片 id（`parentToolCallId:agent:N`），聚焦与去重用。 */
-  id: string;
-  name: string;
-  role?: string;
-  task?: string;
-  status: string;
-  /** 还在跑：用时按当前时间现算，并显示活动指示。 */
-  running: boolean;
-  startedAtMs?: number;
-  durationMs?: number;
-  rounds?: number;
-  toolCalls?: number;
-  index: number;
-  total: number;
-};
-
-/** 一次 `Agent` 调用（父节点）fan-out 出来的全部子代理（子节点）。 */
-export type SubagentProgressGroup = {
-  id: string;
-  /** 父节点文案：调用时的任务描述，取不到就退回子代理数量。 */
-  label: string;
-  startedAtMs?: number;
-  entries: SubagentProgressEntry[];
-};
-
-type SubagentProgressValue = {
-  groups: readonly SubagentProgressGroup[];
-  /** 点击会话里的子代理卡片时，宿主据此打开面板并聚焦该子代理。 */
-  onOpenSubagent?: (entryId: string) => void;
-  /** 面板里当前聚焦的子代理（宿主传入，用于高亮）。 */
-  focusedEntryId?: string;
-};
+export type { SubagentProgressEntry, SubagentProgressGroup } from "@liveagent/ui/lib/subagents/progressGroups";
 
 const EMPTY: SubagentProgressValue = { groups: [] };
 
@@ -144,7 +115,9 @@ export function SubagentProgressPanel() {
                     <span className="min-w-0 truncate font-medium text-foreground/85">
                       {entry.name}
                     </span>
-                    <span className="shrink-0 text-muted-foreground/70">{entry.status}</span>
+                    {entry.status ? (
+                      <span className="shrink-0 text-muted-foreground/70">{entry.status}</span>
+                    ) : null}
                   </div>
                   {entry.role || entry.task ? (
                     <div className="mt-0.5 break-words pl-3 text-tiny text-muted-foreground/75">
