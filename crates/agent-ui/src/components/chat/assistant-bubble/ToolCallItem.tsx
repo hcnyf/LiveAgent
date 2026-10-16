@@ -592,7 +592,7 @@ function ToolCallItem({
               active={displayIsRunning}
             />
           ) : null}
-          `n {/* 命令还在跑、工具还没返回：先把会话的增量输出显示出来（限高滚动）。 */}
+          {/* 命令还在跑、工具还没返回：先把会话的增量输出显示出来（限高滚动）。 */}
           {displayIsRunning && liveOutput ? (
             <ToolSection label={t("chat.tool.liveOutput")}>
               <ToolScrollablePre
