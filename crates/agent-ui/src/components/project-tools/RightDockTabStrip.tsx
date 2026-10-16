@@ -14,7 +14,6 @@ import {
 } from "../ui/context-menu";
 import {
   formatTerminalSessionTitle,
-  isRightDockLeasableToolKind,
   type RightDockLeasableToolKind,
   type RightDockVisibleTab,
 } from "./rightDockModel";
@@ -322,9 +321,7 @@ export function RightDockTabStrip(props: RightDockTabStripProps) {
             isActive: currentActiveTab === tab.kind,
             closeLabel,
             closeTitle: closeLabel,
-            // 只有工作台面板类的 dock 工具能拖出/在分屏打开；子代理进度面板没有
-            // 对应的工作台 Pane，所以它这一支不带拖拽与菜单。
-            ...(isRightDockLeasableToolKind(tab.kind) ? toolTabWorkbenchProps(tab.kind) : {}),
+            ...toolTabWorkbenchProps(tab.kind),
             onActivate: () => onActivateTab(tab.id),
             onClose: () => onCloseToolTab(tab.kind),
           });

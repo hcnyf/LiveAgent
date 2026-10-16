@@ -36,9 +36,8 @@ import {
   sanitizePlanMarkdown,
 } from "@liveagent/ui/lib/chat/planMode";
 import { cn } from "@liveagent/ui/lib/shared/utils";
-import { useSubagentProgressActions } from "@liveagent/ui/lib/subagents/progressContext";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bot, ChevronRight, PanelRightOpen } from "../../IconSet";
+import { Bot, ChevronRight } from "../../IconSet";
 import {
   areStableValuesEqual,
   type FileOperationDisplay,
@@ -127,7 +126,6 @@ function ToolCallItem({
   onOpenFileLink?: (link: ChatFileLink) => void;
 }) {
   const { t } = useLocale();
-  const { onOpenSubagent, focusedEntryId } = useSubagentProgressActions();
   const result = item.toolResult;
   const builtinResultKind = getBuiltinResultKind(result);
   const isBash = item.toolCall.name === "Bash";
@@ -193,9 +191,6 @@ function ToolCallItem({
   const subagentCardTotal = isSubagentCard
     ? readSubagentCardNumber(item.toolCall.arguments?.total, 1)
     : 1;
-  const subagentProgressOpen = isSubagentCard ? onOpenSubagent : undefined;
-  const subagentCardFocused =
-    isSubagentCard && Boolean(focusedEntryId) && focusedEntryId === item.toolCall.id;
   const hasArgs = Object.keys(item.toolCall.arguments || {}).length > 0;
   const isStreamingFilePreviewTool = FILE_TOOL_TEXT_FIELDS[item.toolCall.name] !== undefined;
   const shouldShowArgs =
@@ -613,17 +608,12 @@ function ToolCallItem({
   }
 
   if (isSubagentCard) {
-    // 子代理卡片换成思维导图式的父子树：首张卡片上方画父节点标题行，每张卡片
-    // 挂在竖线上、再用一条横线接出去。折叠行本身仍是展开/收起按钮，进度入口
-    // 是它右侧的独立按钮（按钮不能嵌套按钮）。没有进度回调（WebUI、或没有可
-    // 承载 dock tab 的项目桶）时只留树，不出现点不动的死按钮。
+    // 子代理卡片是思维导图式的父子树：首张卡片上方画父节点标题行，每张卡片挂在
+    // 竖线上、再用一条横线接出去。点击折叠行就地展开详情（**不再往右侧 dock
+    // 打开**），详情区与思考框同高、超出滚动。
     const isLastCard = subagentCardIndex >= subagentCardTotal;
     return (
-      <div
-        className={containerClassName}
-        data-subagent-card={item.toolCall.id}
-        data-subagent-card-focused={subagentCardFocused ? "true" : undefined}
-      >
+      <div className={containerClassName} data-subagent-card={item.toolCall.id}>
         {subagentCardIndex <= 1 ? (
           <>
             <div className="flex items-center gap-1.5 text-xs font-medium text-foreground/85">
@@ -636,12 +626,7 @@ function ToolCallItem({
             <span aria-hidden="true" className="ml-1.5 block h-2 w-px bg-foreground/15" />
           </>
         ) : null}
-        <div
-          className={cn(
-            "relative flex items-center gap-1 rounded-md pl-4",
-            subagentCardFocused ? "bg-foreground/[0.05]" : "",
-          )}
-        >
+        <div className="relative flex items-center gap-1 rounded-md pl-4">
           <span
             aria-hidden="true"
             className={cn(
@@ -649,10 +634,7 @@ function ToolCallItem({
               isLastCard ? "h-3.5" : "h-full",
             )}
           />
-          <span
-            aria-hidden="true"
-            className="absolute left-1.5 top-3.5 h-px w-2 bg-foreground/15"
-          />
+          <span aria-hidden="true" className="absolute left-1.5 top-3.5 h-px w-2 bg-foreground/15" />
           <span
             aria-hidden="true"
             className="absolute left-1.5 top-3 size-1.5 -translate-x-1/2 rounded-full bg-foreground/25"
@@ -672,18 +654,6 @@ function ToolCallItem({
           ) : (
             <div className={cn(summaryClassName, "min-w-0 flex-1")}>{summaryContent}</div>
           )}
-          {subagentProgressOpen ? (
-            <button
-              type="button"
-              data-subagent-progress-open=""
-              className="shrink-0 rounded-md p-1 text-foreground/35 transition-colors duration-150 hover:bg-foreground/[0.06] hover:text-foreground/70"
-              title={t("chat.tool.subagentOpenProgress")}
-              aria-label={t("chat.tool.subagentOpenProgress")}
-              onClick={() => subagentProgressOpen(item.toolCall.id)}
-            >
-              <PanelRightOpen className="size-3" />
-            </button>
-          ) : null}
         </div>
         {body}
       </div>

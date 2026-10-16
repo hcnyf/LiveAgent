@@ -24,10 +24,6 @@ function NullComponent() {
   return null;
 }
 
-// 会话里子代理卡片读的「进度入口」上下文：默认没有入口（WebUI / 未接线），
-// 需要入口的用例自行设置。
-let subagentActions = {};
-
 const realAdapterFunctions = {
   deriveFileToolPreview() {
     return null;
@@ -238,12 +234,6 @@ function createToolCallItemRenderer() {
       "../../IconSet": {
         Bot: NullComponent,
         ChevronRight: NullComponent,
-        PanelRightOpen: NullComponent,
-      },
-      "@liveagent/ui/lib/subagents/progressContext": {
-        useSubagentProgressActions() {
-          return subagentActions;
-        },
       },
       "./assistantBubbleUtils": {
         areStableValuesEqual(left, right) {
@@ -854,40 +844,4 @@ test("a subagent card renders as a mind-map node under one parent row per Agent 
   assert.match(last, /absolute left-1\.5 top-0 w-px bg-foreground\/15 h-3\.5/);
   assert.doesNotMatch(last, /chat\.tool\.subagentGroup/);
 });
-
-test("the subagent progress entry only renders when the host wires an opener", () => {
-  const renderToolCallItem = createToolCallItemRenderer();
-  const card = {
-    type: "toolCall",
-    id: "call-1:agent:1",
-    name: "Agent",
-    arguments: {
-      subagent_card: true,
-      parent_tool_call_id: "call-1",
-      index: 1,
-      total: 1,
-      id: "agent-1",
-      name: "子代理1",
-      prompt: "任务1",
-    },
-  };
-
-  subagentActions = {};
-  const unwired = renderToolCallItem(card);
-  assert.doesNotMatch(unwired, /data-subagent-progress-open/);
-
-  const opened = [];
-  subagentActions = {
-    onOpenSubagent(entryId) {
-      opened.push(entryId);
-    },
-    focusedEntryId: "call-1:agent:1",
-  };
-  const wired = renderToolCallItem(card);
-  subagentActions = {};
-  assert.match(wired, /data-subagent-progress-open=""/);
-  assert.match(wired, /chat\.tool\.subagentOpenProgress/);
-  // 宿主传入的聚焦目标会在卡片上标出来。
-  assert.match(wired, /data-subagent-card-focused="true"/);
-  assert.deepEqual(opened, []);
 });

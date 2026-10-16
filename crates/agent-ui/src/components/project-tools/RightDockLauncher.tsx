@@ -19,7 +19,7 @@ import {
   type RightDockLeasedToolKind,
 } from "./rightDockModel";
 import {
-  RIGHT_DOCK_LAUNCHER_TOOL_DEFINITIONS,
+  RIGHT_DOCK_TOOL_DEFINITIONS,
   type RightDockSingletonTabKind,
 } from "./rightDockRegistry";
 
@@ -153,7 +153,7 @@ export function RightDockCreateMenu(props: RightDockCreateMenuProps) {
             {t("workbench.openNewTerminalInSplit")}
           </DropdownMenuItem>
         ) : null}
-        {RIGHT_DOCK_LAUNCHER_TOOL_DEFINITIONS.filter(
+        {RIGHT_DOCK_TOOL_DEFINITIONS.filter(
           (definition) => !leasedTools.has(definition.kind),
         ).map((definition) => (
           <DropdownMenuItem
@@ -232,7 +232,7 @@ export function RightDockChooser(props: RightDockChooserProps) {
             }
           : undefined,
     },
-    ...RIGHT_DOCK_LAUNCHER_TOOL_DEFINITIONS.filter(
+    ...RIGHT_DOCK_TOOL_DEFINITIONS.filter(
       (definition) => !leasedTools.has(definition.kind),
     ).map((definition) => {
       const disabled = definition.projectRequired ? !projectReady : !tunnelAvailable;

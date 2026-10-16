@@ -101,7 +101,6 @@ export const RIGHT_DOCK_TOOL_KINDS = [
   "gitReview",
   "tunnel",
   "sshTunnel",
-  "subagents",
 ] as const;
 
 export type RightDockToolKind = (typeof RIGHT_DOCK_TOOL_KINDS)[number];

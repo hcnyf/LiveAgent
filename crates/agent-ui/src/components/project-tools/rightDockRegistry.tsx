@@ -1,13 +1,11 @@
-import { Bot, FolderTree, GitBranch, Globe, Key } from "@liveagent/ui/components/IconSet";
+import { FolderTree, GitBranch, Globe, Key } from "@liveagent/ui/components/IconSet";
 import { FileTreePanel } from "@liveagent/ui/components/project-tools/file-tree/index";
 import { GitReviewPanel } from "@liveagent/ui/components/project-tools/git-review/index";
 import type { ReactNode } from "react";
-import { isProjectToolSurfaceKind, type ProjectToolSurfaceKind } from "../../lib/workbench/types";
 import { LocalTunnelPanel } from "./LocalTunnelPanel";
 import { type RightDockToolContextValue, useRightDockToolContext } from "./RightDockContext";
 import type { RightDockSingletonTabKind } from "./rightDockModel";
 import { SshTunnelPanel } from "./SshTunnelPanel";
-import { SubagentProgressPanel } from "./SubagentProgressPanel";
 
 export type { RightDockSingletonTabKind } from "./rightDockModel";
 
@@ -140,37 +138,10 @@ export const RIGHT_DOCK_TOOL_DEFINITIONS: readonly RightDockToolDefinition[] = [
     isAvailable: projectToolAvailable,
     render: (input) => <SshTunnelTool active={input.active} />,
   },
-  {
-    // 子代理进度：数据由宿主经 SubagentProgressProvider 注入（桌面端才有实时数据），
-    // 所以这里不依赖 RightDockContext，也不要求项目存在。
-    kind: "subagents",
-    titleKey: "projectTools.subagentsTitle",
-    createTitleKey: "projectTools.newSubagents",
-    descriptionKey: "projectTools.subagentsDescription",
-    closeKey: "projectTools.closeSubagentsTab",
-    projectRequired: false,
-    icon: (className) => <Bot className={className} />,
-    containerActiveClassName: "flex flex-col",
-    isAvailable: () => true,
-    render: () => <SubagentProgressPanel />,
-  },
 ];
 
 const RIGHT_DOCK_TOOL_DEFINITION_BY_KIND = new Map(
   RIGHT_DOCK_TOOL_DEFINITIONS.map((definition) => [definition.kind, definition]),
-);
-
-/**
- * 空态「开始使用」与「新建」菜单里列出的工具：只有属于项目工具面的种类才进这两个
- * 列表。子代理进度面板不在其中——它没有项目依赖、也没有能被拖出到工作台的面板，
- * 只在会话里点卡片（或已打开的 tab）时出现；若混进列表，会被套上「内网穿透是否
- * 可用」那套启用条件。
- */
-export const RIGHT_DOCK_LAUNCHER_TOOL_DEFINITIONS: readonly (RightDockToolDefinition & {
-  kind: ProjectToolSurfaceKind;
-})[] = RIGHT_DOCK_TOOL_DEFINITIONS.filter(
-  (definition): definition is RightDockToolDefinition & { kind: ProjectToolSurfaceKind } =>
-    isProjectToolSurfaceKind(definition.kind),
 );
 
 export function getRightDockToolDefinition(kind: RightDockSingletonTabKind) {

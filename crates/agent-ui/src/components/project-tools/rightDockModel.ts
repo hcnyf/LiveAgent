@@ -19,7 +19,7 @@ import {
   reorderIdsByKeyboard,
 } from "../../lib/reorder/reorderModel";
 import type { TerminalSession } from "../../lib/terminal/types";
-import { isProjectToolSurfaceKind, type ProjectToolSurfaceKind } from "../../lib/workbench/types";
+import type { ProjectToolSurfaceKind } from "../../lib/workbench/types";
 
 export const MIN_RIGHT_DOCK_PANEL_WIDTH = 320;
 export const DEFAULT_RIGHT_DOCK_MAX_PANEL_WIDTH = 720;
@@ -44,25 +44,19 @@ export type RightDockSingletonTabKind = RightDockToolKind;
  * derived background-tasks tab). While leased, the dock hides the tool's
  * tab, content and launcher tile so the interactive view exists once.
  */
-/**
- * 「这个 dock tab 是否已被工作台租走」的查询口径。绝大多数 dock 工具本身就是可租用的
- * 工作台面板，但 dock 里也可以有**不是**工作台面板的工具（子代理进度）：租用集合里永远
- * 不会有它，查询返回 false 即可。所以这里取两者的并集，而不是只写工作台面板种类。
- */
 export type RightDockLeasedToolKind = ProjectToolSurfaceKind | RightDockToolKind;
 
 export const NO_LEASED_RIGHT_DOCK_TOOLS: ReadonlySet<RightDockLeasedToolKind> = new Set();
 
 /**
- * 可被工作台 Pane 租用的工具种类 = 项目工具面。子代理进度面板也住在 dock 里，但
- * 没有对应的工作台 Pane，所以它不能出现在拖出/分屏这类签名的类型里。
+ * 可被工作台 Pane 租用的工具种类 = 项目工具面。dock 的拖出/分屏回调只可能收到这一批
+ * 种类，而 `RightDockLeasedToolKind` 还含 backgroundTasks 这种「派生 tab」，两者不是
+ * 一回事。
  *
- * dock 组件本身不允许 import 布局层（见 workbench-dock-focus 不变量），只能经由
- * 本文件把工作台的类型/判定转手给它们。
+ * dock 组件本身不允许 import 布局层（见 workbench-dock-focus 不变量），所以类型只能
+ * 经由本文件转手给它们。
  */
 export type RightDockLeasableToolKind = ProjectToolSurfaceKind;
-
-export const isRightDockLeasableToolKind = isProjectToolSurfaceKind;
 
 export const RIGHT_DOCK_SINGLETON_TAB_KINDS: readonly RightDockSingletonTabKind[] =
   RIGHT_DOCK_TOOL_KINDS;

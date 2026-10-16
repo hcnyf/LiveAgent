@@ -4,6 +4,7 @@
 // to the connected desktop agent.
 
 import { invoke } from "@liveagent/app/shims/tauriCore";
+import { notifyMemoryChanged } from "./changes";
 import type {
   ApplyDecision,
   MemoryConfidence,
@@ -306,6 +307,25 @@ export function formatMemoryError(error: unknown) {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** 变更类命令：成功后广播「记忆变了」，读取方（如「待审核」角标）据此立刻刷新。 */
+const MEMORY_MUTATION_COMMANDS: ReadonlySet<string> = new Set([
+  "memory_write",
+  "memory_update",
+  "memory_delete",
+  "memory_delete_project",
+  "memory_accept",
+  "memory_apply_batch",
+  "memory_organize_run_update",
+  "memory_organize_due_complete",
+  "memory_wipe_all",
+]);
+
+async function invokeMemory<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  const result = await invoke<T>(command, args);
+  if (MEMORY_MUTATION_COMMANDS.has(command)) notifyMemoryChanged();
+  return result;
+}
+
 export async function memoryList(args: {
   scope?: MemoryScopeFilter;
   workdir?: string;
@@ -315,7 +335,7 @@ export async function memoryList(args: {
   limit?: number;
   offset?: number;
 }) {
-  return invoke<MemoryListResponse>("memory_list", { args });
+  return invokeMemory<MemoryListResponse>("memory_list", { args });
 }
 
 export async function memoryRead(args: {
@@ -326,7 +346,7 @@ export async function memoryRead(args: {
   offset?: number;
   length?: number;
 }) {
-  return invoke<MemoryReadResponse>("memory_read", { args });
+  return invokeMemory<MemoryReadResponse>("memory_read", { args });
 }
 
 export async function memorySearch(args: {
@@ -341,7 +361,7 @@ export async function memorySearch(args: {
   historyDateLocal?: string;
   historyTimeMode?: MemoryHistoryTimeMode;
 }) {
-  return invoke<MemorySearchResponse>("memory_search", { args });
+  return invokeMemory<MemorySearchResponse>("memory_search", { args });
 }
 
 export async function memoryWrite(args: {
@@ -356,7 +376,7 @@ export async function memoryWrite(args: {
   model?: string;
   evidence?: MemoryEvidenceFields;
 }) {
-  return invoke<MemoryMutationResponse>("memory_write", { args });
+  return invokeMemory<MemoryMutationResponse>("memory_write", { args });
 }
 
 export async function memoryUpdate(args: {
@@ -373,7 +393,7 @@ export async function memoryUpdate(args: {
   model?: string;
   evidence?: MemoryEvidenceFields;
 }) {
-  return invoke<MemoryMutationResponse>("memory_update", { args });
+  return invokeMemory<MemoryMutationResponse>("memory_update", { args });
 }
 
 export async function memoryDelete(args: {
@@ -386,7 +406,7 @@ export async function memoryDelete(args: {
   conversationId?: string;
   model?: string;
 }) {
-  return invoke<MemoryMutationResponse>("memory_delete", { args });
+  return invokeMemory<MemoryMutationResponse>("memory_delete", { args });
 }
 
 export async function memoryDeleteProject(args: {
@@ -394,7 +414,7 @@ export async function memoryDeleteProject(args: {
   actor?: "user" | "tool" | "extractor" | "reconcile";
   reason?: string;
 }) {
-  return invoke<MemoryDeleteProjectResponse>("memory_delete_project", { args });
+  return invokeMemory<MemoryDeleteProjectResponse>("memory_delete_project", { args });
 }
 
 export async function memoryAccept(args: {
@@ -403,7 +423,7 @@ export async function memoryAccept(args: {
   workdir?: string;
   workdirHash?: string;
 }) {
-  return invoke<MemoryMutationResponse>("memory_accept", { args });
+  return invokeMemory<MemoryMutationResponse>("memory_accept", { args });
 }
 
 export async function memoryApplyBatch(args: {
@@ -417,7 +437,7 @@ export async function memoryApplyBatch(args: {
   };
   decisions?: ApplyDecision[];
 }) {
-  return invoke<MemoryBatchResponse>("memory_apply_batch", { args });
+  return invokeMemory<MemoryBatchResponse>("memory_apply_batch", { args });
 }
 
 export async function memoryOrganizeRunCreate(args: {
@@ -427,7 +447,7 @@ export async function memoryOrganizeRunCreate(args: {
   scope?: OrganizerScope;
   mode?: OrganizerMode;
 }) {
-  return invoke<MemoryOrganizeRunCreateResponse>("memory_organize_run_create", { args });
+  return invokeMemory<MemoryOrganizeRunCreateResponse>("memory_organize_run_create", { args });
 }
 
 export async function memoryOrganizeRunUpdate(args: {
@@ -456,24 +476,24 @@ export async function memoryOrganizeRunUpdate(args: {
   overrideReviewed?: boolean;
   report?: unknown;
 }) {
-  return invoke<MemoryOrganizeRun | null>("memory_organize_run_update", { args });
+  return invokeMemory<MemoryOrganizeRun | null>("memory_organize_run_update", { args });
 }
 
 export async function memoryOrganizeRunList(args?: {
   status?: MemoryOrganizeRunStatus;
   limit?: number;
 }) {
-  return invoke<MemoryOrganizeRunListResponse>("memory_organize_run_list", {
+  return invokeMemory<MemoryOrganizeRunListResponse>("memory_organize_run_list", {
     args: args ?? {},
   });
 }
 
 export async function memoryOrganizeRunRead(args: { runId: string }) {
-  return invoke<MemoryOrganizeRun | null>("memory_organize_run_read", { args });
+  return invokeMemory<MemoryOrganizeRun | null>("memory_organize_run_read", { args });
 }
 
 export async function memoryOrganizeRunClearHistory() {
-  return invoke<MemoryOrganizeRunClearHistoryResponse>("memory_organize_run_clear_history");
+  return invokeMemory<MemoryOrganizeRunClearHistoryResponse>("memory_organize_run_clear_history");
 }
 
 export async function memoryOrganizeDueClaim(args: {
@@ -484,17 +504,17 @@ export async function memoryOrganizeDueClaim(args: {
   scope?: OrganizerScope;
   mode?: OrganizerMode;
 }) {
-  return invoke<MemoryOrganizeDueClaimResponse>("memory_organize_due_claim", { args });
+  return invokeMemory<MemoryOrganizeDueClaimResponse>("memory_organize_due_claim", { args });
 }
 
 export async function memoryOrganizeDueComplete(
   args: Parameters<typeof memoryOrganizeRunUpdate>[0],
 ) {
-  return invoke<MemoryOrganizeRun | null>("memory_organize_due_complete", { args });
+  return invokeMemory<MemoryOrganizeRun | null>("memory_organize_due_complete", { args });
 }
 
 export async function memoryIndexOverview(workdir?: string) {
-  return invoke<MemoryOverviewResponse>("memory_index_overview", { workdir });
+  return invokeMemory<MemoryOverviewResponse>("memory_index_overview", { workdir });
 }
 
 export async function memoryRecentRejections(args?: {
@@ -502,29 +522,29 @@ export async function memoryRecentRejections(args?: {
   limit?: number;
   workdir?: string;
 }) {
-  return invoke<MemoryRecentRejectionsResponse>("memory_recent_rejections", {
+  return invokeMemory<MemoryRecentRejectionsResponse>("memory_recent_rejections", {
     args: args ?? {},
   });
 }
 
 export async function memoryQuotaSummary(args?: { workdir?: string }) {
-  return invoke<MemoryQuotaSummaryResponse>("memory_quota_summary", {
+  return invokeMemory<MemoryQuotaSummaryResponse>("memory_quota_summary", {
     args: args ?? {},
   });
 }
 
 export async function memoryPathsInfo() {
-  return invoke<MemoryPathsInfo>("memory_paths_info");
+  return invokeMemory<MemoryPathsInfo>("memory_paths_info");
 }
 
 export async function memoryTodayLocalDate(rolloverHour?: number) {
-  return invoke<string>("memory_today_local_date", { rolloverHour });
+  return invokeMemory<string>("memory_today_local_date", { rolloverHour });
 }
 
 export async function memoryTodayDaily(rolloverHour?: number) {
-  return invoke<MemoryReadResponse | null>("memory_today_daily", { rolloverHour });
+  return invokeMemory<MemoryReadResponse | null>("memory_today_daily", { rolloverHour });
 }
 
 export async function memoryWipeAll() {
-  return invoke<MemoryPathsInfo>("memory_wipe_all");
+  return invokeMemory<MemoryPathsInfo>("memory_wipe_all");
 }

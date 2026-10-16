@@ -152,7 +152,6 @@ import {
   isAgentExecutionMode,
   normalizeChatRuntimeControlsForProvider,
   normalizeSelectedModelForProviders,
-  openRightDockSingletonTab,
   parseSelectedModelJson,
   resolveConfiguredThinkingAlwaysOn,
   resolveEffectivePromptSettings,
@@ -188,7 +187,6 @@ import { createTauriTunnelClient } from "../lib/tunnels/tauriTunnelClient";
 import { tauriWorkspaceActivityClient } from "../lib/workspace-activity/tauriWorkspaceActivityClient";
 import type { ChatPageProps } from "./chat/chatPageTypes";
 import { asErrorMessage } from "./chat/chatPageUtils";
-import { SubagentProgressBridge } from "./chat/components/SubagentProgressBridge";
 import { useComposerHistoryPrompts } from "./chat/composer/useComposerHistoryPrompts";
 import type {
   ConversationControllerActions,
@@ -836,28 +834,6 @@ function ChatPageContent(props: ChatPageProps) {
     setSettings,
     onOpenFile: handleOpenWorkspaceFile,
   });
-
-  // 子代理进度面板的数据源与入口：卡片在会话里、面板在右侧 dock，两边必须读到
-  // 同一份值，所以在面板组外面包一层 SubagentProgressBridge（见下方 JSX）。没有项目
-  // 桶时 dock 承载不了 tab，此时不提供入口，卡片也就不会渲染那个按钮。
-  const [focusedSubagentId, setFocusedSubagentId] = useState<string | undefined>(undefined);
-  // 子代理运行态（轮数/调用数/权威起点）只有落盘快照，没有事件通道，所以由面板
-  // 侧轮询；这里只给一个读取入口，不在这里订阅任何东西。
-  const readSubagentLiveRuns = useCallback(
-    () => subagentStoresRef.current.get(currentConversationId).latestRunsByAgent().values(),
-    [currentConversationId],
-  );
-  const handleOpenSubagentProgress = useCallback(
-    (entryId: string) => {
-      if (!terminalProjectPathKey) return;
-      setRightDockOpen(true);
-      setSettings((previousSettings) =>
-        openRightDockSingletonTab(previousSettings, terminalProjectPathKey, "subagents"),
-      );
-      setFocusedSubagentId(entryId);
-    },
-    [setRightDockOpen, setSettings, terminalProjectPathKey],
-  );
 
   // Local runner running-state → sidebar store: diff transitions so sidebar
   // dots (and running workdir keys) include local runs immediately; remote
@@ -4184,13 +4160,6 @@ function ChatPageContent(props: ChatPageProps) {
           }}
         />
 
-        <SubagentProgressBridge
-          items={transcriptItems}
-          liveStore={liveTranscriptStore}
-          onOpenSubagent={terminalProjectPathKey ? handleOpenSubagentProgress : undefined}
-          focusedEntryId={focusedSubagentId}
-          readLiveRuns={readSubagentLiveRuns}
-        >
           <WorkspacePanelGroup
             open={activeView === "chat" && rightDockOpen}
             width={settings.customSettings.rightDock.width}
@@ -4396,7 +4365,6 @@ function ChatPageContent(props: ChatPageProps) {
               />
             </WorkspaceToolsPanel>
           </WorkspacePanelGroup>
-        </SubagentProgressBridge>
       </div>
       {projectSettingsProject ? (
         <WorkspaceProjectSettingsModal

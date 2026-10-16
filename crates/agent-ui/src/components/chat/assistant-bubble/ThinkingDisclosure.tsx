@@ -75,8 +75,8 @@ export function ThinkingDisclosure(props: {
 
   const durationMs = resolveThinkingDurationMs(trackKey, active);
 
-  // 流式中只把尾部窗口交给 Markdown：视口 max-h-320px 本来只看得到尾部，
-  // 而全文重排是 O(累计思考长度)/帧。落定（active=false）后展开渲染全文。
+  // 流式中只把尾部窗口交给 Markdown：视口 max-h-213px（= 原 320px 的 2/3，用户要求
+  // 思考框矮一点）本来只看得到尾部，而全文重排是 O(累计思考长度)/帧。落定后展开渲染全文。
   const displayText =
     active && renderMode === "streaming" ? sliceStreamingMarkdownTail(text) : text;
   const durationLabel = durationMs !== null ? formatElapsedTime(durationMs) : "";
@@ -123,7 +123,7 @@ export function ThinkingDisclosure(props: {
             <div
               ref={setScrollViewport}
               data-thinking-scroll=""
-              className="max-h-320px overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
+              className="max-h-[213px] overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
             >
               <div ref={setScrollContent} className="border-l border-border/55 pl-3">
                 <Markdown
