@@ -22,6 +22,7 @@ import {
   requestRuntimeCancel,
   throwIfToolInvocationAborted,
 } from "./invokeWithAbort";
+import { startLiveShellOutput, stopLiveShellOutput } from "./liveShellOutput";
 import { formatResolvedTarget, type ResolvedPath, ToolPathResolver } from "./pathUtils";
 import { assertSkillPathAllowedByPolicy, type SkillAccessPolicy } from "./skillAccessPolicy";
 
@@ -1007,6 +1008,10 @@ export function createShellTools(params: {
           : "";
       if (!sessionId) throw new Error(`${toolName}.session_id is required`);
       const cursor = normalizeCursor(toolCall.arguments?.cursor);
+      // ProcessWait 自己也可能等很久（默认 30s，上限 300s），同样先把实时输出挂上。
+      if (toolName === "ProcessWait") {
+        startLiveShellOutput({ toolCallId: toolCall.id, sessionId });
+      }
       const response =
         toolName === "ProcessWait"
           ? await invokeWithAbort<ShellSessionResponse>(
@@ -1029,6 +1034,7 @@ export function createShellTools(params: {
               { session_id: sessionId, cursor },
               signal,
             );
+      stopLiveShellOutput(toolCall.id);
       if (response.status === "running") {
         registerSessionAbort(response.session_id, response.cursor, signal);
       } else {
@@ -1041,6 +1047,7 @@ export function createShellTools(params: {
         action: toolName === "ProcessWait" ? "wait" : "stop",
       });
     } catch (err) {
+      stopLiveShellOutput(toolCall.id);
       const sessionId =
         typeof toolCall.arguments?.session_id === "string"
           ? toolCall.arguments.session_id.trim()
@@ -1470,6 +1477,8 @@ export function createShellTools(params: {
         30_000,
       );
       const session_id = createShellSessionId();
+      // 命令在跑的这段时间界面本来是空的（工具要等 yield 才返回），先挂上实时输出轮询。
+      startLiveShellOutput({ toolCallId: toolCall.id, sessionId: session_id });
       try {
         const response = await invokeWithAbort<ShellSessionResponse>(
           "shell_session_start",
@@ -1497,6 +1506,7 @@ export function createShellTools(params: {
         if (response.status === "running") {
           registerSessionAbort(response.session_id, response.cursor, signal);
         }
+        stopLiveShellOutput(toolCall.id);
         return buildShellSessionToolResult({
           toolCall,
           response,
@@ -1506,6 +1516,7 @@ export function createShellTools(params: {
           action: "start",
         });
       } catch (err) {
+        stopLiveShellOutput(toolCall.id);
         if (signal?.aborted) {
           return buildShellSessionToolResult({
             toolCall,

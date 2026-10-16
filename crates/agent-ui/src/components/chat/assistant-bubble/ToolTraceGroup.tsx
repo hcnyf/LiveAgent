@@ -146,6 +146,11 @@ function ToolTraceGroupInner(props: {
    * 否则相邻两批工具之间的模型往返会让明细反复折叠又展开。
    */
   active?: boolean;
+  /**
+   * 这个批次就是活尾巴里最新的一条 entry，于是它的**最后一行**是「当前进行中的那一步」，
+   * 跟着一起自动展开/收起（批次里的其它行只在自己运行时展开）。
+   */
+  isCurrentEntry?: boolean;
 }) {
   const {
     items,
@@ -155,6 +160,7 @@ function ToolTraceGroupInner(props: {
     onOpenFileLink,
     showTurnStatus = false,
     active = false,
+    isCurrentEntry = false,
   } = props;
   const { locale, t } = useLocale();
   const counts = useMemo(
@@ -264,19 +270,28 @@ function ToolTraceGroupInner(props: {
                 "[scrollbar-gutter:stable]",
               )}
             >
-              {items.map((item, index) => (
-                <MemoToolCallItem
-                  key={getToolTraceKey(item, index)}
-                  item={item}
-                  readOnly={readOnly}
-                  redactToolContent={redactToolContent}
-                  onOpenFileLink={onOpenFileLink}
-                  compactChip
-                  isRunning={Boolean(
-                    item.toolCall.id && runningToolCallIds.includes(item.toolCall.id),
-                  )}
-                />
-              ))}
+              {items.map((item, index) => {
+                const itemIsRunning = Boolean(
+                  item.toolCall.id && runningToolCallIds.includes(item.toolCall.id),
+                );
+                return (
+                  <MemoToolCallItem
+                    key={getToolTraceKey(item, index)}
+                    item={item}
+                    readOnly={readOnly}
+                    redactToolContent={redactToolContent}
+                    onOpenFileLink={onOpenFileLink}
+                    compactChip
+                    isRunning={itemIsRunning}
+                    // 组内只有正跑着的行、以及「当前那一步」的最后一行参与自动展开。
+                    liveAutoState={
+                      active
+                        ? itemIsRunning || (isCurrentEntry && index === items.length - 1)
+                        : undefined
+                    }
+                  />
+                );
+              })}
             </div>
           </div>
         )}

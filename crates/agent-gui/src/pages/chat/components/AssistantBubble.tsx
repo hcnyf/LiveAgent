@@ -7,6 +7,7 @@ import {
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
   resolveActiveWorkTailKeys,
+  resolveCurrentWorkEntryKey,
   segmentWorkEntries,
 } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import { RoundBlockContent } from "@liveagent/ui/components/chat/assistant-bubble/RoundContent";
@@ -55,6 +56,11 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
     unit.kind === "work-trace" && row.live
       ? resolveActiveWorkTailKeys(workEntries)
       : EMPTY_WORK_TAIL_KEYS;
+  // 尾巴里最新的一条 = 「当前进行中的那一步」，工具行/搜索行/子代理卡片据此自动展开。
+  const currentWorkEntryKey =
+    unit.kind === "work-trace" && row.live
+      ? resolveCurrentWorkEntryKey(workEntries, activeWorkTailKeys)
+      : null;
   // 两次输出之间的过程收成概括条；正文与压缩里程碑留在条外可见。
   const workSegments = segmentWorkEntries(workEntries, {
     activeKey: collapsedTailEntry?.key ?? null,
@@ -74,6 +80,7 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
         row.live && unit.kind === "work-trace" && entry.key === unit.latestToolGroupKey
       }
       activeWorkTail={activeWorkTailKeys.has(entry.key)}
+      isCurrentWorkEntry={entry.key === currentWorkEntryKey}
       workdir={workdir}
       onOpenFileLink={onOpenFileLink}
     />

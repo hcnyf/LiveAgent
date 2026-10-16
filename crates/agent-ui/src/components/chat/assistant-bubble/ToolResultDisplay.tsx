@@ -40,6 +40,7 @@ import type {
   SubagentCardDetails,
   SubagentMessageDetails,
 } from "@liveagent/ui/lib/subagents/protocol";
+import { Fragment } from "react";
 import { Search } from "../../IconSet";
 import {
   displayString,
@@ -50,6 +51,7 @@ import {
   shouldShowSubagentApplyStatus,
   shouldShowSubagentCleanupStatus,
   shouldShowSubagentWorktreeLocation,
+  WORK_DISCLOSURE_MAX_HEIGHT_CLASS,
 } from "./assistantBubbleUtils";
 import { getToolResultImages, ToolResultImagePreview } from "./ToolImages";
 
@@ -1041,94 +1043,153 @@ export function ToolResultDisplay({
         agent.applySkippedReason &&
         agent.applySkippedReason !== "no_changes",
     );
+    // 报告里还有一批「一眼看得完」的标量字段，以前只有其中几个进了 tags。它们不占
+    // 多少地方，但对「这次委派到底干了什么」很有用，所以补一张紧凑的键值表。
+    const reportFields: Array<[string, string]> = [];
+    if (typeof agent.changed === "boolean") {
+      reportFields.push(["changed", agent.changed ? "yes" : "no"]);
+    }
+    if (agent.statusText) reportFields.push(["status text", agent.statusText]);
+    if (agent.templateId) reportFields.push(["template", agent.templateId]);
+    if (agent.applyMethod) reportFields.push(["apply method", agent.applyMethod]);
+    if (Number.isFinite(agent.applyPatchBytes)) {
+      reportFields.push(["patch bytes", String(agent.applyPatchBytes)]);
+    }
+    if (agent.appliedToWorkdir) reportFields.push(["applied to", agent.appliedToWorkdir]);
+    if (agent.worktreeCleanupStatus) {
+      reportFields.push(["cleanup", agent.worktreeCleanupStatus]);
+    }
+    if (typeof agent.worktreeBranchDeleted === "boolean") {
+      reportFields.push(["branch deleted", agent.worktreeBranchDeleted ? "yes" : "no"]);
+    }
+    const changedPaths = agent.changedPaths ?? [];
+    const allowedOutputPaths = agent.allowedOutputPaths ?? [];
 
     return (
       <ToolSurface className="space-y-2">
         <MetaTags tags={tags} />
-        <div className="space-y-2">
-          <div className="text-xs font-semibold leading-1p45 text-foreground/90">
-            {agentDisplayName}
+        {/* 详情区与思考框同高：超出滚动，不把整条会话撑长。 */}
+        <div className={cn("space-y-2", WORK_DISCLOSURE_MAX_HEIGHT_CLASS)}>
+          <div className="space-y-2">
+            <div className="text-xs font-semibold leading-1p45 text-foreground/90">
+              {agentDisplayName}
+            </div>
+            {agent.role ? (
+              <div className="text-xs font-medium leading-1p55 text-foreground/78">
+                <span className="text-muted-foreground">role</span> {agent.role}
+              </div>
+            ) : null}
+            {agentTask ? (
+              <div className="break-words text-xs font-medium leading-1p6 text-foreground/80">
+                <span className="text-muted-foreground">task</span> {agentTask}
+              </div>
+            ) : null}
+            {shouldShowSubagentWorktreeLocation(agent) ? (
+              <div className="break-all text-tiny text-muted-foreground/70">
+                {agent.branchName ? `${agent.branchName} | ` : ""}
+                {agent.worktreeRoot}
+              </div>
+            ) : null}
+            {agent.diffStat ? <CodePreview text={agent.diffStat} maxChars={1200} /> : null}
+            {showUntrackedFiles ? (
+              <CodePreview
+                text={`untracked:\n${untrackedFiles.map((file) => `- ${file}`).join("\n")}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {agent.worktreeStatusError ? (
+              <CodePreview text={agent.worktreeStatusError} maxChars={1200} />
+            ) : null}
+            {agent.applyError ? (
+              <CodePreview text={`apply failed:\n${agent.applyError}`} maxChars={1200} />
+            ) : agent.applySkippedReason && agent.applySkippedReason !== "no_changes" ? (
+              <CodePreview text={`apply skipped: ${agent.applySkippedReason}`} maxChars={1200} />
+            ) : null}
+            {agent.applyFallbackReason ? (
+              <CodePreview
+                text={`fallback reason:\n${agent.applyFallbackReason}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {agent.applyCopiedFiles && agent.applyCopiedFiles.length > 0 ? (
+              <CodePreview
+                text={`copied:\n${agent.applyCopiedFiles.map((file) => `- ${file}`).join("\n")}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {agent.applyDeletedFiles && agent.applyDeletedFiles.length > 0 ? (
+              <CodePreview
+                text={`deleted:\n${agent.applyDeletedFiles.map((file) => `- ${file}`).join("\n")}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {agent.applyConflictFiles && agent.applyConflictFiles.length > 0 ? (
+              <CodePreview
+                text={`apply conflicts:\n${agent.applyConflictFiles.map((file) => `- ${file}`).join("\n")}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {agent.worktreeCleanupError ? (
+              <CodePreview
+                text={`worktree cleanup failed:\n${agent.worktreeCleanupError}`}
+                maxChars={1200}
+              />
+            ) : agent.worktreeCleanupReason && agent.worktreeCleanupStatus === "retained" ? (
+              <CodePreview
+                text={`worktree retained: ${agent.worktreeCleanupReason}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {showCandidateArtifacts ? (
+              <CodePreview
+                text={`candidate artifacts:\n${candidateArtifacts.map((file) => `- ${file}`).join("\n")}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {agent.persistenceWarnings && agent.persistenceWarnings.length > 0 ? (
+              <CodePreview
+                text={`persistence warning:\n${agent.persistenceWarnings.map((item) => `- ${item}`).join("\n")}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {agent.error ? (
+              <CodePreview text={agent.error} maxChars={1200} />
+            ) : agent.summary ? (
+              <CodePreview text={agent.summary} maxChars={2400} />
+            ) : null}
+            {reportFields.length > 0 ? (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-tiny text-muted-foreground/75">
+                {reportFields.map(([label, value]) => (
+                  <Fragment key={label}>
+                    <dt className="whitespace-nowrap">{label}</dt>
+                    <dd className="break-all text-foreground/75">{value}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+            ) : null}
+            {changedPaths.length > 0 ? (
+              <CodePreview
+                text={`changed paths:\n${changedPaths.map((file) => `- ${file}`).join("\n")}`}
+                maxChars={2400}
+              />
+            ) : null}
+            {allowedOutputPaths.length > 0 ? (
+              <CodePreview
+                text={`allowed output paths:\n${allowedOutputPaths.map((file) => `- ${file}`).join("\n")}`}
+                maxChars={1200}
+              />
+            ) : null}
+            {agent.diff ? (
+              <div className="space-y-1">
+                <CodePreview text={agent.diff} maxChars={2400} />
+                {agent.diffTruncated ? (
+                  <div className="text-tiny text-muted-foreground/60">
+                    diff truncated (showing the first part)
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-          {agent.role ? (
-            <div className="text-xs font-medium leading-1p55 text-foreground/78">
-              <span className="text-muted-foreground">role</span> {agent.role}
-            </div>
-          ) : null}
-          {agentTask ? (
-            <div className="break-words text-xs font-medium leading-1p6 text-foreground/80">
-              <span className="text-muted-foreground">task</span> {agentTask}
-            </div>
-          ) : null}
-          {shouldShowSubagentWorktreeLocation(agent) ? (
-            <div className="break-all text-tiny text-muted-foreground/70">
-              {agent.branchName ? `${agent.branchName} | ` : ""}
-              {agent.worktreeRoot}
-            </div>
-          ) : null}
-          {agent.diffStat ? <CodePreview text={agent.diffStat} maxChars={1200} /> : null}
-          {showUntrackedFiles ? (
-            <CodePreview
-              text={`untracked:\n${untrackedFiles.map((file) => `- ${file}`).join("\n")}`}
-              maxChars={1200}
-            />
-          ) : null}
-          {agent.worktreeStatusError ? (
-            <CodePreview text={agent.worktreeStatusError} maxChars={1200} />
-          ) : null}
-          {agent.applyError ? (
-            <CodePreview text={`apply failed:\n${agent.applyError}`} maxChars={1200} />
-          ) : agent.applySkippedReason && agent.applySkippedReason !== "no_changes" ? (
-            <CodePreview text={`apply skipped: ${agent.applySkippedReason}`} maxChars={1200} />
-          ) : null}
-          {agent.applyFallbackReason ? (
-            <CodePreview text={`fallback reason:\n${agent.applyFallbackReason}`} maxChars={1200} />
-          ) : null}
-          {agent.applyCopiedFiles && agent.applyCopiedFiles.length > 0 ? (
-            <CodePreview
-              text={`copied:\n${agent.applyCopiedFiles.map((file) => `- ${file}`).join("\n")}`}
-              maxChars={1200}
-            />
-          ) : null}
-          {agent.applyDeletedFiles && agent.applyDeletedFiles.length > 0 ? (
-            <CodePreview
-              text={`deleted:\n${agent.applyDeletedFiles.map((file) => `- ${file}`).join("\n")}`}
-              maxChars={1200}
-            />
-          ) : null}
-          {agent.applyConflictFiles && agent.applyConflictFiles.length > 0 ? (
-            <CodePreview
-              text={`apply conflicts:\n${agent.applyConflictFiles.map((file) => `- ${file}`).join("\n")}`}
-              maxChars={1200}
-            />
-          ) : null}
-          {agent.worktreeCleanupError ? (
-            <CodePreview
-              text={`worktree cleanup failed:\n${agent.worktreeCleanupError}`}
-              maxChars={1200}
-            />
-          ) : agent.worktreeCleanupReason && agent.worktreeCleanupStatus === "retained" ? (
-            <CodePreview
-              text={`worktree retained: ${agent.worktreeCleanupReason}`}
-              maxChars={1200}
-            />
-          ) : null}
-          {showCandidateArtifacts ? (
-            <CodePreview
-              text={`candidate artifacts:\n${candidateArtifacts.map((file) => `- ${file}`).join("\n")}`}
-              maxChars={1200}
-            />
-          ) : null}
-          {agent.persistenceWarnings && agent.persistenceWarnings.length > 0 ? (
-            <CodePreview
-              text={`persistence warning:\n${agent.persistenceWarnings.map((item) => `- ${item}`).join("\n")}`}
-              maxChars={1200}
-            />
-          ) : null}
-          {agent.error ? (
-            <CodePreview text={agent.error} maxChars={1200} />
-          ) : agent.summary ? (
-            <CodePreview text={agent.summary} maxChars={2400} />
-          ) : null}
         </div>
       </ToolSurface>
     );

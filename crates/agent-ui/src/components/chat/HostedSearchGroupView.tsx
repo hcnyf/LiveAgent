@@ -1,5 +1,5 @@
 import { ChevronRight, Globe, Link2, Search } from "@liveagent/ui/components/IconSet";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale } from "../../i18n/index";
 import { cn } from "../../lib/shared/utils";
 import { LazyCollapse } from "./LazyCollapse";
@@ -113,18 +113,28 @@ function completedLabel(locale: "zh-CN" | "en-US", searchCount: number, sourceCo
 export function HostedSearchGroupView({
   items,
   isLive = false,
+  isCurrentEntry = false,
 }: {
   items: HostedSearchBlockView[];
   isLive?: boolean;
+  isCurrentEntry?: boolean;
   readOnly?: boolean;
 }) {
   const { locale, t } = useLocale();
   const [expanded, setExpanded] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const userToggledRef = useRef(false);
   const queries = useMemo(() => getUniqueQueries(items), [items]);
   const sources = useMemo(() => getUniqueSources(items), [items]);
   const status = getGroupStatus(items);
   const active = isLive && status === "searching";
+  // 与思考/工具同一套口径：搜索正在跑（或它就是「当前那一步」）时自动展开，模型写出
+  // 下一条输出后自动收起；用户点过就归用户。
+  useEffect(() => {
+    if (!isLive) return;
+    if (userToggledRef.current) return;
+    setExpanded(active || isCurrentEntry);
+  }, [active, isCurrentEntry, isLive]);
   const failedCount = items.filter((item) => item.status === "failed").length;
   const visibleSources = showAll ? sources : sources.slice(0, COLLAPSED_SOURCE_COUNT);
   const hiddenSourceCount = sources.length - visibleSources.length;
@@ -154,7 +164,10 @@ export function HostedSearchGroupView({
           "px-1.5 py-1 text-sm font-[450] text-foreground/60 transition-colors",
           "hover:bg-foreground/[0.04] hover:text-foreground/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         )}
-        onClick={() => setExpanded((current) => !current)}
+        onClick={() => {
+          userToggledRef.current = true;
+          setExpanded((current) => !current);
+        }}
       >
         <Globe className="size-3 shrink-0 text-foreground/45" />
         <span

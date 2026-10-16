@@ -549,6 +549,13 @@ export function segmentWorkEntries(
 }
 
 /**
+ * 「过程类」内容区的高度上限：思考框与子代理详情共用同一个值——用户明确要求两者
+ * 一致（思考框比原来矮 1/3、子代理详情跟它同高），所以只留一处类名，超出滚动。
+ */
+export const WORK_DISCLOSURE_MAX_HEIGHT_CLASS =
+  "max-h-[213px] overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]";
+
+/**
  * 活回合里「模型还没有写出东西」的那一截 work entry：从末尾往前扫，遇到正文或压缩
  * 里程碑就停。
  *
@@ -567,6 +574,26 @@ export function resolveActiveWorkTailKeys(
     keys.add(entry.key);
   }
   return keys;
+}
+
+/**
+ * 活尾巴里「最新」的那一条 entry：只有它算「当前进行中」，逐行自动展开以它为界。
+ *
+ * 与 `resolveActiveWorkTailKeys` 配套：尾巴是连续后缀，所以最后一条 entry 落在尾巴里
+ * 就说明模型自上次输出以来只走了这一条。工具行/搜索行/子代理卡片据此决定自动展开与
+ * 自动收起（用户手动点过的以手动为准）。
+ */
+export function resolveCurrentWorkEntryKey(
+  entries: readonly AssistantTurnLayoutEntry[],
+  tailKeys: ReadonlySet<string>,
+): string | null {
+  if (tailKeys.size === 0) return null;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (!entry) continue;
+    return tailKeys.has(entry.key) ? entry.key : null;
+  }
+  return null;
 }
 
 /**

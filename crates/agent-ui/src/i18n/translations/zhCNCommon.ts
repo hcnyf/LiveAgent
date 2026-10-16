@@ -700,6 +700,7 @@ export const ZH_CN_COMMON_TRANSLATIONS = {
   "chat.tool.return": "返回",
   "chat.tool.error": "(错误)",
   "chat.tool.viewReturn": "查看返回内容",
+  "chat.tool.liveOutput": "实时输出",
   "chat.tool.subagentGroup": "子代理调用",
   "chat.tool.subagentGroupCount": "{count} 个",
   "chat.tool.askUserTitle": "向你提问",

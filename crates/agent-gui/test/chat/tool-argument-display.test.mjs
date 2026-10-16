@@ -152,6 +152,7 @@ function createToolCallItemRenderer() {
     mocks: {
       "react/jsx-runtime": jsxRuntime,
       "@liveagent/adapters/assistantBubble": {
+        useLiveToolOutput: () => undefined,
         readAskUserQuestionDeadline() {
           return undefined;
         },
@@ -843,5 +844,4 @@ test("a subagent card renders as a mind-map node under one parent row per Agent 
   // 末节点的竖线只画到横线处，不会拖出一条悬空的线。
   assert.match(last, /absolute left-1\.5 top-0 w-px bg-foreground\/15 h-3\.5/);
   assert.doesNotMatch(last, /chat\.tool\.subagentGroup/);
-});
 });

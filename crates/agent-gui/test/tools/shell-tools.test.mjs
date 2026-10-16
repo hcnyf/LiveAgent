@@ -20,6 +20,11 @@ test("Bash tool keeps one Bash entry and uses Git Bash-first policy for Claude C
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_run");
           return {
@@ -79,6 +84,11 @@ test("Bash tool uses the same Git Bash-first policy for Codex", async () => {
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_run");
           return {
@@ -128,6 +138,11 @@ test("sandboxed one-shot Bash forwards the offline sandbox contract", async () =
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_run");
           return {
@@ -220,6 +235,11 @@ test("Bash tool schema allows larger timeout values but clamps for Codex", async
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_run");
           return {
@@ -268,6 +288,11 @@ test("Bash tool rejects unsupported root arguments", async () => {
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -300,6 +325,11 @@ test("Bash tool rejects background commands that keep stdio attached", async () 
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -330,6 +360,11 @@ test("Bash tool rejects background commands when redirects belong to another com
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -359,6 +394,11 @@ test("Bash tool rejects background commands with only stderr append redirected",
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -388,6 +428,11 @@ test("Bash tool applies POSIX ampersand background validation on Windows", async
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("shell_run should not be invoked for rejected commands");
         },
@@ -417,6 +462,11 @@ test("Bash tool allows detached background commands on Windows", async () => {
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_run");
           return {
@@ -518,6 +568,11 @@ test("Bash tool allows background commands with detached stdio", async () => {
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_run");
           return {
@@ -586,6 +641,11 @@ test("ManagedProcess starts foreground commands through process manager", async 
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "managed_process_start");
           return {
@@ -647,6 +707,11 @@ test("ManagedProcess wait blocks through process manager", async () => {
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "managed_process_wait");
           return {
@@ -708,6 +773,11 @@ test("sandboxed ManagedProcess forwards the offline sandbox contract", async () 
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "managed_process_start");
           return {
@@ -760,6 +830,11 @@ test("ManagedProcess abort stops a process returned after cancellation", async (
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           if (command === "managed_process_start") {
             return startPromise;
@@ -828,6 +903,11 @@ test("ManagedProcess rejects nested shell background operators", async () => {
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -863,6 +943,11 @@ test("ManagedProcess rejects background ampersand commands on Windows", async ()
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("managed_process_start should not be invoked for rejected commands");
         },
@@ -935,6 +1020,11 @@ test("Bash tool can execute from the fixed Skills root with relative cwd", async
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_run");
           return {
@@ -987,6 +1077,11 @@ test("Bash tool allows enabled Skill scripts by direct absolute path without cd"
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_run");
           return {
@@ -1042,6 +1137,11 @@ test("Bash tool enforces enabled Skill allowlist for skill cwd", async () => {
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -1083,6 +1183,11 @@ test("Bash tool blocks absolute Skills root access from workspace commands", asy
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -1124,6 +1229,11 @@ test("Bash tool blocks fixed Skills root access even when Skills are disabled", 
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -1158,6 +1268,11 @@ test("Bash tool blocks workspace skills guesses before shell execution", async (
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           throw new Error("unexpected invoke");
         },
@@ -1219,6 +1334,11 @@ test("resumable Bash yields a session without applying an implicit hard timeout"
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_session_start");
           return {
@@ -1279,6 +1399,11 @@ test("sandboxed resumable Bash forwards the sandbox contract to the session", as
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           assert.equal(command, "shell_session_start");
           return {
@@ -1413,6 +1538,11 @@ test("ProcessWait paginates a Bash session and ProcessStop terminates it", async
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           if (command === "shell_session_wait") {
             return {
@@ -1482,6 +1612,11 @@ test("resumable Bash blocks leading sleep polling but allows short or internal s
     mocks: {
       "@tauri-apps/api/core": {
         async invoke(command, args) {
+          // liveShellOutput 的实时输出轮询也打这个 command（固定短 yield）；它不是工具
+          // 自己的调用，计数与参数断言都不该把它算进去。
+          if (command === "shell_session_wait" && args?.yield_time_ms === 400) {
+            throw new Error("live output poll is not a tool call");
+          }
           calls.push({ command, args });
           return {
             status: "completed",

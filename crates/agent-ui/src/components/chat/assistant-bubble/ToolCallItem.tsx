@@ -3,6 +3,7 @@ import {
   retainRunningToolContent,
   submitAskUserQuestionAnswers,
   submitPlanDecision,
+  useLiveToolOutput,
   usePendingToolApproval,
   usePlanDecisionState,
 } from "@liveagent/adapters/assistantBubble";
@@ -12,6 +13,7 @@ import { FileChangeBadge } from "@liveagent/ui/components/chat/FileChangeBadge";
 import { LazyCollapse } from "@liveagent/ui/components/chat/LazyCollapse";
 import { PlanModeCard } from "@liveagent/ui/components/chat/PlanModeCard";
 import { ToolScrollablePre, ToolSection } from "@liveagent/ui/components/chat/ToolSurfaces";
+import { useReaderDetached } from "@liveagent/ui/components/chat/TranscriptReadingContext";
 import { useLocale } from "@liveagent/ui/i18n/index";
 import {
   ASK_USER_QUESTION_TOOL_NAME,
@@ -51,6 +53,7 @@ import {
   getToolMeta,
   isBuiltinShareToolName,
   isSubagentCardToolCall,
+  WORK_DISCLOSURE_MAX_HEIGHT_CLASS,
 } from "./assistantBubbleUtils";
 import { ShellToolDisplay, ToolArgsDisplay, ToolResultDisplay } from "./ToolResultDisplay";
 
@@ -116,6 +119,7 @@ function ToolCallItem({
   readOnly = false,
   redactToolContent = false,
   compactChip = false,
+  liveAutoState,
   onOpenFileLink,
 }: {
   item: ToolTraceItem;
@@ -123,9 +127,17 @@ function ToolCallItem({
   readOnly?: boolean;
   redactToolContent?: boolean;
   compactChip?: boolean;
+  /**
+   * 活回合里这一行是否应当自动展开：`true` 展开、`false` 收起、`undefined` 不参与
+   * （历史/静态面）。与思考同一套口径——模型写出下一条输出时这一截就结束，于是收起。
+   */
+  liveAutoState?: boolean;
   onOpenFileLink?: (link: ChatFileLink) => void;
 }) {
   const { t } = useLocale();
+  const readerDetached = useReaderDetached();
+  // 运行中的 shell 会话增量输出（桌面端才有；WebUI 返回 undefined）。
+  const liveOutput = useLiveToolOutput(item.toolCall.id);
   const result = item.toolResult;
   const builtinResultKind = getBuiltinResultKind(result);
   const isBash = item.toolCall.name === "Bash";
@@ -274,11 +286,13 @@ function ToolCallItem({
             ? { name: localizedActivityTitle, action: "" }
             : getToolDisplayTitle(item.toolCall);
 
-  // Successful/running path-based file operations are deliberately a single
-  // IDE link row. Failed operations retain the disclosure so the error stays
+  // Successful path-based file operations collapse into a single IDE link row —
+  // but only **once the tool has settled**. While it is still running the row can
+  // expand like any other step, so「运行中展开、跑完收回单行」holds for reads and
+  // edits too. Failed operations retain the disclosure so the error stays
   // inspectable; Delete is concise but cannot link to a target that is gone.
   const simpleFileOperation =
-    !isRedactedToolContent && fileOperation && !result?.isError ? fileOperation : null;
+    !isRedactedToolContent && fileOperation && result && !result.isError ? fileOperation : null;
 
   const statusLabel = isApprovalPending
     ? t("chat.toolApproval.waitingStatus")
@@ -318,6 +332,25 @@ function ToolCallItem({
       setOpen(true);
     }
   }, [isRedactedToolContent, readOnly, shouldAutoOpen, shouldCloseAnsweredAsk, shouldKeepAskOpen]);
+
+  // 「当前进行中的那一步」自动展开，离开这一位（模型写出下一条输出）自动收起。提问卡与
+  // 计划卡有自己的应答语义，不参与；用户手动点过就归用户；读者停在历史里时不抢布局。
+  useEffect(() => {
+    if (liveAutoState === undefined) return;
+    if (readOnly || isRedactedToolContent) return;
+    if (isAskUser || isPlanCard) return;
+    if (userInteractedRef.current) return;
+    if (readerDetached) return;
+    setOpen(shouldAutoOpen || liveAutoState);
+  }, [
+    isAskUser,
+    isPlanCard,
+    isRedactedToolContent,
+    liveAutoState,
+    readOnly,
+    readerDetached,
+    shouldAutoOpen,
+  ]);
 
   const canExpand =
     !isRedactedToolContent &&
@@ -544,6 +577,20 @@ function ToolCallItem({
         >
           {isShellSessionTool ? <ShellToolDisplay item={item} result={result} /> : null}
 
+          {/* 命令还在跑、工具还没返回：先把会话的增量输出显示出来（限高滚动）。 */}
+          {displayIsRunning && liveOutput ? (
+            <ToolSection label={t("chat.tool.liveOutput")}>
+              <ToolScrollablePre
+                className={cn(
+                  "bg-black/[0.02] dark:bg-white/[0.03]",
+                  WORK_DISCLOSURE_MAX_HEIGHT_CLASS,
+                )}
+              >
+                {liveOutput}
+              </ToolScrollablePre>
+            </ToolSection>
+          ) : null}
+
           {!isShellSessionTool && shouldShowArgs && !compactChip ? (
             <ToolSection
               label={isBash || inlineCommand ? t("chat.tool.command") : t("chat.tool.args")}
@@ -634,7 +681,10 @@ function ToolCallItem({
               isLastCard ? "h-3.5" : "h-full",
             )}
           />
-          <span aria-hidden="true" className="absolute left-1.5 top-3.5 h-px w-2 bg-foreground/15" />
+          <span
+            aria-hidden="true"
+            className="absolute left-1.5 top-3.5 h-px w-2 bg-foreground/15"
+          />
           <span
             aria-hidden="true"
             className="absolute left-1.5 top-3 size-1.5 -translate-x-1/2 rounded-full bg-foreground/25"
@@ -722,6 +772,7 @@ export const MemoToolCallItem = memo(
   ToolCallItem,
   (previousProps, nextProps) =>
     previousProps.isRunning === nextProps.isRunning &&
+    previousProps.liveAutoState === nextProps.liveAutoState &&
     previousProps.readOnly === nextProps.readOnly &&
     previousProps.redactToolContent === nextProps.redactToolContent &&
     previousProps.compactChip === nextProps.compactChip &&

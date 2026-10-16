@@ -52,3 +52,11 @@ export function usePlanDecisionState(toolCallId: string, toolArguments: Record<s
 export function submitPlanDecision(toolCallId: string, answer: PlanDecisionAnswer) {
   return submitPlanDecisionViaGateway(toolCallId, answer);
 }
+
+/**
+ * WebUI 侧没有 shell 会话通道（`shell_session_wait` 是桌面端 command），所以拿不到
+ * 运行中的实时输出——返回 undefined，卡片照旧只显示「运行中」，不退化也不报错。
+ */
+export function useLiveToolOutput(_toolCallId: string): string | undefined {
+  return undefined;
+}

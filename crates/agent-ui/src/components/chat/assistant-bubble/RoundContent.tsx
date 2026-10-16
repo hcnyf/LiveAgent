@@ -25,6 +25,7 @@ import {
   resolveActiveWorkEntry,
   resolveActiveWorkTailKeys,
   resolveAssistantTurnLayout,
+  resolveCurrentWorkEntryKey,
   segmentWorkEntries,
 } from "./assistantBubbleUtils";
 import { CompactionSeamRow } from "./CompactionSeamRow";
@@ -53,6 +54,11 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
   showTurnStatus?: boolean;
   /** 这一段之后模型还没有写出东西（活回合的尾巴）；工具批次据此默认展开。 */
   activeWorkTail?: boolean;
+  /**
+   * 这条 entry 是活尾巴里最新的一条，也就是「当前进行中的那一步」。工具行、搜索行、
+   * 子代理卡片据此自动展开；离开这一位（模型写出下一条输出）就自动收起。
+   */
+  isCurrentWorkEntry?: boolean;
   readOnly?: boolean;
   redactToolContent?: boolean;
   workdir?: string;
@@ -68,6 +74,7 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
     traceKey,
     showTurnStatus = false,
     activeWorkTail = false,
+    isCurrentWorkEntry = false,
     readOnly = false,
     redactToolContent = false,
     workdir,
@@ -103,12 +110,15 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
     ) {
       content = null;
     } else {
+      const toolIsRunning = Boolean(
+        isLive && block.item.toolCall.id && runningToolCallIds.includes(block.item.toolCall.id),
+      );
       content = (
         <MemoToolCallItem
           item={block.item}
-          isRunning={Boolean(
-            isLive && block.item.toolCall.id && runningToolCallIds.includes(block.item.toolCall.id),
-          )}
+          isRunning={toolIsRunning}
+          // 活回合里参与「当前进行中才展开、离开就收起」的自动展开/收起；历史不参与。
+          liveAutoState={isLive ? toolIsRunning || isCurrentWorkEntry : undefined}
           readOnly={readOnly}
           redactToolContent={redactToolContent}
           onOpenFileLink={onOpenFileLink}
@@ -125,6 +135,7 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
         onOpenFileLink={onOpenFileLink}
         showTurnStatus={showTurnStatus}
         active={activeWorkTail}
+        isCurrentEntry={isCurrentWorkEntry}
       />
     );
   } else if (block.kind === "hostedSearch" || block.kind === "hostedSearchGroup") {
@@ -132,6 +143,7 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
       <HostedSearchGroupView
         items={block.kind === "hostedSearch" ? [block.item] : block.items}
         isLive={isLive}
+        isCurrentEntry={isCurrentWorkEntry}
         readOnly={readOnly}
       />
     );
@@ -265,6 +277,10 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
     () => (running ? resolveActiveWorkTailKeys(layout.work) : EMPTY_WORK_TAIL_KEYS),
     [running, layout.work],
   );
+  // 尾巴里最新的一条 = 「当前进行中的那一步」；工具行/搜索行/子代理卡片据此自动展开。
+  const currentWorkEntryKey = running
+    ? resolveCurrentWorkEntryKey(layout.work, activeWorkTailKeys)
+    : null;
   const collapsedTailEntry = running ? resolveActiveWorkEntry(layout.work) : null;
   const showWorkTrace = running || layout.work.length > 0;
   // 回合落定后思考过程照旧收起；可预览产物改由答案下方独立一行承载（见
@@ -299,6 +315,7 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
       traceKey={entry.key}
       showTurnStatus={insideWorkTrace && running && entry.key === latestToolGroupKey}
       activeWorkTail={activeWorkTailKeys.has(entry.key)}
+      isCurrentWorkEntry={entry.key === currentWorkEntryKey}
       readOnly={readOnly}
       redactToolContent={redactToolContent}
       workdir={workdir}

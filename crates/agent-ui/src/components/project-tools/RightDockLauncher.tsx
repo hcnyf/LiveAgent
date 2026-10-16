@@ -18,10 +18,7 @@ import {
   type RightDockLeasableToolKind,
   type RightDockLeasedToolKind,
 } from "./rightDockModel";
-import {
-  RIGHT_DOCK_TOOL_DEFINITIONS,
-  type RightDockSingletonTabKind,
-} from "./rightDockRegistry";
+import { RIGHT_DOCK_TOOL_DEFINITIONS, type RightDockSingletonTabKind } from "./rightDockRegistry";
 
 export type RightDockToolDragStartEvent = {
   pointerId: number;
@@ -153,19 +150,19 @@ export function RightDockCreateMenu(props: RightDockCreateMenuProps) {
             {t("workbench.openNewTerminalInSplit")}
           </DropdownMenuItem>
         ) : null}
-        {RIGHT_DOCK_TOOL_DEFINITIONS.filter(
-          (definition) => !leasedTools.has(definition.kind),
-        ).map((definition) => (
-          <DropdownMenuItem
-            key={definition.kind}
-            onSelect={() => onStartTool(definition.kind)}
-            disabled={definition.projectRequired ? !projectReady : !tunnelAvailable}
-            className="gap-2"
-          >
-            {definition.icon("size-3.5")}
-            {t(definition.createTitleKey)}
-          </DropdownMenuItem>
-        ))}
+        {RIGHT_DOCK_TOOL_DEFINITIONS.filter((definition) => !leasedTools.has(definition.kind)).map(
+          (definition) => (
+            <DropdownMenuItem
+              key={definition.kind}
+              onSelect={() => onStartTool(definition.kind)}
+              disabled={definition.projectRequired ? !projectReady : !tunnelAvailable}
+              className="gap-2"
+            >
+              {definition.icon("size-3.5")}
+              {t(definition.createTitleKey)}
+            </DropdownMenuItem>
+          ),
+        )}
         {leasedTools.has("backgroundTasks") ? null : (
           <DropdownMenuItem onSelect={onOpenBackgroundTasks} className="gap-2">
             <Cpu className="size-3.5" />
@@ -232,21 +229,21 @@ export function RightDockChooser(props: RightDockChooserProps) {
             }
           : undefined,
     },
-    ...RIGHT_DOCK_TOOL_DEFINITIONS.filter(
-      (definition) => !leasedTools.has(definition.kind),
-    ).map((definition) => {
-      const disabled = definition.projectRequired ? !projectReady : !tunnelAvailable;
-      return {
-        key: definition.kind,
-        title: t(definition.createTitleKey),
-        description: t(definition.descriptionKey),
-        icon: definition.icon("size-4.5"),
-        disabled,
-        titleAttr: definition.projectRequired ? disabledMessage : undefined,
-        onClick: () => onStartTool(definition.kind),
-        onPointerDown: toolDragHandler(definition.kind, disabled),
-      };
-    }),
+    ...RIGHT_DOCK_TOOL_DEFINITIONS.filter((definition) => !leasedTools.has(definition.kind)).map(
+      (definition) => {
+        const disabled = definition.projectRequired ? !projectReady : !tunnelAvailable;
+        return {
+          key: definition.kind,
+          title: t(definition.createTitleKey),
+          description: t(definition.descriptionKey),
+          icon: definition.icon("size-4.5"),
+          disabled,
+          titleAttr: definition.projectRequired ? disabledMessage : undefined,
+          onClick: () => onStartTool(definition.kind),
+          onPointerDown: toolDragHandler(definition.kind, disabled),
+        };
+      },
+    ),
     ...(leasedTools.has("backgroundTasks")
       ? []
       : [

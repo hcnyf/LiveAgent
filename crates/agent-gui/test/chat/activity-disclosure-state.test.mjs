@@ -5,7 +5,10 @@ import { createDomTestEnv } from "../helpers/dom-test-env.mjs";
 const EmptyIcon = () => null;
 const env = await createDomTestEnv({
   mocks: {
-    "@liveagent/adapters/assistantBubble": { retainRunningToolContent: false },
+    "@liveagent/adapters/assistantBubble": {
+      retainRunningToolContent: false,
+      useLiveToolOutput: () => undefined,
+    },
     "@liveagent/ui/components/chat/AssistantStatus": {
       AssistantStatus: ({ children }) => children,
     },

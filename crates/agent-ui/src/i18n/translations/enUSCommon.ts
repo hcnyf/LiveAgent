@@ -748,6 +748,7 @@ export const EN_US_COMMON_TRANSLATIONS = {
   "chat.tool.return": "Return",
   "chat.tool.error": "(Error)",
   "chat.tool.viewReturn": "View Return",
+  "chat.tool.liveOutput": "Live output",
   "chat.tool.subagentGroup": "Subagent call",
   "chat.tool.subagentGroupCount": "{count}",
   "chat.tool.askUserTitle": "Question for you",
