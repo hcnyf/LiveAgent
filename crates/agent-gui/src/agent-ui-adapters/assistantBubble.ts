@@ -1,6 +1,13 @@
 import type { AskUserQuestionAnswer } from "@liveagent/ui/lib/chat/askUserQuestion";
 import type { PlanDecisionAnswer } from "@liveagent/ui/lib/chat/planMode";
-import { useCallback, useSyncExternalStore } from "react";
+import type { SubagentRunDetail } from "@liveagent/ui/lib/subagents/runDetail";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import {
+  getSubagentRunDetailState,
+  subscribeSubagentRunDetail,
+  trackSubagentRunDetail,
+  untrackSubagentRunDetail,
+} from "../lib/subagents/liveRunDetail";
 import {
   answerAskUserQuestion,
   getAskUserQuestionDeadlineAt,
@@ -51,6 +58,26 @@ export function usePlanDecisionState(toolCallId: string, _toolArguments: Record<
 
 export function submitPlanDecision(toolCallId: string, answer: PlanDecisionAnswer) {
   return Promise.resolve(answerPlanDecision(toolCallId, answer));
+}
+
+/**
+ * 子代理的运行过程（它每一轮的思考 / 正文 / 工具调用）。父会话只拿到终态报告，过程要
+ * 从子代理运行态里取——桌面端取得到，WebUI 没有这个数据源。
+ */
+export function useSubagentRunDetail(params: {
+  agentId: string;
+  parentToolCallId: string;
+  agentIndex: number;
+  active: boolean;
+}): { detail: SubagentRunDetail | undefined; loading: boolean } {
+  const { agentId, parentToolCallId, agentIndex, active } = params;
+  useEffect(() => {
+    trackSubagentRunDetail({ agentId, parentToolCallId, agentIndex, active });
+    return () => untrackSubagentRunDetail(agentId);
+  }, [agentId, active, agentIndex, parentToolCallId]);
+  const subscribe = useCallback((listener: () => void) => subscribeSubagentRunDetail(listener), []);
+  const getSnapshot = useCallback(() => getSubagentRunDetailState(agentId), [agentId]);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /**

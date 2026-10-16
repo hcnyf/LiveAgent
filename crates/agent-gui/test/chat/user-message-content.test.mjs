@@ -244,7 +244,9 @@ test("trailing newlines render a visual line anchor without changing DOM text", 
     }),
   );
   assert.match(html, /^<span class="chat-user-message-content">alpha\n/);
-  assert.match(html, /<span aria-hidden="true" class="before:content-/);
+  // 锚点用一条手写 CSS 规则画伪元素：Tailwind 任意值里的反斜杠转义会被写成可见的
+  // 字面量 `\200b`（见 styles/base.css），所以这里锁的是那个类名。
+  assert.match(html, /<span aria-hidden="true" class="chat-user-trailing-newline"><\/span>/);
   assert.match(html, /<\/span><\/span>$/);
   assert.doesNotMatch(html, /\u200b/i);
 });

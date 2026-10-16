@@ -153,6 +153,7 @@ function createToolCallItemRenderer() {
       "react/jsx-runtime": jsxRuntime,
       "@liveagent/adapters/assistantBubble": {
         useLiveToolOutput: () => undefined,
+      useSubagentRunDetail: () => ({ detail: undefined, loading: false }),
         readAskUserQuestionDeadline() {
           return undefined;
         },

@@ -1071,7 +1071,9 @@ export const UserMessageContent = memo(function UserMessageContent({
       part.type === "pastedText",
   );
   const trailingNewlineAnchor = normalizedText.endsWith("\n") ? (
-    <span aria-hidden="true" className="before:content-['\\200b']" />
+    // 手写 CSS 类：Tailwind 任意值里的 `before:content-['\200b']` 会经过两层转义
+    // 变成可见的字面量 `\200b`（见 styles/base.css 里的说明）。
+    <span aria-hidden="true" className="chat-user-trailing-newline" />
   ) : null;
   if (!hasChip) {
     return (

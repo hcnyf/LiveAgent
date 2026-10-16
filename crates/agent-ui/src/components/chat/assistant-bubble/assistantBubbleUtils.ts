@@ -577,6 +577,26 @@ export function resolveActiveWorkTailKeys(
 }
 
 /**
+ * 「处理过程中的正文」：work 层里后面还有别的 work entry 的 text 块。这类块**永远不可能
+ * 变成最终答案**（answer 只取末轮尾部连续块），所以给它限高滚动是安全的；活回合尾部那段
+ * 正文（答案雏形）与 `layout.answer` 都不在其中。
+ *
+ * 用「后面还有 entry」而不是「isLive」当判据：活回合里刚写完、还没调工具的尾部正文正是
+ * 答案雏形，按 isLive 限高会在落定时解除，造成高度跳变。
+ */
+export function resolveInterstitialWorkTextKeys(
+  entries: readonly AssistantTurnLayoutEntry[],
+): ReadonlySet<string> {
+  const keys = new Set<string>();
+  for (let index = 0; index < entries.length - 1; index += 1) {
+    const entry = entries[index];
+    if (!entry) continue;
+    if (entry.block.kind === "text") keys.add(entry.key);
+  }
+  return keys;
+}
+
+/**
  * 活尾巴里「最新」的那一条 entry：只有它算「当前进行中」，逐行自动展开以它为界。
  *
  * 与 `resolveActiveWorkTailKeys` 配套：尾巴是连续后缀，所以最后一条 entry 落在尾巴里

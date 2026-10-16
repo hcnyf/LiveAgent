@@ -169,6 +169,7 @@ import { tauriSftpClient } from "../lib/sftp/tauriSftpClient";
 import { createGuiSidebarBackend } from "../lib/sidebar/guiSidebarBackend";
 import { desktopSttTransport } from "../lib/stt/desktopSttTransport";
 import { createSubagentStoreManager } from "../lib/subagents";
+import { setSubagentRunDetailSource } from "../lib/subagents/liveRunDetail";
 import { setNotificationPrefs } from "../lib/system/notifications";
 import { tauriTerminalClient } from "../lib/terminal/tauriTerminalClient";
 import { cancelPendingAskUserQuestionsForConversation } from "../lib/tools/askUserQuestionTools";
@@ -522,6 +523,11 @@ function ChatPageContent(props: ChatPageProps) {
   const conversationLoadSequenceRef = useRef(0);
   const [subagentStores] = useState(createSubagentStoreManager);
   const subagentStoresRef = useRef(subagentStores);
+  // 子代理「运行过程」的数据源就是当前会话的 store（卡片经 adapter 读它拿运行态）。
+  useEffect(() => {
+    setSubagentRunDetailSource(() => subagentStoresRef.current.get(currentConversationId));
+    return () => setSubagentRunDetailSource(null);
+  }, [currentConversationId]);
   const previousSubagentRuntimeConversationRef = useRef(currentConversationId);
   const subagentWarmupSignatureRef = useRef("");
   const titleJobRef = useRef<{

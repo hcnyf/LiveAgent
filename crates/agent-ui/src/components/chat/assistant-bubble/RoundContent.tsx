@@ -21,12 +21,15 @@ import {
   type GroupedRoundBlock,
   hasActiveUserInteraction,
   isBuiltinShareToolName,
+  isSubagentCardToolCall,
   resolveActiveThinkingEntryKey,
   resolveActiveWorkEntry,
   resolveActiveWorkTailKeys,
   resolveAssistantTurnLayout,
   resolveCurrentWorkEntryKey,
+  resolveInterstitialWorkTextKeys,
   segmentWorkEntries,
+  WORK_DISCLOSURE_MAX_HEIGHT_CLASS,
 } from "./assistantBubbleUtils";
 import { CompactionSeamRow } from "./CompactionSeamRow";
 import { ThinkingDisclosure } from "./ThinkingDisclosure";
@@ -59,6 +62,11 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
    * 子代理卡片据此自动展开；离开这一位（模型写出下一条输出）就自动收起。
    */
   isCurrentWorkEntry?: boolean;
+  /**
+   * 这条 entry 是「处理过程中的正文」（work 层里后面还有别的 entry 的 text）：把它包进
+   * 与思考同高的限高滚动窗口，免得过程正文把整条会话拉长。最终答案与尾部答案雏形不是。
+   */
+  isInterstitialWorkText?: boolean;
   readOnly?: boolean;
   redactToolContent?: boolean;
   workdir?: string;
@@ -75,6 +83,7 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
     showTurnStatus = false,
     activeWorkTail = false,
     isCurrentWorkEntry = false,
+    isInterstitialWorkText = false,
     readOnly = false,
     redactToolContent = false,
     workdir,
@@ -110,6 +119,7 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
     ) {
       content = null;
     } else {
+      const isSubagentCard = isSubagentCardToolCall(block.item.toolCall);
       const toolIsRunning = Boolean(
         isLive && block.item.toolCall.id && runningToolCallIds.includes(block.item.toolCall.id),
       );
@@ -118,7 +128,10 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
           item={block.item}
           isRunning={toolIsRunning}
           // 活回合里参与「当前进行中才展开、离开就收起」的自动展开/收起；历史不参与。
-          liveAutoState={isLive ? toolIsRunning || isCurrentWorkEntry : undefined}
+          // 子代理卡片允许默认折叠详情：不参与「当前进行中自动展开」。
+          liveAutoState={
+            isLive && !isSubagentCard ? toolIsRunning || isCurrentWorkEntry : undefined
+          }
           readOnly={readOnly}
           redactToolContent={redactToolContent}
           onOpenFileLink={onOpenFileLink}
@@ -172,6 +185,11 @@ export const RoundBlockContent = memo(function RoundBlockContent(props: {
           onOpenFileLink={onOpenFileLink}
         />
       );
+    if (isInterstitialWorkText) {
+      // 处理过程中的正文：与思考同高的限高滚动窗口。不加 useScrollFollow——这段已经
+      // 写完，静态停在顶部更符合「这是刚才那一步的正文」的语义，也不干扰会话的贴底跟随。
+      content = <div className={cn(WORK_DISCLOSURE_MAX_HEIGHT_CLASS, "pr-1")}>{content}</div>;
+    }
   } else {
     content = null;
   }
@@ -281,6 +299,11 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
   const currentWorkEntryKey = running
     ? resolveCurrentWorkEntryKey(layout.work, activeWorkTailKeys)
     : null;
+  // 处理过程中的正文（后面还有别的 entry 的 text）：包限高滚动窗口。
+  const interstitialWorkTextKeys = useMemo(
+    () => resolveInterstitialWorkTextKeys(layout.work),
+    [layout.work],
+  );
   const collapsedTailEntry = running ? resolveActiveWorkEntry(layout.work) : null;
   const showWorkTrace = running || layout.work.length > 0;
   // 回合落定后思考过程照旧收起；可预览产物改由答案下方独立一行承载（见
@@ -316,6 +339,7 @@ export const AssistantTurnContent = memo(function AssistantTurnContent(props: {
       showTurnStatus={insideWorkTrace && running && entry.key === latestToolGroupKey}
       activeWorkTail={activeWorkTailKeys.has(entry.key)}
       isCurrentWorkEntry={entry.key === currentWorkEntryKey}
+      isInterstitialWorkText={interstitialWorkTextKeys.has(entry.key)}
       readOnly={readOnly}
       redactToolContent={redactToolContent}
       workdir={workdir}

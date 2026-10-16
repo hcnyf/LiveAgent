@@ -8,6 +8,7 @@ import {
   resolveActiveWorkEntry,
   resolveActiveWorkTailKeys,
   resolveCurrentWorkEntryKey,
+  resolveInterstitialWorkTextKeys,
   segmentWorkEntries,
 } from "@liveagent/ui/components/chat/assistant-bubble/assistantBubbleUtils";
 import { RoundBlockContent } from "@liveagent/ui/components/chat/assistant-bubble/RoundContent";
@@ -61,6 +62,8 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
     unit.kind === "work-trace" && row.live
       ? resolveCurrentWorkEntryKey(workEntries, activeWorkTailKeys)
       : null;
+  // 处理过程中的正文（后面还有别的 entry 的 text）：包限高滚动窗口。
+  const interstitialWorkTextKeys = resolveInterstitialWorkTextKeys(workEntries);
   // 两次输出之间的过程收成概括条；正文与压缩里程碑留在条外可见。
   const workSegments = segmentWorkEntries(workEntries, {
     activeKey: collapsedTailEntry?.key ?? null,
@@ -81,6 +84,7 @@ export const AssistantBubbleUnit = memo(function AssistantBubbleUnit(props: {
       }
       activeWorkTail={activeWorkTailKeys.has(entry.key)}
       isCurrentWorkEntry={entry.key === currentWorkEntryKey}
+      isInterstitialWorkText={interstitialWorkTextKeys.has(entry.key)}
       workdir={workdir}
       onOpenFileLink={onOpenFileLink}
     />

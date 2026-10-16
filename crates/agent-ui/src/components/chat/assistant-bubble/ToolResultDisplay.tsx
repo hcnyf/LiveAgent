@@ -53,6 +53,7 @@ import {
   shouldShowSubagentWorktreeLocation,
   WORK_DISCLOSURE_MAX_HEIGHT_CLASS,
 } from "./assistantBubbleUtils";
+import { SubagentRunProcess } from "./SubagentRunProcess";
 import { getToolResultImages, ToolResultImagePreview } from "./ToolImages";
 
 type ShellResultDetails = {
@@ -1070,6 +1071,12 @@ export function ToolResultDisplay({
         <MetaTags tags={tags} />
         {/* 详情区与思考框同高：超出滚动，不把整条会话撑长。 */}
         <div className={cn("space-y-2", WORK_DISCLOSURE_MAX_HEIGHT_CLASS)}>
+          <SubagentRunProcess
+            agentId={agent.id}
+            parentToolCallId={details.parentToolCallId}
+            agentIndex={details.index}
+            active={false}
+          />
           <div className="space-y-2">
             <div className="text-xs font-semibold leading-1p45 text-foreground/90">
               {agentDisplayName}

@@ -8,6 +8,7 @@ const env = await createDomTestEnv({
     "@liveagent/adapters/assistantBubble": {
       retainRunningToolContent: false,
       useLiveToolOutput: () => undefined,
+      useSubagentRunDetail: () => ({ detail: undefined, loading: false }),
     },
     "@liveagent/ui/components/chat/AssistantStatus": {
       AssistantStatus: ({ children }) => children,

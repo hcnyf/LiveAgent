@@ -55,6 +55,7 @@ import {
   isSubagentCardToolCall,
   WORK_DISCLOSURE_MAX_HEIGHT_CLASS,
 } from "./assistantBubbleUtils";
+import { SubagentRunProcess } from "./SubagentRunProcess";
 import { ShellToolDisplay, ToolArgsDisplay, ToolResultDisplay } from "./ToolResultDisplay";
 
 // 折叠摘要里行内命令的展示上限:远超任何实际窗口一行可容纳的字符数,视觉
@@ -69,6 +70,12 @@ function capInlineCommandPreview(text: string) {
   return text.length > INLINE_COMMAND_PREVIEW_MAX_CHARS
     ? `${text.slice(0, INLINE_COMMAND_PREVIEW_MAX_CHARS)}…`
     : text;
+}
+
+/** 读子代理卡片 arguments 里的字符串字段；拿不到返回空串。 */
+function readSubagentArg(args: Record<string, unknown> | undefined, key: string) {
+  const value = args?.[key];
+  return typeof value === "string" ? value.trim() : "";
 }
 
 /** 子代理卡片的 1 基序号 / 总数；拿不到就按「只有一个」处理。 */
@@ -576,8 +583,16 @@ function ToolCallItem({
           )}
         >
           {isShellSessionTool ? <ShellToolDisplay item={item} result={result} /> : null}
-
-          {/* 命令还在跑、工具还没返回：先把会话的增量输出显示出来（限高滚动）。 */}
+          {/* 子代理还没交回结果：过程只能从运行态里取，先把它显示出来。 */}
+          {isSubagentCard && !result ? (
+            <SubagentRunProcess
+              agentId={readSubagentArg(item.toolCall.arguments, "id")}
+              parentToolCallId={readSubagentArg(item.toolCall.arguments, "parent_tool_call_id")}
+              agentIndex={subagentCardIndex - 1}
+              active={displayIsRunning}
+            />
+          ) : null}
+          `n {/* 命令还在跑、工具还没返回：先把会话的增量输出显示出来（限高滚动）。 */}
           {displayIsRunning && liveOutput ? (
             <ToolSection label={t("chat.tool.liveOutput")}>
               <ToolScrollablePre
@@ -590,7 +605,6 @@ function ToolCallItem({
               </ToolScrollablePre>
             </ToolSection>
           ) : null}
-
           {!isShellSessionTool && shouldShowArgs && !compactChip ? (
             <ToolSection
               label={isBash || inlineCommand ? t("chat.tool.command") : t("chat.tool.args")}
@@ -598,7 +612,6 @@ function ToolCallItem({
               <ToolArgsDisplay item={item} />
             </ToolSection>
           ) : null}
-
           {isAskUser && askQuestions.length > 0 ? (
             <AskUserQuestionCard
               questions={askQuestions}
@@ -610,7 +623,6 @@ function ToolCallItem({
               onSubmit={submitAskAnswers}
             />
           ) : null}
-
           {/* 提问卡/计划卡自带应答态展示；仅参数校验失败（无 details）时回落默认错误区。 */}
           {resultContent && compactChip ? (
             <div className="min-w-0 py-1 text-foreground/78 [&_.tool-text-scroll]:max-h-44 [&_.tool-text-scroll]:bg-foreground/[0.025]">

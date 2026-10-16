@@ -365,3 +365,11 @@ body > div:has([data-streamdown="table-fullscreen"]):not(#root) {
   border-radius: 8px;
   background-clip: padding-box;
 }
+/* 用户消息以换行结尾时撑出一个空行的视觉锚点。
+   必须写成手写 CSS：在 Tailwind 任意值里写 before:content-['\\200b'] 会经过
+   JS→Tailwind→CSS 两层转义，最终产出 content:'\\200b'——CSS 里 `\\` 是一个字面
+   反斜杠，浏览器就把 `\200b` 当普通文本画出来（用户看到的正是这个）。
+   这里一个反斜杠才是 U+200B 零宽空格，既不进 DOM 文本也不可见。 */
+.chat-user-trailing-newline::before {
+  content: "\200b";
+}

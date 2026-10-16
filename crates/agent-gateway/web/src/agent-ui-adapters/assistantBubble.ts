@@ -3,6 +3,7 @@ import { readAskUserQuestionDeadlineAt } from "@liveagent/ui/lib/chat/askUserQue
 import type { PlanDecisionAnswer } from "@liveagent/ui/lib/chat/planMode";
 import { readPlanApprovedMarker, readPlanPendingMarker } from "@liveagent/ui/lib/chat/planMode";
 import { readToolApprovalPending } from "@liveagent/ui/lib/chat/toolApprovalArgs";
+import type { SubagentRunDetail } from "@liveagent/ui/lib/subagents/runDetail";
 import { useSyncExternalStore } from "react";
 import { submitAskUserQuestionAnswer } from "../lib/chat/askUserQuestionBridge";
 import {
@@ -51,6 +52,19 @@ export function usePlanDecisionState(toolCallId: string, toolArguments: Record<s
 
 export function submitPlanDecision(toolCallId: string, answer: PlanDecisionAnswer) {
   return submitPlanDecisionViaGateway(toolCallId, answer);
+}
+
+/**
+ * WebUI 侧拿不到子代理的私有运行态（`subagent_run_load` 是桌面端 command），返回空，
+ * 卡片照旧只显示终态报告。
+ */
+export function useSubagentRunDetail(_params: {
+  agentId: string;
+  parentToolCallId: string;
+  agentIndex: number;
+  active: boolean;
+}): { detail: SubagentRunDetail | undefined; loading: boolean } {
+  return { detail: undefined, loading: false };
 }
 
 /**
