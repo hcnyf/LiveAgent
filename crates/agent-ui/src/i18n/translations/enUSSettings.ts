@@ -798,6 +798,9 @@ export const EN_US_SETTINGS_TRANSLATIONS = {
   "settings.modelInputModalitiesPdf": "PDF",
   "settings.modelInputModalitiesHint":
     "Checked items declare what this endpoint accepts: a checked PDF is inlined natively, an unchecked one falls back to Read text extraction. Auto-detect follows the built-in catalog and official-endpoint rules.",
+  "settings.modelAllowInvocation": "Allow background invocation",
+  "settings.modelAllowInvocationHint":
+    "When enabled, background work such as subagents and code review picks a model from the ones opted in here, and moves to the next on failure. With nothing opted in, the current conversation model is used.",
   "settings.modelThinkingLevels": "Thinking levels",
   "settings.modelThinkingLevelsHint":
     "Checked levels become the ones selectable for this model in chat (including “turn thinking off”). Leave untouched to follow the model catalog; levels the catalog does not declare stay checkable but are clamped by the catalog at request time.",

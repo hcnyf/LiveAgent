@@ -1070,6 +1070,37 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                             </FormFieldDescription>
                           </FormField>
                         ) : null}
+                        {/* 允许被自动调用：子代理 / 代码审查等后台任务从这里勾过的模型里挑一个。 */}
+                        {providerKind !== "image" ? (
+                          <FormField>
+                            <Label className="flex cursor-pointer items-start gap-2 text-sm font-normal">
+                              <Checkbox
+                                className="mt-0.5"
+                                checked={editingModel.model.allowModelInvocation === true}
+                                onCheckedChange={(checked) =>
+                                  setEditingModel((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          model: {
+                                            ...prev.model,
+                                            allowModelInvocation:
+                                              checked === true ? true : undefined,
+                                          },
+                                        }
+                                      : prev,
+                                  )
+                                }
+                              />
+                              <span className="space-y-0.5">
+                                <span className="block">{t("settings.modelAllowInvocation")}</span>
+                                <span className="block text-xs text-muted-foreground">
+                                  {t("settings.modelAllowInvocationHint")}
+                                </span>
+                              </span>
+                            </Label>
+                          </FormField>
+                        ) : null}
                         {providerType === "codex" && providerKind !== "image" ? (
                           <FormField>
                             <FormFieldLabel>
