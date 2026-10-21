@@ -577,6 +577,12 @@ export type ProviderModelConfig = {
    */
   defaultThinkingLevel?: ReasoningLevel;
   /**
+   * 允许被「自动调用」选中（子代理 / 代码审查等后台任务从这个列表里挑模型）。
+   * 缺失 = 不允许；只有显式勾选并且模型处于启用状态才进候选列表。
+   * 一个都没勾时这类任务回落到「当前会话模型」。
+   */
+  allowModelInvocation?: boolean;
+  /**
    * 生图模型的默认生成参数（仅 `CustomProvider.kind === "image"` 有意义）。
    * 取值按协议白名单校验，见 `lib/settings/imageGeneration.ts`：
    * codex 的 imageSize 是 `WxH`，gemini 的是宽高比——**刻意不做跨协议统一枚举**。

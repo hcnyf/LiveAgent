@@ -1142,6 +1142,8 @@ export function normalizeProviderModelConfig(
     // 用户勾选的思考档位与默认档；两者同进同出（默认档不属于勾选集合时丢弃）
     ...(thinkingLevels ? { thinkingLevels } : {}),
     ...(defaultThinkingLevel ? { defaultThinkingLevel } : {}),
+    // 「允许被自动调用」：缺失即不允许，所以只在真值时才写出（旧存档零影响）。
+    ...(obj.allowModelInvocation === true ? { allowModelInvocation: true } : {}),
     // 生图默认参数：仅生图供应商、且协议支持生图时才保留（取值按协议白名单校验，
     // 非法值直接丢弃 = 未配置，由调用期回落到协议默认值）。
     ...(imageParams ?? {}),
