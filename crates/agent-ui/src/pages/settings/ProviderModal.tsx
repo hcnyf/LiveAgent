@@ -616,8 +616,10 @@ function useProviderModalController({
   }
 
   // 思考档位：勾选集合与默认档都挂在模型草稿上（用户不动就不落库 → 旧存档零影响）。
+  // 未自定义时**展示目录里真实可用的档位**（与会话里的解析同口径），否则表单会显示一套
+  // 写死的假默认值，让人以为配好了却没落库——「配了不生效」的根源就在这里。
   const editingModelThinkingLevels = editingModel
-    ? getModelThinkingLevelsSelection(editingModel.model)
+    ? getModelThinkingLevelsSelection(editingModel.model, providerType)
     : [];
   const editingModelHasCustomThinkingLevels = editingModel
     ? hasModelThinkingLevelsOverride(editingModel.model)
@@ -629,13 +631,20 @@ function useProviderModalController({
 
   function toggleEditingModelThinkingLevel(level: ReasoningLevel, checked: boolean) {
     setEditingModel((prev) =>
-      prev ? { ...prev, model: applyModelThinkingLevelToggle(prev.model, level, checked) } : prev,
+      prev
+        ? {
+            ...prev,
+            model: applyModelThinkingLevelToggle(prev.model, level, checked, providerType),
+          }
+        : prev,
     );
   }
 
   function setEditingModelDefaultThinkingLevel(level: ReasoningLevel) {
     setEditingModel((prev) =>
-      prev ? { ...prev, model: applyModelDefaultThinkingLevel(prev.model, level) } : prev,
+      prev
+        ? { ...prev, model: applyModelDefaultThinkingLevel(prev.model, level, providerType) }
+        : prev,
     );
   }
 

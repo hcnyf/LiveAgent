@@ -111,12 +111,31 @@ export function toggleModelInputModalitiesItem(
   return ["text"];
 }
 
-/** 思考档位未自定义时的初始勾选（新建/编辑模型的展示默认值，不落库）。 */
+/** 思考档位未自定义时的兜底勾选（模型目录也判不出档位时才用，不落库）。 */
 export const DEFAULT_MODEL_THINKING_LEVELS: ReasoningLevel[] = ["low", "high", "max"];
 
-/** 展示用的勾选集合：未自定义时回落初始勾选（只读展示，不写回模型）。 */
-export function getModelThinkingLevelsSelection(model: ProviderModelConfig): ReasoningLevel[] {
-  return normalizeThinkingLevels(model.thinkingLevels) ?? [...DEFAULT_MODEL_THINKING_LEVELS];
+/**
+ * 展示用的勾选集合。
+ *
+ * **未自定义时必须显示「运行时真正会用的档位」**，不能显示一套写死的假默认值：之前这里
+ * 恒返回 `low/high/max`，于是表单看起来"配了"这三档，实际未落库、运行时回落到模型目录
+ * （例如 `off/minimal/low/medium/high`）——用户看到的就是「配了不生效」。现在未自定义时
+ * 直接取目录能力（目录也判不出才退回兜底），表单与会话永远一致；一旦用户勾选才产生覆盖。
+ */
+export function getModelThinkingLevelsSelection(
+  model: ProviderModelConfig,
+  providerId?: ProviderId,
+): ReasoningLevel[] {
+  const declared = normalizeThinkingLevels(model.thinkingLevels);
+  if (declared) return declared;
+  if (!providerId) return [...DEFAULT_MODEL_THINKING_LEVELS];
+  const capability = resolveModelThinking(providerId, model.id);
+  if (!capability.reasoning || capability.levels.length === 0) {
+    return [...DEFAULT_MODEL_THINKING_LEVELS];
+  }
+  // 与运行期同口径：能关闭思考时 "off" 也在可选集合里。
+  const known = new Set<string>([...(capability.alwaysOn ? [] : ["off"]), ...capability.levels]);
+  return REASONING_LEVEL_CHOICES.filter((item) => known.has(item));
 }
 
 /** 是否已自定义过勾选集合（缺失 = 按模型目录推断）。 */
@@ -133,8 +152,9 @@ export function applyModelThinkingLevelToggle(
   model: ProviderModelConfig,
   level: ReasoningLevel,
   checked: boolean,
+  providerId?: ProviderId,
 ): ProviderModelConfig {
-  const current = getModelThinkingLevelsSelection(model);
+  const current = getModelThinkingLevelsSelection(model, providerId);
   const next = REASONING_LEVEL_CHOICES.filter((item) =>
     item === level ? checked : current.includes(item),
   );
@@ -155,8 +175,9 @@ export function applyModelThinkingLevelToggle(
 export function applyModelDefaultThinkingLevel(
   model: ProviderModelConfig,
   level: ReasoningLevel,
+  providerId?: ProviderId,
 ): ProviderModelConfig {
-  const current = getModelThinkingLevelsSelection(model);
+  const current = getModelThinkingLevelsSelection(model, providerId);
   const next = REASONING_LEVEL_CHOICES.filter((item) => item === level || current.includes(item));
   return { ...model, thinkingLevels: next, defaultThinkingLevel: level };
 }
