@@ -175,7 +175,6 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
     editingModel,
     editingModelContextWindow,
     editingModelDefaultThinkingLevel,
-    editingModelHasCustomThinkingLevels,
     editingModelInputModalities,
     editingModelMaxOutputToken,
     editingModelThinkingLevels,
@@ -286,6 +285,12 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
   const imageQualityChoices = imageQualityOptions(imageGenerationProviderId, baseUrl);
   const imageSizeDefault = defaultImageSize(imageGenerationProviderId, baseUrl);
   const imageQualityDefault = defaultImageQuality(imageGenerationProviderId, baseUrl);
+  // 默认思考档位：落库有值就用它，没有就显示「已勾选的最高档」（规范顺序末位）——
+  // 与会话选择模型时的回落同口径，避免下拉是空的（要求：未手动选择时也显示默认档位）。
+  const editingModelEffectiveDefaultThinkingLevel =
+    editingModelDefaultThinkingLevel ??
+    editingModelThinkingLevels[editingModelThinkingLevels.length - 1] ??
+    null;
   return (
     <Dialog
       open={dialogOpen}
@@ -1031,15 +1036,13 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                             </FormFieldDescription>
                           </FormField>
                         ) : null}
-                        {providerKind !== "image" && editingModelHasCustomThinkingLevels ? (
+                        {providerKind !== "image" && editingModelThinkingLevels.length > 0 ? (
                           <FormField>
                             <FormFieldLabel>
                               {t("settings.modelDefaultThinkingLevel")}
                             </FormFieldLabel>
                             <Select
-                              value={
-                                editingModelDefaultThinkingLevel ?? editingModelThinkingLevels[0]
-                              }
+                              value={editingModelEffectiveDefaultThinkingLevel ?? undefined}
                               onValueChange={(value) => {
                                 if ((REASONING_LEVEL_CHOICES as string[]).includes(value)) {
                                   setEditingModelDefaultThinkingLevel(value as ReasoningLevel);
@@ -1049,12 +1052,13 @@ export function ProviderModalView({ viewModel }: { viewModel: ProviderModalViewM
                               <SelectTrigger variant="plain" className="h-8 shadow-none">
                                 {/* value≠label：闭合态必须显式渲染本地化标签。 */}
                                 <SelectValue>
-                                  {t(
-                                    THINKING_LEVEL_LABEL_KEYS[
-                                      editingModelDefaultThinkingLevel ??
-                                        editingModelThinkingLevels[0]
-                                    ],
-                                  )}
+                                  {editingModelEffectiveDefaultThinkingLevel
+                                    ? t(
+                                        THINKING_LEVEL_LABEL_KEYS[
+                                          editingModelEffectiveDefaultThinkingLevel
+                                        ],
+                                      )
+                                    : null}
                                 </SelectValue>
                               </SelectTrigger>
                               <SelectContent>

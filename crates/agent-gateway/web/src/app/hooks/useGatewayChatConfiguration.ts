@@ -17,6 +17,7 @@ import {
   isAgentDevMode,
   normalizeChatRuntimeControlsForProvider,
   resolveConfiguredThinkingAlwaysOn,
+  resolveEffectiveDefaultThinkingLevel,
   resolveWorkspaceResources,
   type SelectedModel,
   setSelectedModel,
@@ -170,16 +171,37 @@ export function useGatewayChatConfiguration({
     (selection: SelectedModel) => {
       const targetConversationId = displayedConversationId.trim();
       if (targetConversationId) {
+        // 换模型时把思考程度同步到新模型的默认档（未手选默认档时=已勾选的最高档）；
+        // 同一模型重复点选不清掉用户手选的档位。
+        const sameModel =
+          activeSelectedModel?.customProviderId === selection.customProviderId &&
+          activeSelectedModel?.model === selection.model;
+        const defaultReasoning =
+          sameModel && activeSelectedModel?.reasoning
+            ? undefined
+            : resolveEffectiveDefaultThinkingLevel(
+                settings.customProviders.find((item) => item.id === selection.customProviderId),
+                selection.model,
+              );
         setConversationModelOverrides((prev) => {
           const next = new Map(prev);
-          // 切换模型保留会话已有的思考设置；全局默认只记录模型。
-          next.set(targetConversationId, { ...activeSelectedModel, ...selection });
+          next.set(targetConversationId, {
+            ...activeSelectedModel,
+            ...selection,
+            ...(defaultReasoning ? { reasoning: defaultReasoning } : {}),
+          });
           return next;
         });
       }
       setSettings((prev) => setSelectedModel(prev, selection));
     },
-    [activeSelectedModel, displayedConversationId, setConversationModelOverrides, setSettings],
+    [
+      activeSelectedModel,
+      displayedConversationId,
+      setConversationModelOverrides,
+      setSettings,
+      settings.customProviders,
+    ],
   );
 
   const workspaceResources = useMemo(

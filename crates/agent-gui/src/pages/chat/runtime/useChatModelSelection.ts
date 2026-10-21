@@ -16,6 +16,7 @@ import {
   normalizeSelectedModelForProviders,
   parseSelectedModelJson,
   resolveConfiguredThinkingAlwaysOn,
+  resolveEffectiveDefaultThinkingLevel,
   type SelectedModel,
   serializeSelectedModelJson,
   setSelectedModel,
@@ -125,12 +126,34 @@ export function useChatModelSelection(params: UseChatModelSelectionParams) {
   const handleSelectModel = useCallback(
     (selection: SelectedModel) => {
       const conversationId = currentConversationIdRef.current;
-      // 切换模型保留会话已有的思考设置；全局默认只记录模型。
       const previous = conversationRuntimeCacheRef.current.get(conversationId)?.selectedModel;
-      saveConversationSelection(conversationId, { ...previous, ...selection });
+      // 换模型时把思考程度同步到新模型的默认档（未手选默认档时=已勾选的最高档）；
+      // 早先是「保留会话已有的思考设置」，会把旧模型的档位带到新模型上。
+      // 同一模型重复点选（选择器置顶行）不清掉用户手选的档位。
+      const sameModel =
+        previous?.customProviderId === selection.customProviderId &&
+        previous?.model === selection.model;
+      const defaultReasoning =
+        sameModel && previous?.reasoning
+          ? undefined
+          : resolveEffectiveDefaultThinkingLevel(
+              settings.customProviders.find((item) => item.id === selection.customProviderId),
+              selection.model,
+            );
+      saveConversationSelection(conversationId, {
+        ...previous,
+        ...selection,
+        ...(defaultReasoning ? { reasoning: defaultReasoning } : {}),
+      });
       setSettings((prev) => setSelectedModel(prev, selection));
     },
-    [conversationRuntimeCacheRef, currentConversationIdRef, saveConversationSelection, setSettings],
+    [
+      conversationRuntimeCacheRef,
+      currentConversationIdRef,
+      saveConversationSelection,
+      setSettings,
+      settings.customProviders,
+    ],
   );
 
   // 跨端收敛：history-sync 带回的会话模型选择（如 WebUI 发消息后落库）

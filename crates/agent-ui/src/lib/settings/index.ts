@@ -612,6 +612,24 @@ export function resolveConfiguredDefaultThinkingLevel(
 }
 
 /**
+ * 该模型的「默认思考程度」：优先用户设的默认档，否则取 **已勾选集合里最高的一档**
+ * （规范顺序是 off → minimal → … → max，所以取末位）。
+ *
+ * 未自定义档位（没有声明）时返回 undefined —— 表示"交给运行时链路（目录/桶）决定"，
+ * 调用方不要在换模型时去改会话设置。这条与 `getModelThinkingLevelsSelection` 的
+ * "未自定义就显示目录档位"配套：显示、默认值、运行时三者用同一份口径。
+ */
+export function resolveEffectiveDefaultThinkingLevel(
+  provider: ReasoningLevelsProvider | undefined,
+  modelId: string | undefined,
+): ReasoningLevel | undefined {
+  const declaration = readThinkingDeclaration(provider, modelId);
+  if (!declaration) return undefined;
+  if (declaration.defaultThinkingLevel) return declaration.defaultThinkingLevel;
+  return declaration.levels[declaration.levels.length - 1];
+}
+
+/**
  * 思考是否不可关闭：**有勾选时由勾选里是否含 "off" 决定**（spec ④-3），
  * 未自定义时回落目录的 `alwaysOn`（含 xai 的 wire 限制）。
  * 注意：请求期仍由目录钳制（`map.off = null`），此处的偏差按决策 K 由设置页标注暴露。

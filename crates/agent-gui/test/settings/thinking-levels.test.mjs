@@ -31,6 +31,7 @@ const {
   resolveConfiguredDefaultThinkingLevel,
   resolveConfiguredThinkingAlwaysOn,
   resolveConfiguredThinkingLevels,
+  resolveEffectiveDefaultThinkingLevel,
 } = loader.loadModule("src/lib/settings/index.ts");
 
 const BASE_MODEL = { id: "k3", contextWindow: 258000, maxOutputToken: 32000 };
@@ -112,9 +113,10 @@ test("model thinking selection falls back to the initial trio without writing it
 });
 
 test("toggling a thinking level materializes the pair and clears it when emptied", () => {
-  // 从"未自定义"直接勾选 off：初始 trio + off，按规范顺序。
+  // 从"未自定义"直接勾选 off：初始 trio + off，按规范顺序；默认档落到最高档。
   const withOff = applyModelThinkingLevelToggle(BASE_MODEL, "off", true);
   assert.deepEqual(withOff.thinkingLevels, ["off", "low", "high", "max"]);
+  assert.equal(withOff.defaultThinkingLevel, "max");
 
   // 取消掉最后一档 → 清空自定义（两个字段一起删除，回到按目录推断）。
   let emptied = { ...BASE_MODEL, thinkingLevels: ["low"], defaultThinkingLevel: "low" };
@@ -122,14 +124,14 @@ test("toggling a thinking level materializes the pair and clears it when emptied
   assert.equal("thinkingLevels" in emptied, false);
   assert.equal("defaultThinkingLevel" in emptied, false);
 
-  // 默认档被取消勾选时一并清掉，其余保留。
+  // 默认档被取消勾选时不给空档：落到"已勾选的最高档"（规范顺序末位）。
   const droppedDefault = applyModelThinkingLevelToggle(
     { ...BASE_MODEL, thinkingLevels: ["low", "high"], defaultThinkingLevel: "high" },
     "high",
     false,
   );
   assert.deepEqual(droppedDefault.thinkingLevels, ["low"]);
-  assert.equal("defaultThinkingLevel" in droppedDefault, false);
+  assert.equal(droppedDefault.defaultThinkingLevel, "low");
 
   // 默认档仍在集合内则保留。
   const keptDefault = applyModelThinkingLevelToggle(
@@ -284,6 +286,31 @@ test("resolveConfiguredDefaultThinkingLevel only accepts a default inside the de
     undefined,
   );
   assert.equal(resolveConfiguredDefaultThinkingLevel({ type: "deepseek" }, "deepseek-v4-pro"), undefined);
+});
+
+test("resolveEffectiveDefaultThinkingLevel falls back to the highest checked level", () => {
+  // 手动指定过默认档：用它。
+  assert.equal(
+    resolveEffectiveDefaultThinkingLevel(DEEPSEEK_PROVIDER_WITH_DEFAULT, "deepseek-v4-pro"),
+    "low",
+  );
+  // 默认档非法（不在勾选内）：取勾选集合的最高档。
+  assert.equal(
+    resolveEffectiveDefaultThinkingLevel(DEEPSEEK_PROVIDER_WITH_DEFAULT, "deepseek-v4-flash"),
+    "low",
+  );
+  // 未指定默认档但有勾选：取最高档（规范顺序末位）。
+  assert.equal(resolveEffectiveDefaultThinkingLevel(DEEPSEEK_PROVIDER, "deepseek-v4-flash"), "low");
+  assert.equal(
+    resolveEffectiveDefaultThinkingLevel(
+      { type: "deepseek", models: [{ id: "deepseek-v4-pro", thinkingLevels: ["off", "high"] }] },
+      "deepseek-v4-pro",
+    ),
+    "high",
+  );
+  // 完全没声明（按目录推断）：不给默认档，交由运行时回落。
+  assert.equal(resolveEffectiveDefaultThinkingLevel({ type: "deepseek" }, "deepseek-v4-pro"), undefined);
+  assert.equal(resolveEffectiveDefaultThinkingLevel(undefined, "deepseek-v4-pro"), undefined);
 });
 
 test("the default level sits between the model bucket and the provider bucket", () => {

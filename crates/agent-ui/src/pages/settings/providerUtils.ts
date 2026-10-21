@@ -162,12 +162,17 @@ export function applyModelThinkingLevelToggle(
   delete modelWithoutThinking.thinkingLevels;
   delete modelWithoutThinking.defaultThinkingLevel;
   if (next.length === 0) return modelWithoutThinking;
+  // 默认档：原来选的那个还在就保留；否则落到"已勾选的最高档"（规范顺序取末位）。
+  // 用户要求「未手动选择思考档位时也显示默认档位，默认选择已勾选的最高档位」——
+  // 这里直接落库，别只改显示，否则又会变成"看到配了、其实没配"。
+  const nextDefault =
+    model.defaultThinkingLevel && next.includes(model.defaultThinkingLevel)
+      ? model.defaultThinkingLevel
+      : next[next.length - 1];
   return {
     ...modelWithoutThinking,
     thinkingLevels: next,
-    ...(model.defaultThinkingLevel && next.includes(model.defaultThinkingLevel)
-      ? { defaultThinkingLevel: model.defaultThinkingLevel }
-      : {}),
+    ...(nextDefault ? { defaultThinkingLevel: nextDefault } : {}),
   };
 }
 
