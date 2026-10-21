@@ -85,6 +85,7 @@ import {
   type SubagentConversationStore,
   type SubagentTemplate,
 } from "../../../lib/subagents";
+import { buildSubagentModelCandidates } from "../../../lib/subagents/modelCandidates";
 import type { AdditionalProjectRoot } from "../../../lib/tools/additionalProjectRoots";
 import { buildBuiltinToolRegistry } from "../../../lib/tools/builtinRegistry";
 import type { BuiltinToolExecutionContext } from "../../../lib/tools/builtinTypes";
@@ -674,6 +675,10 @@ export async function runAgentConversationTurn(params: RunAgentConversationTurnP
           providerId,
           model,
           runtime,
+          // 「允许模型调用」候选：子代理先用会话模型，失败再按这个列表换人。
+          // getImageProviders 返回的就是全部 customProviders（历史命名），直接复用它，
+          // 免得再加一条同值的 getter 通道。
+          modelCandidates: buildSubagentModelCandidates(getImageProviders?.()),
           sessionId,
           templates: enabledSubagentTemplates(agentTemplates),
           store: subagentStore,

@@ -180,10 +180,25 @@ async function resolveOutputPaths(params: {
  * is the conversation's single source of truth (its conversationId doubles as
  * the parent conversation id); the scheduler is the turn's single scheduler.
  */
+/** 一个「允许被自动调用」的候选：换模型必须连带换 runtime（协议/鉴权都挂在它上面）。 */
+export type SubagentModelCandidate = {
+  providerId: ProviderId;
+  model: string;
+  runtime: ProviderRuntimeConfig;
+};
+
+/** 一次子代理最多换几次模型（含首次）；不做无限轮换，免得把额度烧在必然失败的请求上。 */
+export const MAX_SUBAGENT_MODEL_ATTEMPTS = 3;
+
 export type SubagentRuntimeConfig = {
   providerId: ProviderId;
   model: string;
   runtime: ProviderRuntimeConfig;
+  /**
+   * 「允许模型调用」候选（来自设置里的模型勾选）。空或缺省 = 完全按当前会话模型跑，
+   * 行为与之前一致。给了候选时，某个模型**跑失败**才会换下一个（取消/中断不算失败）。
+   */
+  modelCandidates?: SubagentModelCandidate[];
   sessionId?: string;
   templates: SubagentTemplate[];
   store: SubagentConversationStore;
@@ -196,6 +211,7 @@ export function createSubagentTools(params: {
   providerId: ProviderId;
   model: string;
   runtime: ProviderRuntimeConfig;
+  modelCandidates?: SubagentModelCandidate[];
   runtimePlatform?: RuntimePlatform;
   workdir: string;
   resolveHomeDir?: () => Promise<string>;
@@ -370,6 +386,51 @@ export function createSubagentTools(params: {
       onStatus: context?.emitToolStatus,
     };
 
+    /**
+     * 跑一个子代理；失败且还有候选模型时换下一个重试。
+     *
+     * 只有「跑失败」才换：取消/中断是用户意图，换模型只会白烧额度。候选来自设置里
+     * 「允许模型调用」的勾选；没勾任何模型时 modelCandidates 为空，这里退化成一次普通
+     * 调用（与旧行为完全一致）。换过模型时把经过写进 statusText，卡片上看得见。
+     */
+    const runSubagentWithModelFailover = async (
+      runEnv: SubagentRunEnvironment,
+      request: Parameters<typeof executeSubagentRun>[1],
+    ): Promise<SubagentReportDetails> => {
+      const candidates = params.modelCandidates ?? [];
+      if (candidates.length === 0) return executeSubagentRun(runEnv, request);
+      const runSignal = request.signal;
+
+      const attempts = candidates.slice(0, MAX_SUBAGENT_MODEL_ATTEMPTS);
+      const switched: string[] = [];
+      let lastReport: SubagentReportDetails | undefined;
+      for (const [attemptIndex, candidate] of attempts.entries()) {
+        const report = await executeSubagentRun(
+          attemptIndex === 0
+            ? runEnv
+            : {
+                ...runEnv,
+                providerId: candidate.providerId,
+                model: candidate.model,
+                runtime: candidate.runtime,
+              },
+          request,
+        );
+        if (report.status !== "failed" || runSignal?.aborted) {
+          return switched.length > 0
+            ? {
+                ...report,
+                statusText: `switched model: ${switched.join(" → ")} → ${candidate.model}`,
+              }
+            : report;
+        }
+        switched.push(candidate.model);
+        lastReport = report;
+      }
+      // 候选非空时循环至少跑过一次；这里只是让类型收敛，不做断言。
+      return lastReport ?? executeSubagentRun(runEnv, request);
+    };
+
     const reports = await runWithConcurrency(
       agents,
       concurrency,
@@ -409,20 +470,17 @@ export function createSubagentTools(params: {
         };
 
         try {
+          const request = {
+            spec: resolved.spec,
+            existingIdentity: resolved.existingIdentity,
+            template: resolved.template,
+            parentToolCallId: toolCall.id,
+            index,
+            total: agents.length,
+            signal,
+          };
           const report = await enqueueAgentRun(resolved.spec.id, () =>
-            scheduler.runSubagent(
-              () =>
-                executeSubagentRun(env, {
-                  spec: resolved.spec,
-                  existingIdentity: resolved.existingIdentity,
-                  template: resolved.template,
-                  parentToolCallId: toolCall.id,
-                  index,
-                  total: agents.length,
-                  signal,
-                }),
-              signal,
-            ),
+            scheduler.runSubagent(() => runSubagentWithModelFailover(env, request), signal),
           );
           return finish(report);
         } catch (error) {
